@@ -70,17 +70,24 @@ public partial class CaptureOverlay : Window
         _annotation = new AnnotationCanvas(annotationCanvas);
         _toolButtons = new[] { btnRect, btnEllipse, btnArrow, btnPen };
 
-        // 默认选区 = 主显示器工作区(排除任务栏),换算到窗口坐标
-        var wa = SystemParameters.WorkArea;
-        _selection = new Rect(
-            wa.Left - SystemParameters.VirtualScreenLeft,
-            wa.Top - SystemParameters.VirtualScreenTop,
-            wa.Width, wa.Height);
+        // 默认选区 = 光标所在显示器的工作区(排除任务栏);不框选直接确认即截当前整屏。
+        _selection = DefaultSelectionRect();
 
         selectionBorder.Visibility = Visibility.Visible;
         toolbar.Visibility = Visibility.Visible;
         UpdateVisuals();
         Activate();
+    }
+
+    /// <summary>默认选区 = 光标所在显示器的工作区(物理像素换算到窗口 DIP 坐标)。</summary>
+    private Rect DefaultSelectionRect()
+    {
+        var wa = System.Windows.Forms.Screen.FromPoint(System.Windows.Forms.Cursor.Position).WorkingArea;
+        return new Rect(
+            wa.Left / _scaleX - SystemParameters.VirtualScreenLeft,
+            wa.Top / _scaleY - SystemParameters.VirtualScreenTop,
+            wa.Width / _scaleX,
+            wa.Height / _scaleY);
     }
 
     // ---------- 手柄 ----------
@@ -201,10 +208,8 @@ public partial class CaptureOverlay : Window
 
         if (_selection.Width < 8 || _selection.Height < 8)
         {
-            // 选区过小 → 恢复整屏工作区默认
-            var wa = SystemParameters.WorkArea;
-            _selection = new Rect(wa.Left - SystemParameters.VirtualScreenLeft,
-                                  wa.Top - SystemParameters.VirtualScreenTop, wa.Width, wa.Height);
+            // 选区过小 → 恢复光标所在屏的工作区默认
+            _selection = DefaultSelectionRect();
             _isDefaultSelection = true;
         }
         else if (mode == DragMode.NewSelection)

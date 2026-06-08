@@ -40,9 +40,12 @@
 
                             <Border x:Name="PART_TitleBar"
                                     Grid.Row="0"
-                                    Background="{StaticResource SurfaceBrush}"
-                                    BorderBrush="{StaticResource BorderBrush}"
-                                    BorderThickness="0,0,0,1">
+                                    Panel.ZIndex="1"
+                                    Background="{StaticResource SurfaceBrush}">
+                                <Border.Effect>
+                                    <DropShadowEffect Color="{StaticResource ElevationShadowColor}"
+                                                      Direction="270" ShadowDepth="1.5" BlurRadius="10" Opacity="0.06"/>
+                                </Border.Effect>
                                 <Grid>
                                     <TextBlock Text="{TemplateBinding Title}"
                                                FontSize="13"

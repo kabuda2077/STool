@@ -136,6 +136,13 @@ public partial class CaptureOverlay : Window
         _dragStart = p;
         _selectionAtStart = _selection;
 
+        // 双击选区内 = 复制并完成
+        if (e.ClickCount == 2 && _selection.Contains(p))
+        {
+            CopyAndClose();
+            return;
+        }
+
         if (!_isDefaultSelection && _selection.Contains(p))
         {
             _dragMode = DragMode.Move;

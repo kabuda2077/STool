@@ -19,6 +19,20 @@ public class HotkeyBox : TextBox
         Cursor = Cursors.Hand;
     }
 
+    protected override void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs e)
+    {
+        base.OnGotKeyboardFocus(e);
+        // 进入捕获:挂起全局快捷键,否则按 Ctrl+Alt+A 等会被系统级热键拦截而录不进来
+        (System.Windows.Application.Current as STool.App)?.SuspendHotkeys();
+    }
+
+    protected override void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs e)
+    {
+        base.OnLostKeyboardFocus(e);
+        // 退出捕获:按最新配置恢复全局快捷键
+        (System.Windows.Application.Current as STool.App)?.ReloadHotkeys();
+    }
+
     protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
         // Alt 组合时主键会走 SystemKey

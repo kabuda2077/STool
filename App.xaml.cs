@@ -44,5 +44,10 @@ public partial class App : System.Windows.Application
     {
         _bootstrap?.ReloadHotkeys();
     }
+
+    public void SuspendHotkeys()
+    {
+        _bootstrap?.SuspendGlobalHotkeys();
+    }
 }
 

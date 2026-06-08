@@ -13,6 +13,7 @@ public class AppBootstrap : IDisposable
     private readonly IServiceProvider _serviceProvider;
     private readonly HotkeyManager _hotkeyManager;
     private readonly ConfigManager _configManager;
+    private STool.Views.SettingsWindow? _settingsWindow;
 
     public AppBootstrap()
     {
@@ -134,6 +135,16 @@ public class AppBootstrap : IDisposable
         RegisterConfiguredHotkeys();
     }
 
+    /// <summary>
+    /// 临时挂起所有全局快捷键。用于快捷键录入框获得焦点时,
+    /// 避免系统级热键拦截按键(否则按 Ctrl+Alt+A 等会触发功能而非被录入)。
+    /// 失焦时调用 ReloadHotkeys() 恢复。
+    /// </summary>
+    public void SuspendGlobalHotkeys()
+    {
+        _hotkeyManager.UnregisterAll();
+    }
+
     private void OnScreenshotHotkey()
     {
         Log.Information("Screenshot hotkey triggered");
@@ -194,15 +205,21 @@ public class AppBootstrap : IDisposable
 
     private void OnSettings(object? sender, EventArgs e)
     {
-        var configManager = _serviceProvider.GetService(typeof(ConfigManager)) as ConfigManager;
-        if (configManager == null)
+        // 单例:已打开则激活,避免多个设置窗口
+        if (_settingsWindow != null)
         {
-            Log.Warning("ConfigManager not found");
+            _settingsWindow.Activate();
             return;
         }
 
-        var settingsWindow = new STool.Views.SettingsWindow(configManager);
-        settingsWindow.Show();
+        _settingsWindow = new STool.Views.SettingsWindow(_configManager);
+        _settingsWindow.Closed += (_, _) =>
+        {
+            _settingsWindow = null;
+            // 安全网:关闭后确保全局快捷键按最新配置恢复
+            ReloadHotkeys();
+        };
+        _settingsWindow.Show();
     }
 
     private void OnExit(object? sender, EventArgs e)

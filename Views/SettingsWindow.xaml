@@ -44,6 +44,7 @@
                 Background="{StaticResource BackgroundBrush}">
             <ScrollViewer VerticalScrollBarVisibility="Auto"
                           Background="Transparent"
+                          FocusVisualStyle="{x:Null}"
                           Padding="0">
                 <Grid x:Name="contentPanel" Margin="22,18"/>
             </ScrollViewer>

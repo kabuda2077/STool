@@ -6,7 +6,8 @@
       "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_verify_tray.ps1\")",
       "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_verify_shutdown.ps1\")",
       "Bash(taskkill //IM STool.exe //F)",
-      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"settings: remove sidebar icons + clipboard settings tab; crisper text \\(UseLayoutRounding + ClearType\\)\")"
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"settings: remove sidebar icons + clipboard settings tab; crisper text \\(UseLayoutRounding + ClearType\\)\")",
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"settings: click-to-capture hotkey box \\(HotkeyBox\\); remove dotted focus rect on content\")"
     ]
   }
 }

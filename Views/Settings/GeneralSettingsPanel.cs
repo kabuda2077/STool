@@ -112,18 +112,18 @@ public class GeneralSettingsPanel : StackPanel
         };
         panel.Children.Add(labelBlock);
 
-        textBox = new System.Windows.Controls.TextBox
+        textBox = new HotkeyBox
         {
+            Style = (Style)FindResource("ModernTextBox"),
             Width = 280,
             Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
-            IsReadOnly = false
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Left
         };
         panel.Children.Add(textBox);
 
         var hint = new TextBlock
         {
-            Text = "格式示例：Ctrl+Alt+A、Ctrl+Shift+F1",
+            Text = "点击输入框后，直接按下快捷键组合（如 Ctrl+Alt+A）",
             Style = (Style)FindResource("HintText"),
             Margin = new Thickness(0, 3, 0, 0)
         };

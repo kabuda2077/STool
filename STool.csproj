@@ -10,6 +10,8 @@
     <ApplicationIcon>Resources\STool.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <UseWindowsForms>true</UseWindowsForms>
+    <!-- WPF 走 manifest 声明 DPI 感知;抑制 WinForms 分析器对 manifest DPI 的误报 -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

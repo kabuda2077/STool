@@ -59,7 +59,8 @@
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"ui refactor: remove window title-bar divider and settings sidebar divider; separate chrome from content via tone + soft directional shadows \\(no lines\\)\")",
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"ui refactor rollout: apply tonal+elevation language to clipboard \\(white row blocks on canvas, neutral badges, borderless tabs/FAB\\), translation \\(sunken input/result wells, borderless provider toggle, sunken combos\\), and remove borders from toast/tray-menu/pin \\(rely on shadow\\); unify window content bg to canvas\")",
       "Bash(grep -iA2 -B1 \"dpi\")",
-      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"fix text crispness: declare PerMonitorV2 dpiAwareness in app.manifest \\(was missing; WPF was rendering bitmap-scaled on HiDPI -> jagged/uneven CJK strokes\\)\")"
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"fix text crispness: declare PerMonitorV2 dpiAwareness in app.manifest \\(was missing; WPF was rendering bitmap-scaled on HiDPI -> jagged/uneven CJK strokes\\)\")",
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"build: suppress WinForms WFO0003 \\(manifest DPI is the correct mechanism for this WPF app\\)\")"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj"

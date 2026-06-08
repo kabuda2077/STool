@@ -1,0 +1,11 @@
+# Build output
+bin/
+obj/
+_verify_build/
+
+# IDE
+.vs/
+*.user
+
+# Logs
+*.log

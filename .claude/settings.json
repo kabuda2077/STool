@@ -35,7 +35,8 @@
       "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_tb.ps1\")",
       "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_anno.ps1\")",
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"fix: annotation canvas not hit-testable \\(add Background\\); pin window drag jitter \\(use DragMove\\) + remove opacity + Esc/double-click close\")",
-      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"pin: clean round close button \\(white X, hover red\\); tray menu: remove icons + 'STool running' header\")"
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"pin: clean round close button \\(white X, hover red\\); tray menu: remove icons + 'STool running' header\")",
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"screenshot toolbar: Lucide-style line icons \\(vector paths\\); fix selected-tool highlight overflowing row height\")"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj"

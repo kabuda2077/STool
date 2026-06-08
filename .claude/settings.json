@@ -19,7 +19,15 @@
       "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_shot_settings.ps1\")",
       "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_read_edits.ps1\")",
       "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_capture_test.ps1\")",
-      "Bash(cd \"e:/Data/Project/STool\" && taskkill //IM STool.exe //F 2>/dev/null; sleep 1; dotnet build 2>&1 | tail -4; rm -f obj/_*.ps1 obj/_*.png obj/_*.txt 2>/dev/null; echo \"temp cleaned\")"
+      "Bash(cd \"e:/Data/Project/STool\" && taskkill //IM STool.exe //F 2>/dev/null; sleep 1; dotnet build 2>&1 | tail -4; rm -f obj/_*.ps1 obj/_*.png obj/_*.txt 2>/dev/null; echo \"temp cleaned\")",
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_gen_icon.ps1\")",
+      "Bash(powershell -NoProfile -Command 'Add-Type -AssemblyName System.Drawing; $ico = New-Object System.Drawing.Icon\\('\\\\''E:\\\\Data\\\\Project\\\\STool\\\\Resources\\\\STool.ico'\\\\'', 128, 128\\); $bmp = $ico.ToBitmap\\(\\); $bmp.Save\\('\\\\''E:\\\\Data\\\\Project\\\\STool\\\\obj\\\\_icon_preview.png'\\\\''\\); Write-Output \\('\\\\''rendered '\\\\'' + $bmp.Width + '\\\\''x'\\\\'' + $bmp.Height\\)')",
+      "Bash(powershell -NoProfile -Command 'Add-Type -AssemblyName System.Drawing; try { $ico = New-Object System.Drawing.Icon\\('\\\\''E:\\\\Data\\\\Project\\\\STool\\\\Resources\\\\STool.ico'\\\\''\\); $bmp = $ico.ToBitmap\\(\\); $bmp.Save\\('\\\\''E:\\\\Data\\\\Project\\\\STool\\\\obj\\\\_icon_preview.png'\\\\''\\); Write-Output \\('\\\\''OK default-ctor '\\\\'' + $bmp.Width + '\\\\''x'\\\\'' + $bmp.Height\\) } catch { Write-Output \\('\\\\''FAIL: '\\\\'' + $_.Exception.Message\\) }')",
+      "Bash(powershell -NoProfile -Command 'Add-Type -AssemblyName System.Drawing; $ico = New-Object System.Drawing.Icon\\('\\\\''E:\\\\Data\\\\Project\\\\STool\\\\Resources\\\\STool.ico'\\\\''\\); $ico.ToBitmap\\(\\).Save\\('\\\\''E:\\\\Data\\\\Project\\\\STool\\\\obj\\\\_icon_preview.png'\\\\''\\); Write-Output '\\\\''rendered'\\\\''')",
+      "Bash(python -c \"from PIL import Image; im=Image.open\\('Resources/STool.ico'\\); im=im.convert\\('RGBA'\\); im.save\\('obj/_icon_preview.png'\\); print\\('size', im.size\\)\")",
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_shot.ps1\")",
+      "Bash(rm -f obj/_*.ps1 obj/_*.png)",
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"ui: uniform full-width settings inputs \\(stretch\\); new centered-S app icon\")"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj"

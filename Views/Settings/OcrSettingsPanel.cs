@@ -47,9 +47,8 @@ public class OcrSettingsPanel : StackPanel
         AddLabel("OCR 提供商");
         _cmbProvider = new System.Windows.Controls.ComboBox
         {
-            Width = 360,
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+            MinHeight = 36,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
             Margin = new Thickness(0, 4, 0, 8)
         };
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "Windows 本地 OCR", Tag = OcrProvider.WindowsLocal });
@@ -139,9 +138,8 @@ public class OcrSettingsPanel : StackPanel
     {
         var textBox = new System.Windows.Controls.TextBox
         {
-            Width = 420,
             MinHeight = 36,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Left
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
         };
         _activeSection.Children.Add(textBox);
         return textBox;
@@ -151,9 +149,8 @@ public class OcrSettingsPanel : StackPanel
     {
         var passwordBox = new System.Windows.Controls.PasswordBox
         {
-            Width = 420,
             MinHeight = 36,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Left
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
         };
         _activeSection.Children.Add(passwordBox);
         return passwordBox;

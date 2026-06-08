@@ -48,9 +48,8 @@ public class TranslationSettingsPanel : StackPanel
         AddLabel("翻译提供商");
         _cmbProvider = new System.Windows.Controls.ComboBox
         {
-            Width = 360,
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+            MinHeight = 36,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
             Margin = new Thickness(0, 4, 0, 8)
         };
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "腾讯云翻译", Tag = TranslationProvider.Tencent });
@@ -64,9 +63,8 @@ public class TranslationSettingsPanel : StackPanel
         AddLabel("源语言");
         _cmbSourceLanguage = new System.Windows.Controls.ComboBox
         {
-            Width = 220,
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+            MinHeight = 36,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
             Margin = new Thickness(0, 4, 0, 8)
         };
         _cmbSourceLanguage.Items.Add(new ComboBoxItem { Content = "自动检测", Tag = "auto" });
@@ -79,9 +77,8 @@ public class TranslationSettingsPanel : StackPanel
         AddLabel("目标语言");
         _cmbTargetLanguage = new System.Windows.Controls.ComboBox
         {
-            Width = 220,
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Left,
+            MinHeight = 36,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
             Margin = new Thickness(0, 4, 0, 8)
         };
         _cmbTargetLanguage.Items.Add(new ComboBoxItem { Content = "中文", Tag = "zh" });
@@ -163,9 +160,8 @@ public class TranslationSettingsPanel : StackPanel
     {
         var textBox = new System.Windows.Controls.TextBox
         {
-            Width = 420,
             MinHeight = 36,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Left
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
         };
         _activeSection.Children.Add(textBox);
         return textBox;
@@ -175,9 +171,8 @@ public class TranslationSettingsPanel : StackPanel
     {
         var passwordBox = new System.Windows.Controls.PasswordBox
         {
-            Width = 420,
             MinHeight = 36,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Left
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
         };
         _activeSection.Children.Add(passwordBox);
         return passwordBox;

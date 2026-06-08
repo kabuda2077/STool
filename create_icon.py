@@ -1,48 +1,30 @@
 from PIL import Image, ImageDraw, ImageFont
-import os
 
-# 创建多个尺寸的图标
-sizes = [16, 24, 32, 48, 64, 128, 256]
-images = []
+# 单张高清 256 图,交给 PIL 生成各尺寸 —— 品牌蓝圆角方块 + 居中白色粗体 S
+SIZE = 256
+img = Image.new('RGBA', (SIZE, SIZE), (0, 0, 0, 0))
+draw = ImageDraw.Draw(img)
 
-for size in sizes:
-    # 创建图像
-    img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
+margin = int(SIZE * 0.06)
+radius = int(SIZE * 0.22)
+draw.rounded_rectangle(
+    [margin, margin, SIZE - margin - 1, SIZE - margin - 1],
+    radius=radius, fill=(37, 99, 235, 255))
 
-    # 背景圆形 - 使用主色调蓝色
-    margin = size // 10
-    draw.ellipse([margin, margin, size - margin, size - margin],
-                 fill=(37, 99, 235, 255))  # #2563EB
-
-    # 绘制 S 字母
-    font_size = int(size * 0.6)
+font = None
+for name in ("segoeuib.ttf", "arialbd.ttf", "seguisb.ttf", "segoeui.ttf", "arial.ttf"):
     try:
-        # 尝试使用系统字体
-        font = ImageFont.truetype("segoeui.ttf", font_size)
-    except:
-        try:
-            font = ImageFont.truetype("arial.ttf", font_size)
-        except:
-            font = ImageFont.load_default()
+        font = ImageFont.truetype(name, int(SIZE * 0.6))
+        break
+    except Exception:
+        pass
+if font is None:
+    font = ImageFont.load_default()
 
-    # 计算文字居中位置
-    text = "S"
-    bbox = draw.textbbox((0, 0), text, font=font)
-    text_width = bbox[2] - bbox[0]
-    text_height = bbox[3] - bbox[1]
+draw.text((SIZE / 2, SIZE / 2), "S", font=font, fill=(255, 255, 255, 255), anchor="mm")
 
-    x = (size - text_width) // 2 - bbox[0]
-    y = (size - text_height) // 2 - bbox[1]
-
-    # 绘制白色 S 字母
-    draw.text((x, y), text, fill=(255, 255, 255, 255), font=font)
-
-    images.append(img)
-
-# 保存为 ICO 文件
 output_path = "Resources/STool.ico"
-images[0].save(output_path, format='ICO', sizes=[(img.width, img.height) for img in images])
+img.save(output_path, format='ICO',
+         sizes=[(16, 16), (24, 24), (32, 32), (48, 48), (64, 64), (128, 128), (256, 256)])
 
 print(f"图标已创建: {output_path}")
-print(f"包含尺寸: {[img.size for img in images]}")

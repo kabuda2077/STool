@@ -1,8 +1,11 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using STool.Modules.Screenshot.Annotations;
@@ -35,7 +38,9 @@ public partial class CaptureOverlay : Window
     private Point _dragStart;
     private Rect _selectionAtStart;
     private bool _closing;
-    private bool _isDefaultSelection = true;   // 仍为默认整屏选区:任意拖拽 = 新建选区
+    private bool _confirmed;                    // 是否已确认选区(确认后才出工具条 + 手柄)
+    private bool _dragMoved;                    // 本次按下后是否明显移动(区分点击与拖拽)
+    private readonly List<System.Drawing.Rectangle> _windowRects = new();   // 底层窗口物理矩形(Z 序,顶层在前)
 
     private readonly Rectangle[] _handles = new Rectangle[8];
     private static readonly string[] HandleRoles = { "TL", "T", "TR", "L", "R", "BL", "B", "BR" };
@@ -70,11 +75,14 @@ public partial class CaptureOverlay : Window
         _annotation = new AnnotationCanvas(annotationCanvas);
         _toolButtons = new[] { btnRect, btnEllipse, btnArrow, btnPen };
 
-        // 默认选区 = 光标所在显示器的工作区(排除任务栏);不框选直接确认即截当前整屏。
-        _selection = DefaultSelectionRect();
+        // 枚举底层窗口(用于"识别窗口"悬停吸附)
+        EnumerateWindows();
+
+        // 初始:识别光标所在窗口(无则工作区);未确认前不显示工具条
+        _selection = DetectSelectionOrDefault();
 
         selectionBorder.Visibility = Visibility.Visible;
-        toolbar.Visibility = Visibility.Visible;
+        toolbar.Visibility = Visibility.Collapsed;
         UpdateVisuals();
         Activate();
     }
@@ -88,6 +96,68 @@ public partial class CaptureOverlay : Window
             wa.Top / _scaleY - SystemParameters.VirtualScreenTop,
             wa.Width / _scaleX,
             wa.Height / _scaleY);
+    }
+
+    // ---------- 识别窗口(悬停吸附) ----------
+    [DllImport("user32.dll")] private static extern bool EnumWindows(EnumWindowsProc cb, IntPtr p);
+    private delegate bool EnumWindowsProc(IntPtr hwnd, IntPtr p);
+    [DllImport("user32.dll")] private static extern bool IsWindowVisible(IntPtr h);
+    [DllImport("user32.dll")] private static extern bool IsIconic(IntPtr h);
+    [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr h, out NRECT r);
+    [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr h, int attr, out NRECT r, int size);
+    [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr h, int attr, out int v, int size);
+    [StructLayout(LayoutKind.Sequential)] private struct NRECT { public int Left, Top, Right, Bottom; }
+    private const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
+    private const int DWMWA_CLOAKED = 14;
+
+    /// <summary>枚举覆盖层之下所有可见顶层窗口的物理矩形(EnumWindows 返回 Z 序,顶层在前)。</summary>
+    private void EnumerateWindows()
+    {
+        _windowRects.Clear();
+        var self = new WindowInteropHelper(this).Handle;
+        EnumWindows((hwnd, _) =>
+        {
+            if (hwnd == self || !IsWindowVisible(hwnd) || IsIconic(hwnd))
+                return true;
+            // 排除被 DWM 隐藏的窗口(后台 UWP、其他虚拟桌面等)
+            if (DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, out int cloaked, sizeof(int)) == 0 && cloaked != 0)
+                return true;
+            // 优先用扩展框架边界(去掉不可见缩放边框),失败回退 GetWindowRect
+            NRECT r;
+            if (DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out r, Marshal.SizeOf<NRECT>()) != 0)
+            {
+                if (!GetWindowRect(hwnd, out r)) return true;
+            }
+            int w = r.Right - r.Left, h = r.Bottom - r.Top;
+            if (w < 24 || h < 24) return true;
+            _windowRects.Add(new System.Drawing.Rectangle(r.Left, r.Top, w, h));
+            return true;
+        }, IntPtr.Zero);
+    }
+
+    /// <summary>光标所在的最上层窗口选区;无则回退到工作区。</summary>
+    private Rect DetectSelectionOrDefault()
+    {
+        var c = System.Windows.Forms.Cursor.Position;   // 物理像素
+        foreach (var r in _windowRects)
+            if (r.Contains(c))
+                return ClampSelection(PhysicalToSelection(r));
+        return DefaultSelectionRect();
+    }
+
+    private Rect PhysicalToSelection(System.Drawing.Rectangle r) => new Rect(
+        r.Left / _scaleX - SystemParameters.VirtualScreenLeft,
+        r.Top / _scaleY - SystemParameters.VirtualScreenTop,
+        r.Width / _scaleX,
+        r.Height / _scaleY);
+
+    private Rect ClampSelection(Rect r)
+    {
+        double x = Clamp(r.X, 0, ActualW);
+        double y = Clamp(r.Y, 0, ActualH);
+        double w = Clamp(r.Width, 1, ActualW - x);
+        double h = Clamp(r.Height, 1, ActualH - y);
+        return new Rect(x, y, w, h);
     }
 
     // ---------- 手柄 ----------
@@ -143,6 +213,7 @@ public partial class CaptureOverlay : Window
         var p = e.GetPosition(overlayCanvas);
         _dragStart = p;
         _selectionAtStart = _selection;
+        _dragMoved = false;
 
         // 双击选区内 = 复制并完成
         if (e.ClickCount == 2 && _selection.Contains(p))
@@ -151,17 +222,9 @@ public partial class CaptureOverlay : Window
             return;
         }
 
-        if (!_isDefaultSelection && _selection.Contains(p))
-        {
-            _dragMode = DragMode.Move;
-        }
-        else
-        {
-            // 默认整屏选区下、或点在选区外 → 拖出新选区
-            _dragMode = DragMode.NewSelection;
-            _selection = new Rect(p.X, p.Y, 0, 0);
-            UpdateVisuals();
-        }
+        // 已确认且点在选区内 → 移动;否则:拖拽=新建选区,仅点击=确认当前(识别到的)选区
+        _dragMode = (_confirmed && _selection.Contains(p)) ? DragMode.Move : DragMode.NewSelection;
+
         toolbar.Visibility = Visibility.Collapsed;   // 选取过程中隐藏工具条
         overlayCanvas.CaptureMouse();
     }
@@ -169,11 +232,25 @@ public partial class CaptureOverlay : Window
     protected override void OnMouseMove(System.Windows.Input.MouseEventArgs e)
     {
         base.OnMouseMove(e);
+
+        // 悬停识别窗口(未确认、且未按下拖拽时)
+        if (!_confirmed && _dragMode == DragMode.None)
+        {
+            _selection = DetectSelectionOrDefault();
+            UpdateVisuals();
+            return;
+        }
+
         if (_dragMode == DragMode.None) return;
 
         var p = e.GetPosition(overlayCanvas);
         var dx = p.X - _dragStart.X;
         var dy = p.Y - _dragStart.Y;
+
+        // 死区:移动不足则不处理,保留"点击确认"的可能
+        if (!_dragMoved && Math.Abs(dx) < 5 && Math.Abs(dy) < 5)
+            return;
+        _dragMoved = true;
 
         switch (_dragMode)
         {
@@ -202,19 +279,24 @@ public partial class CaptureOverlay : Window
     {
         base.OnMouseLeftButtonUp(e);
         if (_dragMode == DragMode.None) return;
-        var mode = _dragMode;
         _dragMode = DragMode.None;
         overlayCanvas.ReleaseMouseCapture();
 
+        if (!_confirmed)
+        {
+            // 首次确认:拖拽=手动选区(过小则回到识别/默认);仅点击=确认识别到的窗口
+            if (_dragMoved && (_selection.Width < 8 || _selection.Height < 8))
+                _selection = DetectSelectionOrDefault();
+            _confirmed = true;
+            toolbar.Visibility = Visibility.Visible;
+            UpdateVisuals();
+            return;
+        }
+
+        // 已确认后的收尾
         if (_selection.Width < 8 || _selection.Height < 8)
         {
-            // 选区过小 → 恢复光标所在屏的工作区默认
             _selection = DefaultSelectionRect();
-            _isDefaultSelection = true;
-        }
-        else if (mode == DragMode.NewSelection)
-        {
-            _isDefaultSelection = false;   // 用户已手动框选,之后框内拖=移动
         }
         toolbar.Visibility = Visibility.Visible;   // 选取完成 → 显示工具条
         UpdateVisuals();
@@ -280,7 +362,7 @@ public partial class CaptureOverlay : Window
 
     private void PositionHandles()
     {
-        bool show = _currentTool == AnnotationTool.None;
+        bool show = _confirmed && _currentTool == AnnotationTool.None;
         double x = _selection.X, y = _selection.Y, w = _selection.Width, h = _selection.Height;
         var pts = new (double, double)[]
         {

@@ -23,58 +23,20 @@
             <StackPanel>
                 <Button x:Name="btnGeneralSettings"
                         Click="BtnGeneralSettings_Click"
-                        Style="{StaticResource NavigationButton}">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&#xE713;"
-                                   FontFamily="Segoe MDL2 Assets"
-                                   FontSize="14"
-                                   Width="22"
-                                   VerticalAlignment="Center"/>
-                        <TextBlock Text="通用" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Button>
+                        Style="{StaticResource NavigationButton}"
+                        Content="通用"/>
 
                 <Button x:Name="btnOcrSettings"
                         Click="BtnOcrSettings_Click"
                         Style="{StaticResource NavigationButton}"
-                        Margin="0,6,0,0">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&#xE8A5;"
-                                   FontFamily="Segoe MDL2 Assets"
-                                   FontSize="14"
-                                   Width="22"
-                                   VerticalAlignment="Center"/>
-                        <TextBlock Text="OCR" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Button>
+                        Margin="0,6,0,0"
+                        Content="OCR"/>
 
                 <Button x:Name="btnTranslationSettings"
                         Click="BtnTranslationSettings_Click"
                         Style="{StaticResource NavigationButton}"
-                        Margin="0,6,0,0">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&#xE8AC;"
-                                   FontFamily="Segoe MDL2 Assets"
-                                   FontSize="14"
-                                   Width="22"
-                                   VerticalAlignment="Center"/>
-                        <TextBlock Text="翻译" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Button>
-
-                <Button x:Name="btnClipboardSettings"
-                        Click="BtnClipboardSettings_Click"
-                        Style="{StaticResource NavigationButton}"
-                        Margin="0,6,0,0">
-                    <StackPanel Orientation="Horizontal">
-                        <TextBlock Text="&#xE77F;"
-                                   FontFamily="Segoe MDL2 Assets"
-                                   FontSize="14"
-                                   Width="22"
-                                   VerticalAlignment="Center"/>
-                        <TextBlock Text="剪贴板" VerticalAlignment="Center"/>
-                    </StackPanel>
-                </Button>
+                        Margin="0,6,0,0"
+                        Content="翻译"/>
             </StackPanel>
         </Border>
 

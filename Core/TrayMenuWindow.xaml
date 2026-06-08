@@ -11,6 +11,9 @@
         WindowStartupLocation="Manual"
         Width="248"
         Opacity="0"
+        UseLayoutRounding="True"
+        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextRenderingMode="ClearType"
         FontFamily="Segoe UI, Microsoft YaHei UI">
 
     <Window.Resources>

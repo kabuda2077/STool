@@ -38,12 +38,6 @@ public partial class SettingsWindow : Window
         SelectNavigationButton(btnTranslationSettings);
     }
 
-    private void BtnClipboardSettings_Click(object sender, RoutedEventArgs e)
-    {
-        ShowClipboardSettings();
-        SelectNavigationButton(btnClipboardSettings);
-    }
-
     private void SelectNavigationButton(System.Windows.Controls.Button button)
     {
         // 清除之前的选中状态
@@ -74,13 +68,6 @@ public partial class SettingsWindow : Window
     private void ShowTranslationSettings()
     {
         var panel = new TranslationSettingsPanel(_configManager);
-        contentPanel.Children.Clear();
-        contentPanel.Children.Add(panel);
-    }
-
-    private void ShowClipboardSettings()
-    {
-        var panel = new ClipboardSettingsPanel(_configManager);
         contentPanel.Children.Clear();
         contentPanel.Children.Add(panel);
     }

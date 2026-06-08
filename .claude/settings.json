@@ -49,7 +49,8 @@
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"settings: trim input left padding \\(11->8\\); collapsible Tencent/AI sections \\(Expander\\); fix wheel-scroll when hovering inputs; unify input/dropdown height to 34px\")",
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"settings: reduce textbox/password vertical padding 6->4 so text fits in unified 34px height \\(was clipped\\)\")",
       "Bash(python -c ' *)",
-      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"clipboard: redesign panel \\(type tabs, thumbnails, source-app badge, size\\); double-click to copy \\(no toast\\); floating trash to clear-all with confirm; capture source app \\(Monitor+Item+Storage migration\\)\")"
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"clipboard: redesign panel \\(type tabs, thumbnails, source-app badge, size\\); double-click to copy \\(no toast\\); floating trash to clear-all with confirm; capture source app \\(Monitor+Item+Storage migration\\)\")",
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"clipboard: right-click context menu to favorite/delete \\(replaces hover buttons\\); remove double-click-copy tooltip\")"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj"

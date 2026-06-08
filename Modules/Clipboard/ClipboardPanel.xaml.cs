@@ -89,24 +89,32 @@ public partial class ClipboardPanel : Window
         }
     }
 
-    private void BtnFavorite_Click(object sender, RoutedEventArgs e)
+    // 右键菜单:收藏 / 删除
+    private void MenuFavorite_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is System.Windows.Controls.Button btn && btn.Tag is string id)
+        var id = IdFromMenu(sender);
+        if (id != null)
         {
             _manager.ToggleFavorite(id);
             LoadRecent();
-            e.Handled = true;
         }
     }
 
-    private void BtnDelete_Click(object sender, RoutedEventArgs e)
+    private void MenuDelete_Click(object sender, RoutedEventArgs e)
     {
-        if (sender is System.Windows.Controls.Button btn && btn.Tag is string id)
+        var id = IdFromMenu(sender);
+        if (id != null)
         {
             _manager.Delete(id);
             LoadRecent();
-            e.Handled = true;
         }
+    }
+
+    private static string? IdFromMenu(object sender)
+    {
+        if (sender is MenuItem mi && mi.Parent is ContextMenu cm && cm.PlacementTarget is FrameworkElement fe && fe.Tag is string id)
+            return id;
+        return null;
     }
 
     // 悬浮垃圾桶:清空全部,二次确认

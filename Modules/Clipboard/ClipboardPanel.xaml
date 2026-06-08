@@ -105,11 +105,16 @@
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>
                             <Border Style="{StaticResource ClipRow}"
-                                    MouseLeftButtonDown="Item_MouseLeftButtonDown"
-                                    ToolTip="双击复制">
+                                    MouseLeftButtonDown="Item_MouseLeftButtonDown">
                                 <Border.Tag>
                                     <Binding Path="Id"/>
                                 </Border.Tag>
+                                <Border.ContextMenu>
+                                    <ContextMenu>
+                                        <MenuItem Header="{Binding FavoriteTooltip}" Click="MenuFavorite_Click"/>
+                                        <MenuItem Header="删除" Click="MenuDelete_Click"/>
+                                    </ContextMenu>
+                                </Border.ContextMenu>
                                 <Grid>
                                     <Grid.ColumnDefinitions>
                                         <ColumnDefinition Width="*"/>
@@ -152,26 +157,6 @@
                                                    Foreground="{StaticResource TextSecondaryBrush}"
                                                    HorizontalAlignment="Right"
                                                    Margin="0,6,0,0"/>
-                                        <StackPanel Orientation="Horizontal"
-                                                    HorizontalAlignment="Right"
-                                                    Margin="0,8,0,0"
-                                                    Visibility="{Binding IsMouseOver, RelativeSource={RelativeSource AncestorType=Border}, Converter={StaticResource BoolToVis}}">
-                                            <Button Style="{StaticResource IconButton}"
-                                                    Width="28" Height="28"
-                                                    ToolTip="{Binding FavoriteTooltip}"
-                                                    Click="BtnFavorite_Click">
-                                                <Button.Tag><Binding Path="Id"/></Button.Tag>
-                                                <TextBlock Text="{Binding FavoriteGlyph}" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
-                                            </Button>
-                                            <Button Style="{StaticResource DangerIconButton}"
-                                                    Width="28" Height="28"
-                                                    Margin="4,0,0,0"
-                                                    ToolTip="删除"
-                                                    Click="BtnDelete_Click">
-                                                <Button.Tag><Binding Path="Id"/></Button.Tag>
-                                                <TextBlock Text="&#xE74D;" FontFamily="Segoe MDL2 Assets" FontSize="13"/>
-                                            </Button>
-                                        </StackPanel>
                                     </StackPanel>
                                 </Grid>
                             </Border>

@@ -3,18 +3,16 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 
 // 项目同时启用 WPF 与 WinForms,以下类型存在歧义,显式指向 WPF 版本。
 using Brush = System.Windows.Media.Brush;
 using Button = System.Windows.Controls.Button;
-using Image = System.Windows.Controls.Image;
 
 namespace STool.Core;
 
 /// <summary>
 /// 托盘右键菜单 —— 自定义 WPF 弹窗,圆角卡片 + 柔和阴影,统一全局设计风格。
-/// 复用 AppIcons 的图标美术,菜单项含右对齐快捷键,失焦/Esc/点击后自动关闭。
+/// 纯文字菜单项 + 右对齐快捷键,失焦/Esc/点击后自动关闭。
 /// </summary>
 public partial class TrayMenuWindow : Window
 {
@@ -32,17 +30,6 @@ public partial class TrayMenuWindow : Window
         };
     }
 
-    public void AddHeader(string text)
-    {
-        menuPanel.Children.Add(new TextBlock
-        {
-            Text = text,
-            Foreground = (Brush)FindResource("TextSecondaryBrush"),
-            FontSize = 12,
-            Margin = new Thickness(10, 6, 10, 6)
-        });
-    }
-
     public void AddSeparator()
     {
         menuPanel.Children.Add(new Border
@@ -53,7 +40,7 @@ public partial class TrayMenuWindow : Window
         });
     }
 
-    public void AddItem(TrayMenuIconKind kind, string label, string shortcut, Action onClick, bool danger = false)
+    public void AddItem(string label, string shortcut, Action onClick, bool danger = false)
     {
         var button = new Button
         {
@@ -61,27 +48,15 @@ public partial class TrayMenuWindow : Window
         };
 
         var grid = new Grid();
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(26) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        var icon = new Image
-        {
-            Width = 18,
-            Height = 18,
-            Source = ToImageSource(AppIcons.CreateMenuIcon(kind)),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        RenderOptions.SetBitmapScalingMode(icon, BitmapScalingMode.HighQuality);
-        Grid.SetColumn(icon, 0);
-        grid.Children.Add(icon);
 
         var text = new TextBlock
         {
             Text = label,
             VerticalAlignment = VerticalAlignment.Center
         };
-        Grid.SetColumn(text, 1);
+        Grid.SetColumn(text, 0);
         grid.Children.Add(text);
 
         if (!string.IsNullOrEmpty(shortcut))
@@ -92,9 +67,9 @@ public partial class TrayMenuWindow : Window
                 FontSize = 11,
                 Foreground = (Brush)FindResource("TextSecondaryBrush"),
                 VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(12, 0, 0, 0)
+                Margin = new Thickness(16, 0, 0, 0)
             };
-            Grid.SetColumn(shortcutText, 2);
+            Grid.SetColumn(shortcutText, 1);
             grid.Children.Add(shortcutText);
         }
 
@@ -153,22 +128,5 @@ public partial class TrayMenuWindow : Window
             return;
         _closed = true;
         Close();
-    }
-
-    /// <summary>把 AppIcons 生成的 GDI 位图转为保留透明通道的 WPF 图源(经 PNG 往返)。</summary>
-    private static ImageSource ToImageSource(System.Drawing.Bitmap bitmap)
-    {
-        using var stream = new System.IO.MemoryStream();
-        bitmap.Save(stream, System.Drawing.Imaging.ImageFormat.Png);
-        bitmap.Dispose();
-        stream.Position = 0;
-
-        var image = new BitmapImage();
-        image.BeginInit();
-        image.CacheOption = BitmapCacheOption.OnLoad;
-        image.StreamSource = stream;
-        image.EndInit();
-        image.Freeze();
-        return image;
     }
 }

@@ -31,29 +31,36 @@
                    MouseWheel="Image_MouseWheel"/>
 
             <Border x:Name="toolbar"
-                    Background="#E60F172A"
                     VerticalAlignment="Top"
                     HorizontalAlignment="Right"
-                    Padding="6"
-                    CornerRadius="0,6,0,6"
+                    Margin="0,4,4,0"
                     Visibility="Collapsed">
-                <StackPanel Orientation="Horizontal">
-                    <Button x:Name="btnClose"
-                            Width="28"
-                            Height="28"
-                            FontSize="12"
-                            FontWeight="SemiBold"
-                            Background="Transparent"
-                            Foreground="White"
-                            BorderThickness="0"
-                            Cursor="Hand"
-                            ToolTip="关闭 (Esc / 双击)"
-                            Click="BtnClose_Click">
-                        <TextBlock Text="&#xE8BB;"
-                                   FontFamily="Segoe MDL2 Assets"
-                                   FontSize="12"/>
-                    </Button>
-                </StackPanel>
+                <Button x:Name="btnClose"
+                        Width="24"
+                        Height="24"
+                        Cursor="Hand"
+                        Background="#B30F172A"
+                        Foreground="White"
+                        ToolTip="关闭 (Esc / 双击)"
+                        Click="BtnClose_Click">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="12">
+                                <TextBlock Text="&#xE8BB;"
+                                           FontFamily="Segoe MDL2 Assets"
+                                           FontSize="10"
+                                           Foreground="{TemplateBinding Foreground}"
+                                           HorizontalAlignment="Center"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="bg" Property="Background" Value="#DC2626"/>
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                </Button>
             </Border>
         </Grid>
     </Border>

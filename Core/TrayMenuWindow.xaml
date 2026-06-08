@@ -9,7 +9,7 @@
         ResizeMode="NoResize"
         SizeToContent="Height"
         WindowStartupLocation="Manual"
-        Width="248"
+        Width="200"
         Opacity="0"
         UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Display"

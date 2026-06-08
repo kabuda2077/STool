@@ -10,8 +10,6 @@ namespace STool.Modules.Screenshot;
 public partial class PinWindow : Window
 {
     private readonly Bitmap _screenshot;
-    private System.Windows.Point _dragStartPoint;
-    private bool _isDragging;
     private double _currentScale = 1.0;
 
     public PinWindow(Bitmap screenshot)
@@ -28,38 +26,20 @@ public partial class PinWindow : Window
         Top = (SystemParameters.PrimaryScreenHeight - screenshot.Height) / 2;
     }
 
-    private void Window_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private void Image_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        _isDragging = true;
-        _dragStartPoint = e.GetPosition(null);
-        CaptureMouse();
+        if (e.ClickCount == 2)   // 双击关闭
+        {
+            Close();
+            return;
+        }
+        DragMove();              // WPF 内置拖动,稳定不抖动
     }
 
-    protected override void OnMouseMove(System.Windows.Input.MouseEventArgs e)
+    private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        base.OnMouseMove(e);
-
-        if (_isDragging)
-        {
-            var currentPoint = e.GetPosition(null);
-            var offset = currentPoint - _dragStartPoint;
-
-            Left += offset.X;
-            Top += offset.Y;
-
-            _dragStartPoint = currentPoint;
-        }
-    }
-
-    protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
-    {
-        base.OnMouseLeftButtonUp(e);
-
-        if (_isDragging)
-        {
-            _isDragging = false;
-            ReleaseMouseCapture();
-        }
+        if (e.Key == Key.Escape)
+            Close();
     }
 
     private void Window_MouseEnter(object sender, System.Windows.Input.MouseEventArgs e)
@@ -91,14 +71,6 @@ public partial class PinWindow : Window
             screenshotImage.Height = newHeight;
 
             e.Handled = true;
-        }
-    }
-
-    private void OpacitySlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
-    {
-        if (mainBorder != null)
-        {
-            mainBorder.Opacity = e.NewValue;
         }
     }
 

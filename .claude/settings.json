@@ -32,7 +32,9 @@
       "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_cap.ps1\")",
       "Bash(powershell -NoProfile -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait\\('{ESC}'\\)\")",
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"screenshot: WeChat-style unified capture overlay \\(default full-screen selection, clear-inside/dim-outside mask, 8 resize handles, move/redraw, inline annotation, on-screen toolbar, Enter/double-click copies\\); retire separate ToolbarWindow\")",
-      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_tb.ps1\")"
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_tb.ps1\")",
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_anno.ps1\")",
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"fix: annotation canvas not hit-testable \\(add Background\\); pin window drag jitter \\(use DragMove\\) + remove opacity + Esc/double-click close\")"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj"

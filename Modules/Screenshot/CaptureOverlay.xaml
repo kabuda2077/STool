@@ -20,8 +20,8 @@
             <!-- 蒙版:框外淡黑,框内挖洞(EvenOdd) -->
             <Path x:Name="maskPath" Fill="#66000000" IsHitTestVisible="False"/>
 
-            <!-- 标注层:覆盖选区,工具激活时才可命中绘制 -->
-            <Canvas x:Name="annotationCanvas" IsHitTestVisible="False" ClipToBounds="True"/>
+            <!-- 标注层:覆盖选区,工具激活时才可命中绘制(需 Background 才能接收鼠标) -->
+            <Canvas x:Name="annotationCanvas" Background="Transparent" IsHitTestVisible="False" ClipToBounds="True"/>
 
             <!-- 选区边框 -->
             <Border x:Name="selectionBorder"

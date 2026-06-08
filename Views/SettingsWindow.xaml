@@ -16,13 +16,8 @@
         </Grid.ColumnDefinitions>
 
         <Border Grid.Column="0"
-                Panel.ZIndex="1"
                 Background="{StaticResource SurfaceBrush}"
                 Padding="12,16">
-            <Border.Effect>
-                <DropShadowEffect Color="{StaticResource ElevationShadowColor}"
-                                  Direction="0" ShadowDepth="1.5" BlurRadius="12" Opacity="0.06"/>
-            </Border.Effect>
             <StackPanel>
                 <Button x:Name="btnGeneralSettings"
                         Click="BtnGeneralSettings_Click"

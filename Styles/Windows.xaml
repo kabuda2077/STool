@@ -40,12 +40,7 @@
 
                             <Border x:Name="PART_TitleBar"
                                     Grid.Row="0"
-                                    Panel.ZIndex="1"
                                     Background="{StaticResource SurfaceBrush}">
-                                <Border.Effect>
-                                    <DropShadowEffect Color="{StaticResource ElevationShadowColor}"
-                                                      Direction="270" ShadowDepth="1.5" BlurRadius="10" Opacity="0.06"/>
-                                </Border.Effect>
                                 <Grid>
                                     <TextBlock Text="{TemplateBinding Title}"
                                                FontSize="13"
@@ -133,7 +128,6 @@
         <Setter Property="CornerRadius" Value="10"/>
         <Setter Property="Padding" Value="16"/>
         <Setter Property="Margin" Value="0,0,0,14"/>
-        <Setter Property="Effect" Value="{StaticResource Elevation1}"/>
     </Style>
 
     <Style x:Key="SettingsPageTitle" TargetType="TextBlock">

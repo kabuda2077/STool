@@ -72,17 +72,18 @@
         </Style>
     </Window.Resources>
 
-    <Border Background="{StaticResource SurfaceBrush}"
-            BorderThickness="0"
-            CornerRadius="10"
-            Padding="6"
-            Margin="14">
-        <Border.Effect>
-            <DropShadowEffect Color="{StaticResource ShadowColor}"
-                              ShadowDepth="0"
-                              BlurRadius="18"
-                              Opacity="0.34"/>
-        </Border.Effect>
-        <StackPanel x:Name="menuPanel"/>
-    </Border>
+    <!-- 两层:阴影层(空白)+ 内容层(无特效,菜单文字按原生 DPI 渲染,避免高 DPI 锯齿) -->
+    <Grid Margin="14">
+        <Border Background="{StaticResource SurfaceBrush}" CornerRadius="10">
+            <Border.Effect>
+                <DropShadowEffect Color="{StaticResource ShadowColor}"
+                                  ShadowDepth="0"
+                                  BlurRadius="18"
+                                  Opacity="0.34"/>
+            </Border.Effect>
+        </Border>
+        <Border Background="{StaticResource SurfaceBrush}" CornerRadius="10" Padding="6">
+            <StackPanel x:Name="menuPanel"/>
+        </Border>
+    </Grid>
 </Window>

@@ -60,7 +60,18 @@
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"ui refactor rollout: apply tonal+elevation language to clipboard \\(white row blocks on canvas, neutral badges, borderless tabs/FAB\\), translation \\(sunken input/result wells, borderless provider toggle, sunken combos\\), and remove borders from toast/tray-menu/pin \\(rely on shadow\\); unify window content bg to canvas\")",
       "Bash(grep -iA2 -B1 \"dpi\")",
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"fix text crispness: declare PerMonitorV2 dpiAwareness in app.manifest \\(was missing; WPF was rendering bitmap-scaled on HiDPI -> jagged/uneven CJK strokes\\)\")",
-      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"build: suppress WinForms WFO0003 \\(manifest DPI is the correct mechanism for this WPF app\\)\")"
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"build: suppress WinForms WFO0003 \\(manifest DPI is the correct mechanism for this WPF app\\)\")",
+      "Bash(git commit *)",
+      "Bash(git config *)",
+      "Bash(Start-Process -FilePath \"E:\\\\Data\\\\Project\\\\STool\\\\bin\\\\Debug\\\\net9.0-windows10.0.26100.0\\\\STool.exe\")",
+      "PowerShell(Get-Process STool -ErrorAction SilentlyContinue)",
+      "PowerShell(Stop-Process -Force)",
+      "PowerShell(Start-Process $exe)",
+      "PowerShell($exe = \"e:\\\\Data\\\\Project\\\\STool\\\\bin\\\\Debug\\\\net9.0-windows10.0.26100.0\\\\STool.exe\")",
+      "PowerShell(\"launched\")",
+      "PowerShell(dotnet build -v q --nologo 2>&1)",
+      "PowerShell(Start-Process \"e:\\\\Data\\\\Project\\\\STool\\\\bin\\\\Debug\\\\net9.0-windows10.0.26100.0\\\\STool.exe\")",
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"fix HiDPI text jaggies from shadows: WPF Effect rasterizes enclosed text to an offscreen bitmap scaled at HiDPI -> uneven/broken strokes. Move text out of effect layers — 2-layer cards \\(CardHost\\), tray menu, toast \\(empty shadow caster behind + content in front\\); drop subtle title-bar/sidebar/clipboard-tab shadows \\(tone separation\\); remove combobox dropdown shadow\")"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj"

@@ -136,7 +136,7 @@
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                         </Canvas></Viewbox>
                     </Button>
-                    <Button x:Name="btnConfirm" Style="{StaticResource IconButton}" Click="BtnConfirm_Click" Margin="2,0,0,0" ToolTip="完成（Enter）">
+                    <Button x:Name="btnConfirm" Style="{StaticResource IconButton}" Click="BtnConfirm_Click" Margin="2,0,0,0" ToolTip="完成 (Enter)">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
                             <Path Data="M20 6 L9 17 L4 12"
                                   Stroke="{StaticResource SuccessBrush}" StrokeThickness="2.2"

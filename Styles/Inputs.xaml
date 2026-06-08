@@ -10,7 +10,7 @@
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding" Value="11,8"/>
+        <Setter Property="Padding" Value="11,6"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="CaretBrush" Value="{StaticResource PrimaryBrush}"/>
         <Setter Property="SelectionBrush" Value="{StaticResource PrimarySubtleBrush}"/>
@@ -49,9 +49,9 @@
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding" Value="11,8"/>
+        <Setter Property="Padding" Value="11,6"/>
         <Setter Property="FontSize" Value="13"/>
-        <Setter Property="MinHeight" Value="34"/>
+        <Setter Property="MinHeight" Value="32"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="PasswordBox">
@@ -133,7 +133,7 @@
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="10,6"/>
-        <Setter Property="MinHeight" Value="36"/>
+        <Setter Property="MinHeight" Value="32"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="SnapsToDevicePixels" Value="True"/>
         <Setter Property="Template">

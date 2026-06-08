@@ -115,7 +115,7 @@ public class GeneralSettingsPanel : StackPanel
         textBox = new HotkeyBox
         {
             Style = (Style)FindResource("ModernTextBox"),
-            MinHeight = 36,
+            MinHeight = 32,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
         };
         panel.Children.Add(textBox);

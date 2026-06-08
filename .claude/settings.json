@@ -27,7 +27,11 @@
       "Bash(python -c \"from PIL import Image; im=Image.open\\('Resources/STool.ico'\\); im=im.convert\\('RGBA'\\); im.save\\('obj/_icon_preview.png'\\); print\\('size', im.size\\)\")",
       "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_shot.ps1\")",
       "Bash(rm -f obj/_*.ps1 obj/_*.png)",
-      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"ui: uniform full-width settings inputs \\(stretch\\); new centered-S app icon\")"
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"ui: uniform full-width settings inputs \\(stretch\\); new centered-S app icon\")",
+      "Bash(python -c \"import json; print\\(json.load\\(open\\(r'C:/Users/kabuda/AppData/Roaming/STool/config.json'\\)\\)['hotkeys']\\)\")",
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_cap.ps1\")",
+      "Bash(powershell -NoProfile -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait\\('{ESC}'\\)\")",
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"screenshot: WeChat-style unified capture overlay \\(default full-screen selection, clear-inside/dim-outside mask, 8 resize handles, move/redraw, inline annotation, on-screen toolbar, Enter/double-click copies\\); retire separate ToolbarWindow\")"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj"

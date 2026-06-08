@@ -149,24 +149,8 @@ public class AppBootstrap : IDisposable
     {
         Log.Information("Screenshot hotkey triggered");
 
-        // 创建截图覆盖窗口
-        var overlay = new STool.Modules.Screenshot.CaptureOverlay();
-
-        overlay.SelectionCompleted += (s, result) =>
-        {
-            overlay.Close();
-
-            // 显示工具条
-            var toolbar = new STool.Modules.Screenshot.ToolbarWindow(result.Bitmap, result.Bounds);
-            toolbar.Show();
-        };
-
-        overlay.SelectionCancelled += (s, e) =>
-        {
-            Log.Information("Screenshot cancelled");
-        };
-
-        overlay.Show();
+        // 一体化取景窗自行处理选区/标注/复制/保存等,无需外部事件
+        new STool.Modules.Screenshot.CaptureOverlay().Show();
     }
 
     private void OnTranslationHotkey()

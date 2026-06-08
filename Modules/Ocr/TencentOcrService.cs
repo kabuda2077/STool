@@ -77,11 +77,16 @@ public class TencentOcrService : IOcrService
                 Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
             };
 
-            request.Headers.Add("Authorization", authorization);
-            request.Headers.Add("X-TC-Action", Action);
-            request.Headers.Add("X-TC-Version", Version);
-            request.Headers.Add("X-TC-Timestamp", timestamp.ToString());
-            request.Headers.Add("X-TC-Region", "ap-guangzhou");
+            // 手动设置 Content-Type 为纯 application/json (移除 StringContent 自动添加的 charset)
+            request.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+
+            // Authorization 含 "/" 等非 token 字符,.NET 的强校验会抛 FormatException;
+            // 用 TryAddWithoutValidation 绕过校验,原样发送。
+            request.Headers.TryAddWithoutValidation("Authorization", authorization);
+            request.Headers.TryAddWithoutValidation("X-TC-Action", Action);
+            request.Headers.TryAddWithoutValidation("X-TC-Version", Version);
+            request.Headers.TryAddWithoutValidation("X-TC-Timestamp", timestamp.ToString());
+            request.Headers.TryAddWithoutValidation("X-TC-Region", "ap-guangzhou");
 
             var response = await _httpClient.SendAsync(request);
             var responseJson = await response.Content.ReadAsStringAsync();

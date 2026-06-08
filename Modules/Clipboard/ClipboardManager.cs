@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using Serilog;
 using STool.Core;
@@ -69,6 +70,14 @@ public class ClipboardManager : IDisposable
                 }
             }
 
+            // 去重:与最近一条相同则跳过
+            if (IsDuplicateOfLatest(item))
+            {
+                if (item.Type == ClipboardItemType.Image && !string.IsNullOrEmpty(item.ImagePath))
+                    TryDeleteFile(item.ImagePath);
+                return;
+            }
+
             _storage.Add(item);
             ItemAdded?.Invoke(this, item);
 
@@ -77,6 +86,49 @@ public class ClipboardManager : IDisposable
         catch (Exception ex)
         {
             Log.Error(ex, "Failed to save clipboard item");
+        }
+    }
+
+    /// <summary>
+    /// 与最近一条记录内容相同则视为重复。
+    /// 单次复制常触发多次 WM_CLIPBOARDUPDATE(程序分多步写入多种格式),据此去重避免重复入库。
+    /// </summary>
+    private bool IsDuplicateOfLatest(ClipboardItem item)
+    {
+        var recent = _storage.GetRecent(1);
+        if (recent.Count == 0)
+            return false;
+
+        var last = recent[0];
+        if (last.Type != item.Type)
+            return false;
+
+        return item.Type switch
+        {
+            ClipboardItemType.Text => last.TextContent == item.TextContent,
+            ClipboardItemType.File => (last.FilePaths ?? Array.Empty<string>())
+                .SequenceEqual(item.FilePaths ?? Array.Empty<string>()),
+            ClipboardItemType.Image => IsSameImage(last, item),
+            _ => false
+        };
+    }
+
+    private static bool IsSameImage(ClipboardItem a, ClipboardItem b)
+    {
+        // 近时间窗(2s)内、字节大小相同视为同一次复制的重复
+        try
+        {
+            if (string.IsNullOrEmpty(a.ImagePath) || string.IsNullOrEmpty(b.ImagePath))
+                return false;
+            if (Math.Abs((b.CreatedAt - a.CreatedAt).TotalSeconds) > 2)
+                return false;
+            var fa = new System.IO.FileInfo(a.ImagePath);
+            var fb = new System.IO.FileInfo(b.ImagePath);
+            return fa.Exists && fb.Exists && fa.Length == fb.Length;
+        }
+        catch
+        {
+            return false;
         }
     }
 

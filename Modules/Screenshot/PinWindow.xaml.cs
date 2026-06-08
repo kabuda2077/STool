@@ -10,20 +10,34 @@ namespace STool.Modules.Screenshot;
 public partial class PinWindow : Window
 {
     private readonly Bitmap _screenshot;
-    private double _currentScale = 1.0;
 
-    public PinWindow(Bitmap screenshot)
+    public PinWindow(Bitmap screenshot) : this(screenshot, null) { }
+
+    public PinWindow(Bitmap screenshot, Rect? targetDip)
     {
         InitializeComponent();
 
         _screenshot = screenshot;
-
-        // 显示截图
         screenshotImage.Source = BitmapToImageSource(screenshot);
 
-        // 设置初始位置（屏幕中心）
-        Left = (SystemParameters.PrimaryScreenWidth - screenshot.Width) / 2;
-        Top = (SystemParameters.PrimaryScreenHeight - screenshot.Height) / 2;
+        WindowStartupLocation = WindowStartupLocation.Manual;
+
+        if (targetDip is Rect r && r.Width >= 1 && r.Height >= 1)
+        {
+            // 在选区原位、原尺寸钉住(不再跳到屏幕中间)
+            Left = r.X;
+            Top = r.Y;
+            Width = r.Width;
+            Height = r.Height;
+        }
+        else
+        {
+            // 回退:屏幕居中
+            Width = screenshot.Width;
+            Height = screenshot.Height;
+            Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
+            Top = (SystemParameters.PrimaryScreenHeight - Height) / 2;
+        }
     }
 
     private void Image_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -54,22 +68,18 @@ public partial class PinWindow : Window
 
     private void Image_MouseWheel(object sender, MouseWheelEventArgs e)
     {
-        // Ctrl + 滚轮缩放
+        // Ctrl + 滚轮缩放(图片 Stretch=Uniform 填满窗口,故缩放窗口本身,保持原位左上角)
         if (Keyboard.Modifiers == ModifierKeys.Control)
         {
-            double scaleFactor = e.Delta > 0 ? 1.1 : 0.9;
-            _currentScale *= scaleFactor;
+            double factor = e.Delta > 0 ? 1.1 : 0.9;
+            var newWidth = Width * factor;
+            var newHeight = Height * factor;
 
-            // 限制缩放范围
-            _currentScale = Math.Max(0.1, Math.Min(_currentScale, 5.0));
-
-            // 应用缩放
-            var newWidth = _screenshot.Width * _currentScale;
-            var newHeight = _screenshot.Height * _currentScale;
-
-            screenshotImage.Width = newWidth;
-            screenshotImage.Height = newHeight;
-
+            if (newWidth >= 60 && newWidth <= 4000)
+            {
+                Width = newWidth;
+                Height = newHeight;
+            }
             e.Handled = true;
         }
     }

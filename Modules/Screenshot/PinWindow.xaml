@@ -6,7 +6,6 @@
         Background="Transparent"
         Topmost="True"
         ShowInTaskbar="False"
-        SizeToContent="WidthAndHeight"
         ResizeMode="NoResize"
         MouseEnter="Window_MouseEnter"
         MouseLeave="Window_MouseLeave"
@@ -26,7 +25,7 @@
 
         <Grid>
             <Image x:Name="screenshotImage"
-                   Stretch="None"
+                   Stretch="Uniform"
                    MouseLeftButtonDown="Image_MouseLeftButtonDown"
                    MouseWheel="Image_MouseWheel"/>
 

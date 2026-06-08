@@ -8,19 +8,22 @@
         ShowInTaskbar="False"
         SizeToContent="WidthAndHeight"
         ResizeMode="NoResize"
-        ShowActivated="False">
+        ShowActivated="False"
+        UseLayoutRounding="True"
+        SnapsToDevicePixels="True">
 
     <Border Background="{StaticResource SurfaceBrush}"
             BorderBrush="{StaticResource BorderBrush}"
             BorderThickness="1"
             CornerRadius="8"
             Padding="14,12"
+            Margin="20"
             MinWidth="280"
             MaxWidth="400">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="24"
-                              Opacity="0.3"
-                              ShadowDepth="4"
+            <DropShadowEffect BlurRadius="18"
+                              Opacity="0.22"
+                              ShadowDepth="0"
                               Color="{StaticResource ShadowColor}"/>
         </Border.Effect>
 

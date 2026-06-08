@@ -27,10 +27,10 @@ namespace STool.Core
 
         private void ToastNotification_Loaded(object sender, RoutedEventArgs e)
         {
-            // 定位到屏幕右下角
+            // 定位到屏幕右下角。Border 外留 20px 给阴影、期望卡片距边缘 20px,二者抵消。
             var workArea = SystemParameters.WorkArea;
-            Left = workArea.Right - ActualWidth - 20;
-            Top = workArea.Bottom - ActualHeight - 20;
+            Left = workArea.Right - ActualWidth;
+            Top = workArea.Bottom - ActualHeight;
 
             // 淡入动画
             var fadeIn = new DoubleAnimation

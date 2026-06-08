@@ -1,20 +1,27 @@
 using System;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Threading;
 using STool.Models;
 
 namespace STool.Modules.Translation;
 
 public partial class TranslationPanel : Window
 {
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
+
     private readonly TranslationManager _translationManager;
     private TranslationProvider _provider = TranslationProvider.Google;
     private bool _busy;
+    private readonly IntPtr _targetHwnd;   // 打开面板前的前台窗口("复制并输入"时切回它粘贴)
 
     public TranslationPanel(TranslationManager translationManager)
     {
+        _targetHwnd = GetForegroundWindow();   // 在 Show() 之前抓取 = 用户原来的应用
         InitializeComponent();
         _translationManager = translationManager;
         UpdateProviderButtons();
@@ -53,7 +60,6 @@ public partial class TranslationPanel : Window
     {
         var hasText = !string.IsNullOrEmpty(txtTarget.Text);
         tgtWatermark.Visibility = hasText ? Visibility.Collapsed : Visibility.Visible;
-        btnCopy.Visibility = (hasText && !_busy) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private async Task TranslateAsync()
@@ -84,23 +90,52 @@ public partial class TranslationPanel : Window
         finally
         {
             _busy = false;
-            var hasText = !string.IsNullOrEmpty(txtTarget.Text);
-            btnCopy.Visibility = hasText ? Visibility.Visible : Visibility.Collapsed;
-            tgtWatermark.Visibility = hasText ? Visibility.Collapsed : Visibility.Visible;
+            tgtWatermark.Visibility = string.IsNullOrEmpty(txtTarget.Text) ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 
-    private void BtnCopy_Click(object sender, RoutedEventArgs e)
+    /// <summary>复制译文到剪贴板;无结果或翻译中返回 false。</summary>
+    private bool CopyText()
     {
-        if (string.IsNullOrEmpty(txtTarget.Text))
-            return;
+        if (_busy || string.IsNullOrEmpty(txtTarget.Text))
+            return false;
         try
         {
             System.Windows.Clipboard.SetText(txtTarget.Text);
+            return true;
         }
         catch
         {
-            // 忽略偶发的剪贴板占用异常
+            return false;   // 忽略偶发的剪贴板占用异常
         }
+    }
+
+    private void BtnCopyOnly_Click(object sender, RoutedEventArgs e) => CopyText();
+
+    private void BtnCopyHide_Click(object sender, RoutedEventArgs e)
+    {
+        CopyText();
+        Close();
+    }
+
+    private void BtnCopyInput_Click(object sender, RoutedEventArgs e)
+    {
+        if (!CopyText())
+            return;
+
+        var hwnd = _targetHwnd;
+        Hide();
+        if (hwnd != IntPtr.Zero)
+            SetForegroundWindow(hwnd);
+
+        // 延迟少许确保焦点已切回原应用,再发送粘贴
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
+        timer.Tick += (_, _) =>
+        {
+            timer.Stop();
+            try { System.Windows.Forms.SendKeys.SendWait("^v"); } catch { }
+            Close();
+        };
+        timer.Start();
     }
 }

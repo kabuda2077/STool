@@ -51,7 +51,8 @@
       "Bash(python -c ' *)",
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"clipboard: redesign panel \\(type tabs, thumbnails, source-app badge, size\\); double-click to copy \\(no toast\\); floating trash to clear-all with confirm; capture source app \\(Monitor+Item+Storage migration\\)\")",
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"clipboard: right-click context menu to favorite/delete \\(replaces hover buttons\\); remove double-click-copy tooltip\")",
-      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"settings: reduce textbox/password left padding 8->5 to align text start with combobox \\(compensate border + textbox internal offset\\)\")"
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"settings: reduce textbox/password left padding 8->5 to align text start with combobox \\(compensate border + textbox internal offset\\)\")",
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"screenshot: save via SaveFileDialog; pin in-place at selection \\(position+size\\); fix toast shadow clipping \\(rounded corners\\). clipboard: dedup consecutive identical captures. translation: bottom actions 仅复制/复制并隐藏/复制并输入 \\(paste back to source app\\). ocr result: borderless text\")"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj"

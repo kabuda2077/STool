@@ -377,15 +377,28 @@ public partial class CaptureOverlay : Window
 
     private void BtnSave_Click(object sender, RoutedEventArgs e)
     {
+        using var bmp = RenderSelectionBitmap();
+        CloseOverlay();   // 先关取景窗,保存对话框显示在真实桌面上
+
+        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "STool");
+        try { Directory.CreateDirectory(dir); } catch { }
+
+        var dlg = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "保存截图",
+            Filter = "PNG 图片 (*.png)|*.png",
+            DefaultExt = ".png",
+            FileName = $"Screenshot_{DateTime.Now:yyyyMMdd_HHmmss}.png",
+            InitialDirectory = Directory.Exists(dir) ? dir : string.Empty
+        };
+
+        if (dlg.ShowDialog() != true)
+            return;   // 用户取消
+
         try
         {
-            using var bmp = RenderSelectionBitmap();
-            var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "STool");
-            Directory.CreateDirectory(dir);
-            var file = Path.Combine(dir, $"Screenshot_{DateTime.Now:yyyyMMdd_HHmmss}.png");
-            bmp.Save(file, System.Drawing.Imaging.ImageFormat.Png);
-            CloseOverlay();
-            Core.ToastNotification.Show("截图已保存", file, Core.ToastNotification.ToastType.Success);
+            bmp.Save(dlg.FileName, System.Drawing.Imaging.ImageFormat.Png);
+            Core.ToastNotification.Show("截图已保存", dlg.FileName, Core.ToastNotification.ToastType.Success);
         }
         catch (Exception ex)
         {
@@ -396,8 +409,10 @@ public partial class CaptureOverlay : Window
     private void BtnPin_Click(object sender, RoutedEventArgs e)
     {
         var bmp = RenderSelectionBitmap();
+        // 选区在屏幕上的 DIP 位置 = 覆盖窗口原点(虚拟屏左上)+ 窗口内 DIP 偏移
+        var screenRect = new Rect(Left + _selection.X, Top + _selection.Y, _selection.Width, _selection.Height);
         CloseOverlay();
-        new PinWindow(bmp).Show();
+        new PinWindow(bmp, screenRect).Show();
     }
 
     private async void BtnOcr_Click(object sender, RoutedEventArgs e)

@@ -47,7 +47,7 @@ public class OcrSettingsPanel : StackPanel
         AddLabel("OCR 提供商");
         _cmbProvider = new System.Windows.Controls.ComboBox
         {
-            MinHeight = 32,
+            Height = 34,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
             Margin = new Thickness(0, 4, 0, 8)
         };
@@ -66,18 +66,18 @@ public class OcrSettingsPanel : StackPanel
         _activeSection.Children.Add(_chkFallbackToLocal);
         Children.Add(WrapSection(_activeSection));
 
-        // 腾讯云设置
-        _activeSection = CreateSection("腾讯云设置");
+        // 腾讯云设置(可折叠)
+        var tencentSection = CreateCollapsibleSection("腾讯云设置");
 
         AddLabel("Secret ID");
         _txtTencentSecretId = AddTextBox();
 
         AddLabel("Secret Key");
         _pwdTencentSecretKey = AddPasswordBox();
-        Children.Add(WrapSection(_activeSection));
+        Children.Add(tencentSection);
 
-        // AI Vision 设置
-        _activeSection = CreateSection("AI Vision 设置");
+        // AI Vision 设置(可折叠)
+        var aiSection = CreateCollapsibleSection("AI Vision 设置");
 
         AddLabel("API URL");
         _txtAiApiUrl = AddTextBox();
@@ -89,7 +89,7 @@ public class OcrSettingsPanel : StackPanel
         AddLabel("模型");
         _txtAiModel = AddTextBox();
         AddHint("例如：gpt-4o, claude-3-5-sonnet-20241022");
-        Children.Add(WrapSection(_activeSection));
+        Children.Add(aiSection);
 
         // 保存按钮
         var btnSave = new System.Windows.Controls.Button
@@ -122,6 +122,21 @@ public class OcrSettingsPanel : StackPanel
         return section;
     }
 
+    /// <summary>创建可折叠分组(默认收起),后续 Add* 写入其内容区。</summary>
+    private Expander CreateCollapsibleSection(string title)
+    {
+        var content = new StackPanel();
+        _activeSection = content;
+        return new Expander
+        {
+            Style = (Style)FindResource("SettingsExpander"),
+            Header = title,
+            Content = content,
+            IsExpanded = false,
+            Margin = new Thickness(0, 0, 0, 18)
+        };
+    }
+
     private void AddLabel(string text)
     {
         var label = new TextBlock
@@ -136,7 +151,7 @@ public class OcrSettingsPanel : StackPanel
     {
         var textBox = new System.Windows.Controls.TextBox
         {
-            MinHeight = 32,
+            Height = 34,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
         };
         _activeSection.Children.Add(textBox);
@@ -147,7 +162,7 @@ public class OcrSettingsPanel : StackPanel
     {
         var passwordBox = new System.Windows.Controls.PasswordBox
         {
-            MinHeight = 32,
+            Height = 34,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
         };
         _activeSection.Children.Add(passwordBox);

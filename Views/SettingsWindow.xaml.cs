@@ -38,6 +38,14 @@ public partial class SettingsWindow : Window
         SelectNavigationButton(btnTranslationSettings);
     }
 
+    // 让鼠标停在输入框上(未点击)时滚轮也能滚动整页:
+    // 输入框会吞掉冒泡的 MouseWheel,这里在隧道阶段直接滚外层 ScrollViewer。
+    private void ContentScroll_PreviewMouseWheel(object sender, System.Windows.Input.MouseWheelEventArgs e)
+    {
+        contentScroll.ScrollToVerticalOffset(contentScroll.VerticalOffset - e.Delta);
+        e.Handled = true;
+    }
+
     private void SelectNavigationButton(System.Windows.Controls.Button button)
     {
         // 清除之前的选中状态

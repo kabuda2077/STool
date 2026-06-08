@@ -45,7 +45,8 @@
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"translation: fix Tencent Cloud signature by removing charset from Content-Type \\(prevent mismatch between signed header and actual request\\)\")",
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"translation+ocr: fix Tencent Authorization header FormatException \\(TryAddWithoutValidation; '/' in credential is not a valid token char\\) + drop charset\")",
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"translation panel: redesign \\(input + provider toggle Google/Tencent + lang selector + splitter + result\\); add free Google translate \\(no API key\\); no success toast\")",
-      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"translation: add Google to settings provider list; remove nested borders \\(single bordered textbox\\); remove lightbulb button, Enter to translate \\(Shift+Enter newline\\)\")"
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"translation: add Google to settings provider list; remove nested borders \\(single bordered textbox\\); remove lightbulb button, Enter to translate \\(Shift+Enter newline\\)\")",
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"settings: trim input left padding \\(11->8\\); collapsible Tencent/AI sections \\(Expander\\); fix wheel-scroll when hovering inputs; unify input/dropdown height to 34px\")"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj"

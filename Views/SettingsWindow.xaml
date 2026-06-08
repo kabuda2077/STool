@@ -42,9 +42,11 @@
 
         <Border Grid.Column="1"
                 Background="{StaticResource BackgroundBrush}">
-            <ScrollViewer VerticalScrollBarVisibility="Auto"
+            <ScrollViewer x:Name="contentScroll"
+                          VerticalScrollBarVisibility="Auto"
                           Background="Transparent"
                           FocusVisualStyle="{x:Null}"
+                          PreviewMouseWheel="ContentScroll_PreviewMouseWheel"
                           Padding="0">
                 <Grid x:Name="contentPanel" Margin="22,18"/>
             </ScrollViewer>

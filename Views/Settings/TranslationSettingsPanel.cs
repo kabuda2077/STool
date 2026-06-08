@@ -48,6 +48,7 @@ public class TranslationSettingsPanel : StackPanel
         AddLabel("翻译提供商");
         _cmbProvider = new System.Windows.Controls.ComboBox
         {
+            Style = (Style)FindResource("SunkenComboBox"),
             Height = 34,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
             Margin = new Thickness(0, 4, 0, 8)
@@ -64,6 +65,7 @@ public class TranslationSettingsPanel : StackPanel
         AddLabel("源语言");
         _cmbSourceLanguage = new System.Windows.Controls.ComboBox
         {
+            Style = (Style)FindResource("SunkenComboBox"),
             Height = 34,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
             Margin = new Thickness(0, 4, 0, 8)
@@ -78,6 +80,7 @@ public class TranslationSettingsPanel : StackPanel
         AddLabel("目标语言");
         _cmbTargetLanguage = new System.Windows.Controls.ComboBox
         {
+            Style = (Style)FindResource("SunkenComboBox"),
             Height = 34,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
             Margin = new Thickness(0, 4, 0, 8)
@@ -138,25 +141,31 @@ public class TranslationSettingsPanel : StackPanel
         return section;
     }
 
-    private StackPanel WrapSection(StackPanel section)
+    private Border WrapSection(StackPanel section)
     {
-        // 扁平布局:不再包卡片外框,仅用分组标题 + 间距区分各组
-        section.Margin = new Thickness(0, 0, 0, 18);
-        return section;
+        return new Border
+        {
+            Style = (Style)FindResource("SurfaceCard"),
+            Child = section
+        };
     }
 
-    /// <summary>创建可折叠分组(默认收起),后续 Add* 写入其内容区。</summary>
-    private Expander CreateCollapsibleSection(string title)
+    /// <summary>创建可折叠分组(默认收起),后续 Add* 写入其内容区;整组包成阴影卡片。</summary>
+    private Border CreateCollapsibleSection(string title)
     {
         var content = new StackPanel();
         _activeSection = content;
-        return new Expander
+        var exp = new Expander
         {
             Style = (Style)FindResource("SettingsExpander"),
             Header = title,
             Content = content,
-            IsExpanded = false,
-            Margin = new Thickness(0, 0, 0, 18)
+            IsExpanded = false
+        };
+        return new Border
+        {
+            Style = (Style)FindResource("SurfaceCard"),
+            Child = exp
         };
     }
 
@@ -174,6 +183,7 @@ public class TranslationSettingsPanel : StackPanel
     {
         var textBox = new System.Windows.Controls.TextBox
         {
+            Style = (Style)FindResource("SunkenTextBox"),
             Height = 34,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
         };
@@ -185,6 +195,7 @@ public class TranslationSettingsPanel : StackPanel
     {
         var passwordBox = new System.Windows.Controls.PasswordBox
         {
+            Style = (Style)FindResource("SunkenPasswordBox"),
             Height = 34,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
         };

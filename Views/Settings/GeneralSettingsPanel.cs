@@ -92,11 +92,14 @@ public class GeneralSettingsPanel : StackPanel
         return new StackPanel();
     }
 
-    private StackPanel WrapSection(StackPanel section)
+    private Border WrapSection(StackPanel section)
     {
-        // 扁平布局:不再包卡片外框,仅用分组标题 + 间距区分各组
-        section.Margin = new Thickness(0, 0, 0, 18);
-        return section;
+        // 色块分层:分组包成无边框白底卡片,靠柔和阴影从画布浮起
+        return new Border
+        {
+            Style = (Style)FindResource("SurfaceCard"),
+            Child = section
+        };
     }
 
     private void AddHotkeyField(StackPanel parent, string label, ref System.Windows.Controls.TextBox textBox)
@@ -112,7 +115,7 @@ public class GeneralSettingsPanel : StackPanel
 
         textBox = new HotkeyBox
         {
-            Style = (Style)FindResource("ModernTextBox"),
+            Style = (Style)FindResource("SunkenTextBox"),
             Height = 34,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
         };

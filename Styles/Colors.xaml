@@ -56,4 +56,20 @@
     <Color x:Key="ShadowColor">#330F172A</Color>
     <Color x:Key="ShadowLightColor">#1A0F172A</Color>
 
+    <!-- ===== 重构方向:色块分层 + 柔和阴影(替代边框)===== -->
+    <!-- 表面分层:画布(底) < 卡面(白,靠阴影浮起) > 凹陷(输入井,比卡面略深) -->
+    <Color x:Key="SurfaceCanvasColor">#F2F4F7</Color>
+    <Color x:Key="SurfaceSunkenColor">#EDF0F4</Color>
+    <Color x:Key="SurfaceSunkenHoverColor">#E6EAF1</Color>
+    <SolidColorBrush x:Key="SurfaceCanvasBrush" Color="{StaticResource SurfaceCanvasColor}"/>
+    <SolidColorBrush x:Key="SurfaceSunkenBrush" Color="{StaticResource SurfaceSunkenColor}"/>
+    <SolidColorBrush x:Key="SurfaceSunkenHoverBrush" Color="{StaticResource SurfaceSunkenHoverColor}"/>
+
+    <!-- Elevation 阴影分级:冷色、大模糊、低透明、向下,统一全局深度语言 -->
+    <Color x:Key="ElevationShadowColor">#0B1220</Color>
+    <DropShadowEffect x:Key="Elevation1" Color="{StaticResource ElevationShadowColor}" BlurRadius="18" ShadowDepth="2"  Direction="270" Opacity="0.10" RenderingBias="Quality"/>
+    <DropShadowEffect x:Key="Elevation2" Color="{StaticResource ElevationShadowColor}" BlurRadius="26" ShadowDepth="4"  Direction="270" Opacity="0.12" RenderingBias="Quality"/>
+    <DropShadowEffect x:Key="Elevation3" Color="{StaticResource ElevationShadowColor}" BlurRadius="34" ShadowDepth="8"  Direction="270" Opacity="0.15" RenderingBias="Quality"/>
+    <DropShadowEffect x:Key="Elevation4" Color="{StaticResource ElevationShadowColor}" BlurRadius="50" ShadowDepth="16" Direction="270" Opacity="0.18" RenderingBias="Quality"/>
+
 </ResourceDictionary>

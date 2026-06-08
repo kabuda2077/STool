@@ -41,7 +41,7 @@
         </Border>
 
         <Border Grid.Column="1"
-                Background="{StaticResource BackgroundBrush}">
+                Background="{StaticResource SurfaceCanvasBrush}">
             <ScrollViewer x:Name="contentScroll"
                           VerticalScrollBarVisibility="Auto"
                           Background="Transparent"

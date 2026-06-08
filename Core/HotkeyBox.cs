@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Windows;
 using System.Windows.Input;
 using TextBox = System.Windows.Controls.TextBox;
 using KeyEventArgs = System.Windows.Input.KeyEventArgs;
@@ -9,10 +10,17 @@ namespace STool.Core;
 /// <summary>
 /// 快捷键捕获输入框:点击聚焦后直接按下组合键即可自动记录(如 Ctrl+Alt+A)。
 /// 只读显示,组合键必须包含至少一个修饰键;Esc 结束捕获,Tab 正常切换焦点。
+/// 聚焦时挂起全局热键(否则常用组合会被系统级热键拦截),失焦时恢复。
 /// 输出格式与 HotkeyManager 解析一致(修饰键 + 主键,用 "+" 连接)。
 /// </summary>
 public class HotkeyBox : TextBox
 {
+    static HotkeyBox()
+    {
+        // 子类化 TextBox 需把 DefaultStyleKey 指回 TextBox,确保沿用 TextBox 的样式/模板基础设施。
+        DefaultStyleKeyProperty.OverrideMetadata(typeof(HotkeyBox), new FrameworkPropertyMetadata(typeof(TextBox)));
+    }
+
     public HotkeyBox()
     {
         IsReadOnly = true;

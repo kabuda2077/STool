@@ -10,7 +10,19 @@
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"settings: click-to-capture hotkey box \\(HotkeyBox\\); remove dotted focus rect on content\")",
       "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_diag_tray.ps1\")",
       "Bash(rm -f obj/_diag_tray.ps1 obj/_verify_tray.ps1 obj/_verify_shutdown.ps1 obj/_verify_window.ps1)",
-      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"fix: suspend global hotkeys while a HotkeyBox is focused so combos can be recorded \\(was intercepted by RegisterHotKey\\)\")"
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"fix: suspend global hotkeys while a HotkeyBox is focused so combos can be recorded \\(was intercepted by RegisterHotKey\\)\")",
+      "Read(//c/Users/kabuda/AppData/Roaming/STool/Logs/**)",
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_open_settings.ps1\")",
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_open_general.ps1\")",
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_reopen_settings.ps1\")",
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_open_general2.ps1\")",
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_shot_settings.ps1\")",
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_read_edits.ps1\")",
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_capture_test.ps1\")",
+      "Bash(cd \"e:/Data/Project/STool\" && taskkill //IM STool.exe //F 2>/dev/null; sleep 1; dotnet build 2>&1 | tail -4; rm -f obj/_*.ps1 obj/_*.png obj/_*.txt 2>/dev/null; echo \"temp cleaned\")"
+    ],
+    "additionalDirectories": [
+      "E:\\Data\\Project\\STool\\obj"
     ]
   }
 }

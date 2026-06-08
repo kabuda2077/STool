@@ -164,7 +164,7 @@ public class TranslationSettingsPanel : StackPanel
         var textBox = new System.Windows.Controls.TextBox
         {
             Width = 420,
-            Height = 32,
+            MinHeight = 36,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Left
         };
         _activeSection.Children.Add(textBox);
@@ -176,7 +176,7 @@ public class TranslationSettingsPanel : StackPanel
         var passwordBox = new System.Windows.Controls.PasswordBox
         {
             Width = 420,
-            Height = 32,
+            MinHeight = 36,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Left
         };
         _activeSection.Children.Add(passwordBox);

@@ -116,7 +116,7 @@ public class GeneralSettingsPanel : StackPanel
         {
             Style = (Style)FindResource("ModernTextBox"),
             Width = 280,
-            Height = 32,
+            MinHeight = 36,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Left
         };
         panel.Children.Add(textBox);

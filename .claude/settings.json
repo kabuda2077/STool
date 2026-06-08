@@ -31,7 +31,8 @@
       "Bash(python -c \"import json; print\\(json.load\\(open\\(r'C:/Users/kabuda/AppData/Roaming/STool/config.json'\\)\\)['hotkeys']\\)\")",
       "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_cap.ps1\")",
       "Bash(powershell -NoProfile -Command \"Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait\\('{ESC}'\\)\")",
-      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"screenshot: WeChat-style unified capture overlay \\(default full-screen selection, clear-inside/dim-outside mask, 8 resize handles, move/redraw, inline annotation, on-screen toolbar, Enter/double-click copies\\); retire separate ToolbarWindow\")"
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"screenshot: WeChat-style unified capture overlay \\(default full-screen selection, clear-inside/dim-outside mask, 8 resize handles, move/redraw, inline annotation, on-screen toolbar, Enter/double-click copies\\); retire separate ToolbarWindow\")",
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"obj/_tb.ps1\")"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj"

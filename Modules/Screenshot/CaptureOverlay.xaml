@@ -53,13 +53,17 @@
                 </Border.Effect>
                 <StackPanel Orientation="Horizontal" Height="34">
                     <Button x:Name="btnRect" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Rectangle" ToolTip="矩形">
-                        <TextBlock Text="▢" FontSize="16"/>
+                        <Rectangle Width="16" Height="13" RadiusX="2.5" RadiusY="2.5"
+                                   Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="1.7" Fill="Transparent"/>
                     </Button>
                     <Button x:Name="btnEllipse" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Ellipse" Margin="2,0,0,0" ToolTip="椭圆">
-                        <TextBlock Text="◯" FontSize="15"/>
+                        <Ellipse Width="16" Height="14"
+                                 Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="1.7" Fill="Transparent"/>
                     </Button>
                     <Button x:Name="btnArrow" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Arrow" Margin="2,0,0,0" ToolTip="箭头">
-                        <TextBlock Text="↗" FontSize="16"/>
+                        <Path Data="M4,18 L17,5 M17,5 L10.5,5 M17,5 L17,11.5"
+                              Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="1.7"
+                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
                     </Button>
                     <Button x:Name="btnPen" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Pen" Margin="2,0,0,0" ToolTip="画笔">
                         <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>

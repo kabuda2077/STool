@@ -121,6 +121,7 @@ public partial class CaptureOverlay : Window
         _dragMode = DragMode.Resize;
         _dragStart = e.GetPosition(overlayCanvas);
         _selectionAtStart = _selection;
+        toolbar.Visibility = Visibility.Collapsed;   // 调整过程中隐藏工具条
         overlayCanvas.CaptureMouse();
         e.Handled = true;
     }
@@ -154,6 +155,7 @@ public partial class CaptureOverlay : Window
             _selection = new Rect(p.X, p.Y, 0, 0);
             UpdateVisuals();
         }
+        toolbar.Visibility = Visibility.Collapsed;   // 选取过程中隐藏工具条
         overlayCanvas.CaptureMouse();
     }
 
@@ -209,6 +211,7 @@ public partial class CaptureOverlay : Window
         {
             _isDefaultSelection = false;   // 用户已手动框选,之后框内拖=移动
         }
+        toolbar.Visibility = Visibility.Visible;   // 选取完成 → 显示工具条
         UpdateVisuals();
     }
 

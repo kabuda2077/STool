@@ -137,13 +137,11 @@ public class TranslationSettingsPanel : StackPanel
         return section;
     }
 
-    private Border WrapSection(StackPanel section)
+    private StackPanel WrapSection(StackPanel section)
     {
-        return new Border
-        {
-            Style = (Style)FindResource("SettingsSection"),
-            Child = section
-        };
+        // 扁平布局:不再包卡片外框,仅用分组标题 + 间距区分各组
+        section.Margin = new Thickness(0, 0, 0, 18);
+        return section;
     }
 
     private void AddLabel(string text)

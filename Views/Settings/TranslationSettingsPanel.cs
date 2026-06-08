@@ -52,6 +52,7 @@ public class TranslationSettingsPanel : StackPanel
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
             Margin = new Thickness(0, 4, 0, 8)
         };
+        _cmbProvider.Items.Add(new ComboBoxItem { Content = "谷歌翻译 (免费)", Tag = TranslationProvider.Google });
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "腾讯云翻译", Tag = TranslationProvider.Tencent });
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "AI 翻译 (OpenAI/Claude)", Tag = TranslationProvider.OpenAI });
         _activeSection.Children.Add(_cmbProvider);

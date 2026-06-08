@@ -1,4 +1,5 @@
 using System;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
@@ -10,6 +11,7 @@ public partial class TranslationPanel : Window
 {
     private readonly TranslationManager _translationManager;
     private TranslationProvider _provider = TranslationProvider.Google;
+    private bool _busy;
 
     public TranslationPanel(TranslationManager translationManager)
     {
@@ -17,14 +19,13 @@ public partial class TranslationPanel : Window
         _translationManager = translationManager;
         UpdateProviderButtons();
 
-        // Ctrl+Enter 触发翻译
+        // 回车翻译;Shift+Enter 换行
         txtSource.PreviewKeyDown += (_, e) =>
         {
-            if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control)
+            if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Shift) == 0)
             {
                 e.Handled = true;
-                if (btnTranslate.IsEnabled)
-                    _ = TranslateAsync();
+                _ = TranslateAsync();
             }
         };
     }
@@ -45,8 +46,6 @@ public partial class TranslationPanel : Window
 
     private void TxtSource_TextChanged(object sender, TextChangedEventArgs e)
     {
-        var hasText = !string.IsNullOrWhiteSpace(txtSource.Text);
-        btnTranslate.IsEnabled = hasText;
         srcWatermark.Visibility = string.IsNullOrEmpty(txtSource.Text) ? Visibility.Visible : Visibility.Collapsed;
     }
 
@@ -54,22 +53,19 @@ public partial class TranslationPanel : Window
     {
         var hasText = !string.IsNullOrEmpty(txtTarget.Text);
         tgtWatermark.Visibility = hasText ? Visibility.Collapsed : Visibility.Visible;
-        btnCopy.Visibility = hasText ? Visibility.Visible : Visibility.Collapsed;
+        btnCopy.Visibility = (hasText && !_busy) ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private void BtnTranslate_Click(object sender, RoutedEventArgs e) => _ = TranslateAsync();
-
-    private async System.Threading.Tasks.Task TranslateAsync()
+    private async Task TranslateAsync()
     {
         var sourceText = txtSource.Text.Trim();
-        if (string.IsNullOrEmpty(sourceText))
+        if (string.IsNullOrEmpty(sourceText) || _busy)
             return;
 
         try
         {
-            btnTranslate.IsEnabled = false;
-            loadingSpinner.Visibility = Visibility.Visible;
-            translateIcon.Visibility = Visibility.Collapsed;
+            _busy = true;
+            txtTarget.Text = "翻译中…";
 
             var sourceLang = (cmbSource.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "auto";
             var targetLang = (cmbTarget.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "en";
@@ -87,9 +83,10 @@ public partial class TranslationPanel : Window
         }
         finally
         {
-            btnTranslate.IsEnabled = !string.IsNullOrWhiteSpace(txtSource.Text);
-            loadingSpinner.Visibility = Visibility.Collapsed;
-            translateIcon.Visibility = Visibility.Visible;
+            _busy = false;
+            var hasText = !string.IsNullOrEmpty(txtTarget.Text);
+            btnCopy.Visibility = hasText ? Visibility.Visible : Visibility.Collapsed;
+            tgtWatermark.Visibility = hasText ? Visibility.Collapsed : Visibility.Visible;
         }
     }
 

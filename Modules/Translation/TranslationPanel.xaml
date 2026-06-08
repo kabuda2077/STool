@@ -62,40 +62,30 @@
                 <RowDefinition Height="Auto"/>
             </Grid.RowDefinitions>
 
-            <!-- 输入框 -->
-            <Border Grid.Row="0"
-                    Background="{StaticResource SurfaceBrush}"
-                    BorderBrush="{StaticResource BorderBrush}"
-                    BorderThickness="1"
-                    CornerRadius="8"
-                    Padding="12">
-                <Grid>
-                    <TextBox x:Name="txtSource"
-                             Style="{StaticResource ModernTextBox}"
-                             BorderThickness="0"
-                             Background="Transparent"
-                             Padding="0"
-                             FontSize="14"
-                             TextWrapping="Wrap"
-                             AcceptsReturn="True"
-                             VerticalScrollBarVisibility="Auto"
-                             VerticalContentAlignment="Top"
-                             TextChanged="TxtSource_TextChanged"/>
-                    <TextBlock x:Name="srcWatermark"
-                               Text="请输入要翻译的内容，可右键点击文本框粘贴"
-                               FontSize="14"
-                               Foreground="{StaticResource TextSecondaryBrush}"
-                               IsHitTestVisible="False"
-                               VerticalAlignment="Top"/>
-                </Grid>
-            </Border>
+            <!-- 输入框(单边框,聚焦变蓝) -->
+            <Grid Grid.Row="0">
+                <TextBox x:Name="txtSource"
+                         Style="{StaticResource ModernTextBox}"
+                         FontSize="14"
+                         TextWrapping="Wrap"
+                         AcceptsReturn="True"
+                         VerticalScrollBarVisibility="Auto"
+                         VerticalContentAlignment="Top"
+                         TextChanged="TxtSource_TextChanged"/>
+                <TextBlock x:Name="srcWatermark"
+                           Text="请输入要翻译的内容，可右键点击文本框粘贴"
+                           FontSize="14"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           IsHitTestVisible="False"
+                           VerticalAlignment="Top"
+                           Margin="13,8,0,0"/>
+            </Grid>
 
             <!-- 工具栏 -->
             <Grid Grid.Row="1" Margin="0,10,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
                     <ColumnDefinition Width="Auto"/>
                 </Grid.ColumnDefinitions>
 
@@ -105,31 +95,8 @@
                     <Button x:Name="btnProviderTencent" Style="{StaticResource ProviderToggle}" Click="Provider_Click" Margin="8,0,0,0" Content="腾讯翻译"/>
                 </StackPanel>
 
-                <!-- 翻译按钮(灯泡) -->
-                <Button x:Name="btnTranslate"
-                        Grid.Column="2"
-                        Style="{StaticResource ModernButton}"
-                        Click="BtnTranslate_Click"
-                        Width="42"
-                        Padding="0"
-                        Margin="0,0,10,0"
-                        ToolTip="翻译 (Ctrl+Enter)"
-                        IsEnabled="False">
-                    <Grid>
-                        <Border x:Name="loadingSpinner"
-                                Style="{StaticResource LoadingSpinner}"
-                                Width="15" Height="15"
-                                Visibility="Collapsed"/>
-                        <Path x:Name="translateIcon"
-                              Data="M9 15 A5 5 0 1 1 15 15 L15 16.5 L9 16.5 Z M9.5 19 L14.5 19 M10.5 22 L13.5 22"
-                              Stroke="White" StrokeThickness="1.8"
-                              StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                              Width="18" Height="18" Stretch="Uniform"/>
-                    </Grid>
-                </Button>
-
                 <!-- 语言选择:源 → 目标 -->
-                <StackPanel Grid.Column="3" Orientation="Horizontal">
+                <StackPanel Grid.Column="2" Orientation="Horizontal">
                     <ComboBox x:Name="cmbSource" Width="106" Height="32" SelectedIndex="0">
                         <ComboBoxItem Content="自动检测" Tag="auto"/>
                         <ComboBoxItem Content="中文" Tag="zh"/>
@@ -162,43 +129,34 @@
                       ResizeBehavior="PreviousAndNext"
                       ResizeDirection="Rows"/>
 
-        <!-- 下半部:翻译结果 -->
-        <Border Grid.Row="2"
-                Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="12">
-            <Grid>
-                <TextBox x:Name="txtTarget"
-                         Style="{StaticResource ModernTextBox}"
-                         BorderThickness="0"
-                         Background="Transparent"
-                         Padding="0"
-                         FontSize="14"
-                         TextWrapping="Wrap"
-                         AcceptsReturn="True"
-                         IsReadOnly="True"
-                         VerticalScrollBarVisibility="Auto"
-                         VerticalContentAlignment="Top"
-                         TextChanged="TxtTarget_TextChanged"/>
-                <TextBlock x:Name="tgtWatermark"
-                           Text="翻译结果"
-                           FontSize="14"
-                           Foreground="{StaticResource TextSecondaryBrush}"
-                           IsHitTestVisible="False"
-                           VerticalAlignment="Top"/>
-                <Button x:Name="btnCopy"
-                        Style="{StaticResource IconButton}"
-                        Click="BtnCopy_Click"
-                        VerticalAlignment="Top"
-                        HorizontalAlignment="Right"
-                        Margin="0,-4,-4,0"
-                        Visibility="Collapsed"
-                        ToolTip="复制译文">
-                    <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
-                </Button>
-            </Grid>
-        </Border>
+        <!-- 下半部:翻译结果(单边框) -->
+        <Grid Grid.Row="2">
+            <TextBox x:Name="txtTarget"
+                     Style="{StaticResource ModernTextBox}"
+                     FontSize="14"
+                     TextWrapping="Wrap"
+                     AcceptsReturn="True"
+                     IsReadOnly="True"
+                     VerticalScrollBarVisibility="Auto"
+                     VerticalContentAlignment="Top"
+                     TextChanged="TxtTarget_TextChanged"/>
+            <TextBlock x:Name="tgtWatermark"
+                       Text="翻译结果"
+                       FontSize="14"
+                       Foreground="{StaticResource TextSecondaryBrush}"
+                       IsHitTestVisible="False"
+                       VerticalAlignment="Top"
+                       Margin="13,8,0,0"/>
+            <Button x:Name="btnCopy"
+                    Style="{StaticResource IconButton}"
+                    Click="BtnCopy_Click"
+                    VerticalAlignment="Top"
+                    HorizontalAlignment="Right"
+                    Margin="0,4,6,0"
+                    Visibility="Collapsed"
+                    ToolTip="复制译文">
+                <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="14"/>
+            </Button>
+        </Grid>
     </Grid>
 </Window>

@@ -44,7 +44,8 @@
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"settings: flatten layout by removing card wrapper from each section \\(keep title+spacing only\\)\")",
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"translation: fix Tencent Cloud signature by removing charset from Content-Type \\(prevent mismatch between signed header and actual request\\)\")",
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"translation+ocr: fix Tencent Authorization header FormatException \\(TryAddWithoutValidation; '/' in credential is not a valid token char\\) + drop charset\")",
-      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"translation panel: redesign \\(input + provider toggle Google/Tencent + lang selector + splitter + result\\); add free Google translate \\(no API key\\); no success toast\")"
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"translation panel: redesign \\(input + provider toggle Google/Tencent + lang selector + splitter + result\\); add free Google translate \\(no API key\\); no success toast\")",
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"translation: add Google to settings provider list; remove nested borders \\(single bordered textbox\\); remove lightbulb button, Enter to translate \\(Shift+Enter newline\\)\")"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj"

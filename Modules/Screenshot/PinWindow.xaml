@@ -12,8 +12,7 @@
         KeyDown="Window_KeyDown">
 
     <Border x:Name="mainBorder"
-            BorderBrush="{StaticResource BorderBrush}"
-            BorderThickness="1"
+            BorderThickness="0"
             CornerRadius="6"
             Background="{StaticResource SurfaceBrush}">
         <Border.Effect>

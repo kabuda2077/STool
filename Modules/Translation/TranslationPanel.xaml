@@ -16,29 +16,25 @@
             <Setter Property="Padding" Value="14,0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="Background" Value="{StaticResource SurfaceSunkenBrush}"/>
             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-            <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
             <Setter Property="Template">
                 <Setter.Value>
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="b"
                                 Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
                                 CornerRadius="7"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource BorderStrongBrush}"/>
+                                <Setter TargetName="b" Property="Background" Value="{StaticResource SurfaceSunkenHoverBrush}"/>
                             </Trigger>
                             <Trigger Property="Tag" Value="on">
                                 <Setter TargetName="b" Property="Background" Value="{StaticResource PrimarySubtleBrush}"/>
-                                <Setter TargetName="b" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
                                 <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -66,7 +62,7 @@
             <!-- 输入框(单边框,聚焦变蓝) -->
             <Grid Grid.Row="0">
                 <TextBox x:Name="txtSource"
-                         Style="{StaticResource ModernTextBox}"
+                         Style="{StaticResource SunkenTextBox}"
                          FontSize="14"
                          TextWrapping="Wrap"
                          AcceptsReturn="True"
@@ -79,7 +75,7 @@
                            Foreground="{StaticResource TextSecondaryBrush}"
                            IsHitTestVisible="False"
                            VerticalAlignment="Top"
-                           Margin="13,8,0,0"/>
+                           Margin="7,6,0,0"/>
             </Grid>
 
             <!-- 工具栏 -->
@@ -98,7 +94,7 @@
 
                 <!-- 语言选择:源 → 目标 -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
-                    <ComboBox x:Name="cmbSource" Width="106" Height="32" SelectedIndex="0">
+                    <ComboBox x:Name="cmbSource" Style="{StaticResource SunkenComboBox}" Width="106" Height="32" SelectedIndex="0">
                         <ComboBoxItem Content="自动检测" Tag="auto"/>
                         <ComboBoxItem Content="中文" Tag="zh"/>
                         <ComboBoxItem Content="英文" Tag="en"/>
@@ -111,7 +107,7 @@
                                Margin="8,0"
                                VerticalAlignment="Center"
                                Foreground="{StaticResource TextSecondaryBrush}"/>
-                    <ComboBox x:Name="cmbTarget" Width="106" Height="32" SelectedIndex="1">
+                    <ComboBox x:Name="cmbTarget" Style="{StaticResource SunkenComboBox}" Width="106" Height="32" SelectedIndex="1">
                         <ComboBoxItem Content="中文" Tag="zh"/>
                         <ComboBoxItem Content="英文" Tag="en"/>
                         <ComboBoxItem Content="日文" Tag="ja"/>
@@ -133,7 +129,7 @@
         <!-- 下半部:翻译结果(单边框) -->
         <Grid Grid.Row="2">
             <TextBox x:Name="txtTarget"
-                     Style="{StaticResource ModernTextBox}"
+                     Style="{StaticResource SunkenTextBox}"
                      FontSize="14"
                      TextWrapping="Wrap"
                      AcceptsReturn="True"
@@ -147,7 +143,7 @@
                        Foreground="{StaticResource TextSecondaryBrush}"
                        IsHitTestVisible="False"
                        VerticalAlignment="Top"
-                       Margin="13,8,0,0"/>
+                       Margin="7,6,0,0"/>
         </Grid>
 
         <!-- 底部三按钮 -->

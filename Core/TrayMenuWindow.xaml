@@ -73,8 +73,7 @@
     </Window.Resources>
 
     <Border Background="{StaticResource SurfaceBrush}"
-            BorderBrush="{StaticResource BorderBrush}"
-            BorderThickness="1"
+            BorderThickness="0"
             CornerRadius="10"
             Padding="6"
             Margin="14">

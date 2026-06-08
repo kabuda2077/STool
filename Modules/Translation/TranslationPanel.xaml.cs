@@ -1,26 +1,65 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
-using STool.Core;
+using System.Windows.Input;
+using STool.Models;
 
 namespace STool.Modules.Translation;
 
 public partial class TranslationPanel : Window
 {
     private readonly TranslationManager _translationManager;
+    private TranslationProvider _provider = TranslationProvider.Google;
 
     public TranslationPanel(TranslationManager translationManager)
     {
         InitializeComponent();
         _translationManager = translationManager;
+        UpdateProviderButtons();
+
+        // Ctrl+Enter 触发翻译
+        txtSource.PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == Key.Enter && Keyboard.Modifiers == ModifierKeys.Control)
+            {
+                e.Handled = true;
+                if (btnTranslate.IsEnabled)
+                    _ = TranslateAsync();
+            }
+        };
+    }
+
+    private void Provider_Click(object sender, RoutedEventArgs e)
+    {
+        _provider = ReferenceEquals(sender, btnProviderTencent)
+            ? TranslationProvider.Tencent
+            : TranslationProvider.Google;
+        UpdateProviderButtons();
+    }
+
+    private void UpdateProviderButtons()
+    {
+        btnProviderGoogle.Tag = _provider == TranslationProvider.Google ? "on" : null;
+        btnProviderTencent.Tag = _provider == TranslationProvider.Tencent ? "on" : null;
     }
 
     private void TxtSource_TextChanged(object sender, TextChangedEventArgs e)
     {
-        btnTranslate.IsEnabled = !string.IsNullOrWhiteSpace(txtSource.Text);
+        var hasText = !string.IsNullOrWhiteSpace(txtSource.Text);
+        btnTranslate.IsEnabled = hasText;
+        srcWatermark.Visibility = string.IsNullOrEmpty(txtSource.Text) ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private async void BtnTranslate_Click(object sender, RoutedEventArgs e)
+    private void TxtTarget_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        var hasText = !string.IsNullOrEmpty(txtTarget.Text);
+        tgtWatermark.Visibility = hasText ? Visibility.Collapsed : Visibility.Visible;
+        btnCopy.Visibility = hasText ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void BtnTranslate_Click(object sender, RoutedEventArgs e) => _ = TranslateAsync();
+
+    private async System.Threading.Tasks.Task TranslateAsync()
     {
         var sourceText = txtSource.Text.Trim();
         if (string.IsNullOrEmpty(sourceText))
@@ -28,45 +67,27 @@ public partial class TranslationPanel : Window
 
         try
         {
-            // 显示加载状态
             btnTranslate.IsEnabled = false;
             loadingSpinner.Visibility = Visibility.Visible;
             translateIcon.Visibility = Visibility.Collapsed;
 
-            // 获取选中的语言
-            var sourceLang = (cmbSourceLanguage.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "auto";
-            var targetLang = (cmbTargetLanguage.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "zh";
+            var sourceLang = (cmbSource.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "auto";
+            var targetLang = (cmbTarget.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "en";
 
-            // 执行翻译
-            var result = await _translationManager.TranslateAsync(sourceText, sourceLang, targetLang);
+            var result = await _translationManager.TranslateAsync(sourceText, sourceLang, targetLang, _provider);
 
-            if (result.Success)
-            {
-                txtTarget.Text = result.TranslatedText;
-                txtProvider.Text = $"提供商: {result.Provider}";
-                btnCopy.IsEnabled = true;
-
-                // 显示成功提示
-                ToastNotification.Show("翻译完成", type: ToastNotification.ToastType.Success);
-            }
-            else
-            {
-                txtTarget.Text = $"翻译失败: {result.ErrorMessage}";
-                txtProvider.Text = "";
-                btnCopy.IsEnabled = false;
-
-                // 显示错误提示
-                ToastNotification.Show("翻译失败", result.ErrorMessage ?? "未知错误", ToastNotification.ToastType.Error);
-            }
+            // 结果与错误都直接显示在结果区,翻译完成不再弹出右下角提示
+            txtTarget.Text = result.Success
+                ? result.TranslatedText
+                : $"翻译失败：{result.ErrorMessage}";
         }
         catch (Exception ex)
         {
-            ToastNotification.Show("翻译失败", ex.Message, ToastNotification.ToastType.Error);
+            txtTarget.Text = $"翻译失败：{ex.Message}";
         }
         finally
         {
-            // 恢复按钮状态
-            btnTranslate.IsEnabled = true;
+            btnTranslate.IsEnabled = !string.IsNullOrWhiteSpace(txtSource.Text);
             loadingSpinner.Visibility = Visibility.Collapsed;
             translateIcon.Visibility = Visibility.Visible;
         }
@@ -74,55 +95,15 @@ public partial class TranslationPanel : Window
 
     private void BtnCopy_Click(object sender, RoutedEventArgs e)
     {
+        if (string.IsNullOrEmpty(txtTarget.Text))
+            return;
         try
         {
             System.Windows.Clipboard.SetText(txtTarget.Text);
-            ToastNotification.Show("已复制到剪贴板", type: ToastNotification.ToastType.Success);
         }
-        catch (Exception ex)
+        catch
         {
-            ToastNotification.Show("复制失败", ex.Message, ToastNotification.ToastType.Error);
+            // 忽略偶发的剪贴板占用异常
         }
-    }
-
-    private void BtnClear_Click(object sender, RoutedEventArgs e)
-    {
-        txtSource.Clear();
-        txtTarget.Clear();
-        txtProvider.Text = "";
-        btnCopy.IsEnabled = false;
-    }
-
-    private void BtnSwapLanguages_Click(object sender, RoutedEventArgs e)
-    {
-        // 不能交换"自动检测"
-        if (cmbSourceLanguage.SelectedIndex == 0) // auto
-        {
-            ToastNotification.Show("无法交换", "源语言为自动检测时无法交换", ToastNotification.ToastType.Warning);
-            return;
-        }
-
-        // 交换语言选择
-        var sourceIndex = cmbSourceLanguage.SelectedIndex;
-        var targetIndex = cmbTargetLanguage.SelectedIndex;
-
-        // 源语言ComboBox包含"自动检测"，所以索引需要调整
-        // 目标语言从索引0开始（中文=0, 英文=1, 日文=2, 韩文=3）
-        // 源语言从索引1开始对应实际语言（中文=1, 英文=2, 日文=3, 韩文=4）
-
-        cmbTargetLanguage.SelectedIndex = sourceIndex - 1; // 源语言索引-1对应目标语言
-        cmbSourceLanguage.SelectedIndex = targetIndex + 1; // 目标语言索引+1对应源语言
-
-        // 交换文本内容
-        var temp = txtSource.Text;
-        txtSource.Text = txtTarget.Text;
-        txtTarget.Text = temp;
-
-        ToastNotification.Show("已交换语言", type: ToastNotification.ToastType.Info);
-    }
-
-    private void BtnClose_Click(object sender, RoutedEventArgs e)
-    {
-        Close();
     }
 }

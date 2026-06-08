@@ -61,5 +61,6 @@ public enum OcrProvider
 public enum TranslationProvider
 {
     Tencent,
-    OpenAI
+    OpenAI,
+    Google
 }

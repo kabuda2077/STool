@@ -21,9 +21,18 @@ public class TranslationManager : IDisposable
     }
 
     /// <summary>
-    /// 翻译文本
+    /// 翻译文本(使用配置中的默认提供商)
     /// </summary>
-    public async Task<TranslationResult> TranslateAsync(string text, string? sourceLanguage = null, string? targetLanguage = null)
+    public Task<TranslationResult> TranslateAsync(string text, string? sourceLanguage = null, string? targetLanguage = null)
+    {
+        var provider = _configManager.Get().Translation.Provider;
+        return TranslateAsync(text, sourceLanguage, targetLanguage, provider);
+    }
+
+    /// <summary>
+    /// 翻译文本(指定提供商,供翻译面板的提供商切换使用)
+    /// </summary>
+    public async Task<TranslationResult> TranslateAsync(string text, string? sourceLanguage, string? targetLanguage, TranslationProvider provider)
     {
         var config = _configManager.Get().Translation;
 
@@ -31,29 +40,29 @@ public class TranslationManager : IDisposable
         sourceLanguage ??= config.SourceLanguage;
         targetLanguage ??= config.TargetLanguage;
 
-        var service = GetOrCreateService(config);
+        var service = GetOrCreateService(provider, config);
 
         if (service == null || !service.IsAvailable())
         {
-            Log.Warning($"Translation service {config.Provider} not available");
+            Log.Warning($"Translation service {provider} not available");
             return new TranslationResult
             {
                 Success = false,
-                ErrorMessage = $"Translation service {config.Provider} not configured",
-                Provider = config.Provider.ToString()
+                ErrorMessage = $"翻译服务 {provider} 未配置",
+                Provider = provider.ToString()
             };
         }
 
-        Log.Information($"Translating with provider: {config.Provider}");
+        Log.Information($"Translating with provider: {provider}");
         var result = await service.TranslateAsync(text, sourceLanguage, targetLanguage);
 
         if (result.Success)
         {
-            Log.Information($"Translation succeeded with provider: {config.Provider}");
+            Log.Information($"Translation succeeded with provider: {provider}");
         }
         else
         {
-            Log.Warning($"Translation failed with provider {config.Provider}: {result.ErrorMessage}");
+            Log.Warning($"Translation failed with provider {provider}: {result.ErrorMessage}");
         }
 
         return result;
@@ -89,19 +98,20 @@ public class TranslationManager : IDisposable
         );
     }
 
-    private ITranslationService? GetOrCreateService(TranslationConfig config)
+    private ITranslationService? GetOrCreateService(TranslationProvider provider, TranslationConfig config)
     {
-        var signature = CreateSignature(config);
+        var signature = provider + "|" + CreateSignature(config);
         if (_service != null && _serviceSignature == signature)
         {
             return _service;
         }
 
         _service?.Dispose();
-        _service = config.Provider switch
+        _service = provider switch
         {
             TranslationProvider.Tencent => CreateTencentService(config),
             TranslationProvider.OpenAI => CreateAiService(config),
+            TranslationProvider.Google => new GoogleTranslationService(),
             _ => null
         };
         _serviceSignature = signature;

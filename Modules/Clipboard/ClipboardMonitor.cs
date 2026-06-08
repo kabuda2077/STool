@@ -22,6 +22,12 @@ public class ClipboardMonitor : IDisposable
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool RemoveClipboardFormatListener(IntPtr hwnd);
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [DllImport("user32.dll")]
+    private static extern int GetWindowThreadProcessId(IntPtr hwnd, out int processId);
+
     private readonly Window _listenerWindow;
     private HwndSource? _hwndSource;
     private bool _isMonitoring;
@@ -119,6 +125,9 @@ public class ClipboardMonitor : IDisposable
 
     private ClipboardItem? CaptureClipboardContent()
     {
+        // 复制发生时,前台窗口通常就是来源应用
+        var sourceApp = GetForegroundApp();
+
         if (System.Windows.Clipboard.ContainsText())
         {
             var text = System.Windows.Clipboard.GetText();
@@ -128,7 +137,8 @@ public class ClipboardMonitor : IDisposable
             return new ClipboardItem
             {
                 Type = ClipboardItemType.Text,
-                TextContent = text
+                TextContent = text,
+                SourceApp = sourceApp
             };
         }
         else if (System.Windows.Clipboard.ContainsImage())
@@ -145,7 +155,8 @@ public class ClipboardMonitor : IDisposable
             return new ClipboardItem
             {
                 Type = ClipboardItemType.Image,
-                ImagePath = imagePath
+                ImagePath = imagePath,
+                SourceApp = sourceApp
             };
         }
         else if (System.Windows.Clipboard.ContainsFileDropList())
@@ -159,11 +170,35 @@ public class ClipboardMonitor : IDisposable
             return new ClipboardItem
             {
                 Type = ClipboardItemType.File,
-                FilePaths = filePaths
+                FilePaths = filePaths,
+                SourceApp = sourceApp
             };
         }
 
         return null;
+    }
+
+    /// <summary>抓取当前前台窗口所属进程名(如 Code.exe),失败返回 null。</summary>
+    private static string? GetForegroundApp()
+    {
+        try
+        {
+            var hwnd = GetForegroundWindow();
+            if (hwnd == IntPtr.Zero)
+                return null;
+
+            GetWindowThreadProcessId(hwnd, out int pid);
+            if (pid == 0)
+                return null;
+
+            using var proc = System.Diagnostics.Process.GetProcessById(pid);
+            var name = proc.ProcessName;
+            return string.IsNullOrEmpty(name) ? null : name + ".exe";
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     private string? SaveClipboardImage(BitmapSource image)

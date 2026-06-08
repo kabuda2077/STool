@@ -43,7 +43,8 @@ public class ClipboardStorage : IDisposable
                 file_paths TEXT,
                 created_at TEXT NOT NULL,
                 is_favorite INTEGER DEFAULT 0,
-                tag TEXT
+                tag TEXT,
+                source_app TEXT
             );
 
             CREATE INDEX IF NOT EXISTS idx_created_at ON clipboard_items(created_at DESC);
@@ -51,8 +52,21 @@ public class ClipboardStorage : IDisposable
             CREATE INDEX IF NOT EXISTS idx_favorite ON clipboard_items(is_favorite);
         ";
 
-        using var command = new SqliteCommand(createTableSql, _connection);
-        command.ExecuteNonQuery();
+        using (var command = new SqliteCommand(createTableSql, _connection))
+        {
+            command.ExecuteNonQuery();
+        }
+
+        // 旧库迁移:补充 source_app 列(已存在则忽略)
+        try
+        {
+            using var alter = new SqliteCommand("ALTER TABLE clipboard_items ADD COLUMN source_app TEXT", _connection);
+            alter.ExecuteNonQuery();
+        }
+        catch (SqliteException)
+        {
+            // 列已存在,忽略
+        }
 
         Log.Information($"Clipboard database initialized at {_dbPath}");
     }
@@ -60,8 +74,8 @@ public class ClipboardStorage : IDisposable
     public void Add(ClipboardItem item)
     {
         var sql = @"
-            INSERT INTO clipboard_items (id, type, text_content, image_path, file_paths, created_at, is_favorite, tag)
-            VALUES (@id, @type, @text_content, @image_path, @file_paths, @created_at, @is_favorite, @tag)
+            INSERT INTO clipboard_items (id, type, text_content, image_path, file_paths, created_at, is_favorite, tag, source_app)
+            VALUES (@id, @type, @text_content, @image_path, @file_paths, @created_at, @is_favorite, @tag, @source_app)
         ";
 
         using var command = new SqliteCommand(sql, _connection);
@@ -75,6 +89,7 @@ public class ClipboardStorage : IDisposable
         command.Parameters.AddWithValue("@created_at", item.CreatedAt.ToString("o"));
         command.Parameters.AddWithValue("@is_favorite", item.IsFavorite ? 1 : 0);
         command.Parameters.AddWithValue("@tag", item.Tag ?? (object)DBNull.Value);
+        command.Parameters.AddWithValue("@source_app", item.SourceApp ?? (object)DBNull.Value);
 
         command.ExecuteNonQuery();
     }
@@ -229,6 +244,7 @@ public class ClipboardStorage : IDisposable
         var items = new List<ClipboardItem>();
 
         using var reader = command.ExecuteReader();
+        var srcOrdinal = reader.GetOrdinal("source_app");
         while (reader.Read())
         {
             var item = new ClipboardItem
@@ -239,7 +255,8 @@ public class ClipboardStorage : IDisposable
                 ImagePath = reader.IsDBNull(3) ? null : reader.GetString(3),
                 CreatedAt = DateTime.Parse(reader.GetString(5)),
                 IsFavorite = reader.GetInt32(6) == 1,
-                Tag = reader.IsDBNull(7) ? null : reader.GetString(7)
+                Tag = reader.IsDBNull(7) ? null : reader.GetString(7),
+                SourceApp = reader.IsDBNull(srcOrdinal) ? null : reader.GetString(srcOrdinal)
             };
 
             if (!reader.IsDBNull(4))

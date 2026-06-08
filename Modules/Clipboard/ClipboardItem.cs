@@ -53,6 +53,11 @@ public class ClipboardItem
     public bool IsFavorite { get; set; }
 
     /// <summary>
+    /// 来源应用(进程名,如 Code.exe;复制时抓取的前台窗口进程)
+    /// </summary>
+    public string? SourceApp { get; set; }
+
+    /// <summary>
     /// 标签（可选）
     /// </summary>
     public string? Tag { get; set; }

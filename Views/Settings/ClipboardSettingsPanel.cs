@@ -47,7 +47,7 @@ public class ClipboardSettingsPanel : StackPanel
         {
             Text = "保存后立即生效",
             Style = (Style)FindResource("HintText"),
-            Margin = new Thickness(25, 0, 0, 12)
+            Margin = new Thickness(24, 0, 0, 12)
         };
         _activeSection.Children.Add(hint1);
         Children.Add(WrapSection(_activeSection));
@@ -78,6 +78,7 @@ public class ClipboardSettingsPanel : StackPanel
         var btnSave = new System.Windows.Controls.Button
         {
             Content = "保存设置",
+            Style = (Style)FindResource("ModernButton"),
             Padding = new Thickness(18, 8, 18, 8),
             HorizontalAlignment = System.Windows.HorizontalAlignment.Left
         };
@@ -195,13 +196,11 @@ public class ClipboardSettingsPanel : StackPanel
                 }
             }
 
-            System.Windows.MessageBox.Show("设置已保存", "STool",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            ToastNotification.Show("设置已保存", "剪贴板设置已更新", ToastNotification.ToastType.Success);
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show($"保存失败：{ex.Message}", "STool",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            ToastNotification.Show("保存失败", ex.Message, ToastNotification.ToastType.Error);
         }
     }
 
@@ -212,8 +211,7 @@ public class ClipboardSettingsPanel : StackPanel
             return true;
         }
 
-        System.Windows.MessageBox.Show($"{label} 必须是大于 0 的整数", "STool",
-            MessageBoxButton.OK, MessageBoxImage.Warning);
+        ToastNotification.Show("输入无效", $"{label} 必须是大于 0 的整数", ToastNotification.ToastType.Warning);
         textBox.Focus();
         return false;
     }
@@ -236,20 +234,17 @@ public class ClipboardSettingsPanel : StackPanel
 
                 if (clipboardManager == null)
                 {
-                    System.Windows.MessageBox.Show("剪贴板服务未初始化", "STool",
-                        MessageBoxButton.OK, MessageBoxImage.Error);
+                    ToastNotification.Show("清空失败", "剪贴板服务未初始化", ToastNotification.ToastType.Error);
                     return;
                 }
 
                 clipboardManager.ClearAll();
 
-                System.Windows.MessageBox.Show("已清空所有历史记录", "STool",
-                    MessageBoxButton.OK, MessageBoxImage.Information);
+                ToastNotification.Show("已清空", "所有历史记录已删除", ToastNotification.ToastType.Success);
             }
             catch (Exception ex)
             {
-                System.Windows.MessageBox.Show($"清空失败：{ex.Message}", "STool",
-                    MessageBoxButton.OK, MessageBoxImage.Error);
+                ToastNotification.Show("清空失败", ex.Message, ToastNotification.ToastType.Error);
             }
         }
     }

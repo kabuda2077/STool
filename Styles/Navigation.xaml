@@ -39,7 +39,7 @@
                         </Trigger>
                         <Trigger Property="Tag" Value="Selected">
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource PrimarySubtleBrush}"/>
-                            <Setter TargetName="Root" Property="BorderBrush" Value="#BFDBFE"/>
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource PrimaryBorderSubtleBrush}"/>
                             <Setter TargetName="SelectedRail" Property="Opacity" Value="1"/>
                             <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
                         </Trigger>

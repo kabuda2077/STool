@@ -74,6 +74,7 @@ public class GeneralSettingsPanel : StackPanel
         var btnSave = new System.Windows.Controls.Button
         {
             Content = "保存设置",
+            Style = (Style)FindResource("ModernButton"),
             Padding = new Thickness(18, 8, 18, 8),
             Margin = new Thickness(0, 12, 0, 0),
             HorizontalAlignment = System.Windows.HorizontalAlignment.Left

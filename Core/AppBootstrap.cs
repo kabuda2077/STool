@@ -67,8 +67,6 @@ public class AppBootstrap : IDisposable
 
     private NotifyIcon CreateNotifyIcon()
     {
-        var config = _configManager.Get();
-
         var notifyIcon = new NotifyIcon
         {
             Icon = AppIcons.LoadTrayIcon(),
@@ -76,78 +74,32 @@ public class AppBootstrap : IDisposable
             Text = "STool - 快捷工具"
         };
 
-        var contextMenu = new ContextMenuStrip
+        notifyIcon.MouseUp += (_, e) =>
         {
-            BackColor = System.Drawing.Color.White,
-            ForeColor = System.Drawing.Color.FromArgb(17, 24, 39),
-            Font = new System.Drawing.Font("Microsoft YaHei UI", 9F),
-            ImageScalingSize = new System.Drawing.Size(20, 20),
-            Padding = new System.Windows.Forms.Padding(8, 8, 8, 8),
-            ShowCheckMargin = false,
-            ShowImageMargin = true,
-            Renderer = new TrayMenuRenderer()
+            if (e.Button == MouseButtons.Right)
+                ShowTrayMenu();
         };
-
-        var titleItem = new ToolStripLabel("STool 正在运行")
-        {
-            ForeColor = System.Drawing.Color.FromArgb(100, 116, 139),
-            Padding = new System.Windows.Forms.Padding(8, 5, 8, 6),
-            Margin = new System.Windows.Forms.Padding(0, 0, 0, 2)
-        };
-
-        contextMenu.Items.Add(titleItem);
-        contextMenu.Items.Add(CreateSeparator());
-        contextMenu.Items.Add(CreateMenuItem("截图", config.Hotkeys.Screenshot, TrayMenuIconKind.Screenshot, (_, _) => OnScreenshotHotkey()));
-        contextMenu.Items.Add(CreateMenuItem("翻译", config.Hotkeys.Translation, TrayMenuIconKind.Translate, (_, _) => OnTranslationHotkey()));
-        contextMenu.Items.Add(CreateMenuItem("剪贴板历史", config.Hotkeys.Clipboard, TrayMenuIconKind.Clipboard, (_, _) => OnClipboardHotkey()));
-        contextMenu.Items.Add(CreateSeparator());
-        contextMenu.Items.Add(CreateMenuItem("设置", string.Empty, TrayMenuIconKind.Settings, OnSettings));
-        contextMenu.Items.Add(CreateSeparator());
-        contextMenu.Items.Add(CreateMenuItem("退出 STool", string.Empty, TrayMenuIconKind.Exit, OnExit));
-
-        contextMenu.Opening += (_, _) =>
-        {
-            _configManager.Reload();
-            var currentConfig = _configManager.Get();
-            if (contextMenu.Items[2] is ToolStripMenuItem screenshotItem)
-                screenshotItem.ShortcutKeyDisplayString = currentConfig.Hotkeys.Screenshot;
-            if (contextMenu.Items[3] is ToolStripMenuItem translationItem)
-                translationItem.ShortcutKeyDisplayString = currentConfig.Hotkeys.Translation;
-            if (contextMenu.Items[4] is ToolStripMenuItem clipboardItem)
-                clipboardItem.ShortcutKeyDisplayString = currentConfig.Hotkeys.Clipboard;
-        };
-
-        notifyIcon.ContextMenuStrip = contextMenu;
         notifyIcon.DoubleClick += (_, _) => OnClipboardHotkey();
 
         return notifyIcon;
     }
 
-    private static ToolStripMenuItem CreateMenuItem(
-        string text,
-        string shortcut,
-        TrayMenuIconKind iconKind,
-        EventHandler onClick)
+    private void ShowTrayMenu()
     {
-        return new ToolStripMenuItem(text, AppIcons.CreateMenuIcon(iconKind), onClick)
-        {
-            AutoSize = false,
-            Height = 34,
-            Width = 220,
-            Padding = new System.Windows.Forms.Padding(6, 0, 12, 0),
-            Margin = new System.Windows.Forms.Padding(2),
-            ShortcutKeyDisplayString = shortcut
-        };
-    }
+        _configManager.Reload();
+        var config = _configManager.Get();
 
-    private static ToolStripSeparator CreateSeparator()
-    {
-        return new ToolStripSeparator
-        {
-            AutoSize = false,
-            Height = 9,
-            Margin = new System.Windows.Forms.Padding(0, 2, 0, 2)
-        };
+        var menu = new TrayMenuWindow();
+        menu.AddHeader("STool 正在运行");
+        menu.AddSeparator();
+        menu.AddItem(TrayMenuIconKind.Screenshot, "截图", config.Hotkeys.Screenshot, OnScreenshotHotkey);
+        menu.AddItem(TrayMenuIconKind.Translate, "翻译", config.Hotkeys.Translation, OnTranslationHotkey);
+        menu.AddItem(TrayMenuIconKind.Clipboard, "剪贴板历史", config.Hotkeys.Clipboard, OnClipboardHotkey);
+        menu.AddSeparator();
+        menu.AddItem(TrayMenuIconKind.Settings, "设置", string.Empty, () => OnSettings(null, EventArgs.Empty));
+        menu.AddSeparator();
+        menu.AddItem(TrayMenuIconKind.Exit, "退出 STool", string.Empty, () => OnExit(null, EventArgs.Empty), danger: true);
+        menu.ShowNearCursor();
     }
 
     private void RegisterConfiguredHotkeys()

@@ -71,19 +71,19 @@ namespace STool.Core
                 {
                     case ToastType.Success:
                         toast.iconText.Text = ""; // CheckMark
-                        toast.iconBorder.Background = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#16A34A"));
+                        toast.iconBorder.Background = (System.Windows.Media.Brush)System.Windows.Application.Current.FindResource("SuccessBrush");
                         break;
                     case ToastType.Info:
                         toast.iconText.Text = ""; // Info
-                        toast.iconBorder.Background = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#2563EB"));
+                        toast.iconBorder.Background = (System.Windows.Media.Brush)System.Windows.Application.Current.FindResource("InfoBrush");
                         break;
                     case ToastType.Warning:
                         toast.iconText.Text = ""; // Warning
-                        toast.iconBorder.Background = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#F59E0B"));
+                        toast.iconBorder.Background = (System.Windows.Media.Brush)System.Windows.Application.Current.FindResource("WarningBrush");
                         break;
                     case ToastType.Error:
                         toast.iconText.Text = ""; // Error
-                        toast.iconBorder.Background = new SolidColorBrush((System.Windows.Media.Color)System.Windows.Media.ColorConverter.ConvertFromString("#DC2626"));
+                        toast.iconBorder.Background = (System.Windows.Media.Brush)System.Windows.Application.Current.FindResource("ErrorBrush");
                         break;
                 }
 

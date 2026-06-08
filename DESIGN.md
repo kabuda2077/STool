@@ -49,8 +49,8 @@ STool is a background Windows productivity tool for screenshot, OCR, translation
 
 - Buttons and inputs: 7px radius
 - Panels/cards: 8px radius
-- App windows: 10px radius
-- Floating screenshot toolbars: 9px radius with a soft shadow
+- App windows: native Win11 rounded corners + drop shadow via `WindowChrome` + DWM (the shared `ModernWindow` style with `ModernWindowChrome`). Do **not** self-draw window corners or use `AllowsTransparency` for standard windows.
+- Floating surfaces over `AllowsTransparency` (toast, tray menu, screenshot toolbars): rounded card 8–10px with a soft shadow. Screenshot capture overlay is the one window that genuinely needs per-pixel transparency.
 - Avoid heavy shadows and nested cards.
 
 ## Components
@@ -61,6 +61,8 @@ STool is a background Windows productivity tool for screenshot, OCR, translation
 - **IconButton**: compact toolbars only; must have tooltip.
 - **Panel/Card**: use for a single grouped area, not for entire page sections inside other cards.
 - **HintText**: secondary explanatory text, never bright gray hardcoded brushes.
+- **Tray menu**: custom WPF popup (`TrayMenuWindow`), never a WinForms `ContextMenuStrip`. Rounded card, icon + label + right-aligned shortcut, danger styling for exit, dismiss on blur/Esc.
+- **Toast**: transient non-blocking feedback (`ToastNotification`) for save/clear/validation results. Prefer over modal `MessageBox`, which is reserved for destructive confirmations.
 
 ## Screenshot UX
 
@@ -80,7 +82,8 @@ STool is a background Windows productivity tool for screenshot, OCR, translation
 
 - Left navigation is short: General, OCR, Translation, Clipboard.
 - Settings changes should take effect immediately when technically safe.
-- Input validation should be inline or via clear message boxes; never fail with parser exceptions.
+- Input validation surfaces via toast (non-blocking) or inline; never fail with parser exceptions. Reserve modal dialogs for destructive confirmations (e.g. clear history).
+- Save is the one primary (blue) action per page; secondary/neutral actions use the secondary style.
 - Avoid saying restart is required unless it is actually required.
 
 ## Anti-Patterns

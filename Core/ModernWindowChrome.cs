@@ -1,12 +1,22 @@
 using System;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
+using System.Windows.Interop;
 
 namespace STool.Core;
 
+/// <summary>
+/// 为使用 ModernWindow 样式的窗口接管自定义标题栏行为。
+/// 标题栏拖拽与双击最大化由 WindowChrome.CaptionHeight 交给系统处理;
+/// 这里只负责 caption 按钮点击、最大化字形切换,以及 Win11 DWM 圆角(SingleBorderWindow 兜底)。
+/// </summary>
 public static class ModernWindowChrome
 {
+    // Segoe MDL2 Assets 字形码位
+    private const int GlyphMaximize = 0xE922;
+    private const int GlyphRestore = 0xE923;
+
     public static readonly DependencyProperty EnabledProperty =
         DependencyProperty.RegisterAttached(
             "Enabled",
@@ -29,8 +39,22 @@ public static class ModernWindowChrome
         if (d is not Window window || e.NewValue is not true)
             return;
 
+        window.SourceInitialized -= Window_SourceInitialized;
+        window.SourceInitialized += Window_SourceInitialized;
         window.Loaded -= Window_Loaded;
         window.Loaded += Window_Loaded;
+    }
+
+    private static void Window_SourceInitialized(object? sender, EventArgs e)
+    {
+        if (sender is not Window window)
+            return;
+
+        var hwnd = new WindowInteropHelper(window).Handle;
+        if (hwnd != IntPtr.Zero)
+        {
+            TryRoundCorners(hwnd);
+        }
     }
 
     private static void Window_Loaded(object sender, RoutedEventArgs e)
@@ -38,7 +62,6 @@ public static class ModernWindowChrome
         if (sender is not Window window)
             return;
 
-        AttachTitleBar(window);
         AttachButton(window, "PART_MinimizeButton", (_, _) => window.WindowState = WindowState.Minimized);
         AttachButton(window, "PART_MaximizeButton", (_, _) => ToggleMaximize(window));
         AttachButton(window, "PART_CloseButton", (_, _) => window.Close());
@@ -47,45 +70,9 @@ public static class ModernWindowChrome
         UpdateMaximizeGlyph(window);
     }
 
-    private static void AttachTitleBar(Window window)
-    {
-        if (window.Template.FindName("PART_TitleBar", window) is not FrameworkElement titleBar)
-            return;
-
-        titleBar.MouseLeftButtonDown -= TitleBar_MouseLeftButtonDown;
-        titleBar.MouseLeftButtonDown += TitleBar_MouseLeftButtonDown;
-    }
-
-    private static void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        if (sender is not FrameworkElement titleBar ||
-            Window.GetWindow(titleBar) is not Window window)
-        {
-            return;
-        }
-
-        if (e.ClickCount == 2 && window.ResizeMode != ResizeMode.NoResize)
-        {
-            ToggleMaximize(window);
-            return;
-        }
-
-        if (e.ButtonState != MouseButtonState.Pressed)
-            return;
-
-        try
-        {
-            window.DragMove();
-        }
-        catch
-        {
-            // DragMove can throw if the mouse state changes during window activation.
-        }
-    }
-
     private static void AttachButton(Window window, string name, RoutedEventHandler handler)
     {
-        if (window.Template.FindName(name, window) is not System.Windows.Controls.Primitives.ButtonBase button)
+        if (window.Template?.FindName(name, window) is not System.Windows.Controls.Primitives.ButtonBase button)
             return;
 
         button.Click -= handler;
@@ -112,14 +99,36 @@ public static class ModernWindowChrome
 
     private static void UpdateMaximizeGlyph(Window window)
     {
-        if (window.Template.FindName("PART_MaximizeGlyph", window) is TextBlock glyph)
+        var isMaximized = window.WindowState == WindowState.Maximized;
+
+        if (window.Template?.FindName("PART_MaximizeGlyph", window) is TextBlock glyph)
         {
-            glyph.Text = window.WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
+            glyph.Text = ((char)(isMaximized ? GlyphRestore : GlyphMaximize)).ToString();
         }
 
-        if (window.Template.FindName("PART_MaximizeButton", window) is System.Windows.Controls.Button button)
+        if (window.Template?.FindName("PART_MaximizeButton", window) is System.Windows.Controls.Button button)
         {
-            button.ToolTip = window.WindowState == WindowState.Maximized ? "还原" : "最大化";
+            button.ToolTip = isMaximized ? "还原" : "最大化";
+        }
+    }
+
+    // ---- Win11 圆角 ----
+    private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+    private const int DWMWCP_ROUND = 2;
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
+
+    private static void TryRoundCorners(IntPtr hwnd)
+    {
+        try
+        {
+            int preference = DWMWCP_ROUND;
+            DwmSetWindowAttribute(hwnd, DWMWA_WINDOW_CORNER_PREFERENCE, ref preference, sizeof(int));
+        }
+        catch
+        {
+            // 旧版本 Windows 不支持该属性,忽略即可(降级为直角)。
         }
     }
 }

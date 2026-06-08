@@ -267,12 +267,12 @@
                                     <Thumb.Template>
                                         <ControlTemplate TargetType="Thumb">
                                             <Border x:Name="ThumbRoot"
-                                                    Background="#AAB6C5D6"
+                                                    Background="{StaticResource ScrollThumbBrush}"
                                                     CornerRadius="5"
                                                     Margin="2"/>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="ThumbRoot" Property="Background" Value="#7E8DA1B6"/>
+                                                    <Setter TargetName="ThumbRoot" Property="Background" Value="{StaticResource ScrollThumbHoverBrush}"/>
                                                 </Trigger>
                                                 <Trigger Property="IsDragging" Value="True">
                                                     <Setter TargetName="ThumbRoot" Property="Background" Value="{StaticResource TextSecondaryBrush}"/>

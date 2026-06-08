@@ -96,6 +96,7 @@ public class OcrSettingsPanel : StackPanel
         var btnSave = new System.Windows.Controls.Button
         {
             Content = "保存设置",
+            Style = (Style)FindResource("ModernButton"),
             Padding = new Thickness(18, 8, 18, 8),
             Margin = new Thickness(0, 12, 0, 0),
             HorizontalAlignment = System.Windows.HorizontalAlignment.Left
@@ -244,13 +245,11 @@ public class OcrSettingsPanel : StackPanel
 
             _configManager.Save(config);
 
-            System.Windows.MessageBox.Show("设置已保存", "STool",
-                MessageBoxButton.OK, MessageBoxImage.Information);
+            ToastNotification.Show("设置已保存", "OCR 设置已更新", ToastNotification.ToastType.Success);
         }
         catch (Exception ex)
         {
-            System.Windows.MessageBox.Show($"保存失败：{ex.Message}", "STool",
-                MessageBoxButton.OK, MessageBoxImage.Error);
+            ToastNotification.Show("保存失败", ex.Message, ToastNotification.ToastType.Error);
         }
     }
 }

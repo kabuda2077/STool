@@ -73,6 +73,9 @@ public class TencentTranslationService : ITranslationService
                 Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
             };
 
+            // 手动设置 Content-Type 为纯 application/json (移除 StringContent 自动添加的 charset)
+            request.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
+
             request.Headers.Add("Authorization", authorization);
             request.Headers.Add("X-TC-Action", Action);
             request.Headers.Add("X-TC-Version", Version);

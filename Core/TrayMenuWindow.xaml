@@ -79,7 +79,7 @@
                 <DropShadowEffect Color="{StaticResource ShadowColor}"
                                   ShadowDepth="0"
                                   BlurRadius="18"
-                                  Opacity="0.34"/>
+                                  Opacity="0.18"/>
             </Border.Effect>
         </Border>
         <Border Background="{StaticResource SurfaceBrush}" CornerRadius="10" Padding="6">

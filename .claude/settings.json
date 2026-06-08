@@ -71,7 +71,8 @@
       "PowerShell(\"launched\")",
       "PowerShell(dotnet build -v q --nologo 2>&1)",
       "PowerShell(Start-Process \"e:\\\\Data\\\\Project\\\\STool\\\\bin\\\\Debug\\\\net9.0-windows10.0.26100.0\\\\STool.exe\")",
-      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"fix HiDPI text jaggies from shadows: WPF Effect rasterizes enclosed text to an offscreen bitmap scaled at HiDPI -> uneven/broken strokes. Move text out of effect layers — 2-layer cards \\(CardHost\\), tray menu, toast \\(empty shadow caster behind + content in front\\); drop subtle title-bar/sidebar/clipboard-tab shadows \\(tone separation\\); remove combobox dropdown shadow\")"
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"fix HiDPI text jaggies from shadows: WPF Effect rasterizes enclosed text to an offscreen bitmap scaled at HiDPI -> uneven/broken strokes. Move text out of effect layers — 2-layer cards \\(CardHost\\), tray menu, toast \\(empty shadow caster behind + content in front\\); drop subtle title-bar/sidebar/clipboard-tab shadows \\(tone separation\\); remove combobox dropdown shadow\")",
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"settings ui: merge title bar into content \\(gray, no top divider; keep sidebar/content left-right separation\\); selected nav item = filled pill + right rail, no border; weaken all elevation/popup shadows\")"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj"

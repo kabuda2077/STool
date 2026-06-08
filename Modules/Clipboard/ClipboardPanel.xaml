@@ -179,7 +179,7 @@
                                 BorderThickness="0"
                                 CornerRadius="23">
                             <Border.Effect>
-                                <DropShadowEffect BlurRadius="16" Opacity="0.22" ShadowDepth="0" Color="{StaticResource ShadowColor}"/>
+                                <DropShadowEffect BlurRadius="16" Opacity="0.14" ShadowDepth="0" Color="{StaticResource ShadowColor}"/>
                             </Border.Effect>
                             <TextBlock x:Name="ic" Text="&#xE74D;"
                                        FontFamily="Segoe MDL2 Assets"

@@ -40,7 +40,7 @@
 
                             <Border x:Name="PART_TitleBar"
                                     Grid.Row="0"
-                                    Background="{StaticResource SurfaceBrush}">
+                                    Background="{StaticResource BackgroundBrush}">
                                 <Grid>
                                     <TextBlock Text="{TemplateBinding Title}"
                                                FontSize="13"

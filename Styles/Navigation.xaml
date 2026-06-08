@@ -23,8 +23,8 @@
                         <Grid>
                             <Border x:Name="SelectedRail"
                                     Width="3"
-                                    HorizontalAlignment="Left"
-                                    Margin="-5,4,0,4"
+                                    HorizontalAlignment="Right"
+                                    Margin="0,5,2,5"
                                     CornerRadius="2"
                                     Background="{StaticResource PrimaryBrush}"
                                     Opacity="0"/>
@@ -39,7 +39,6 @@
                         </Trigger>
                         <Trigger Property="Tag" Value="Selected">
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource PrimarySubtleBrush}"/>
-                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource PrimaryBorderSubtleBrush}"/>
                             <Setter TargetName="SelectedRail" Property="Opacity" Value="1"/>
                             <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
                         </Trigger>

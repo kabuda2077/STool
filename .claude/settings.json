@@ -122,7 +122,14 @@
       "PowerShell(dotnet build -v q -clp:ErrorsOnly)",
       "PowerShell(git add Styles/Navigation.xaml)",
       "PowerShell(git commit -m \"settings nav: reduce font size 15->13 \\(Subtitle->Body\\) �� less overwhelming vs title bar\" 2>&1)",
-      "PowerShell(git commit -m \"ui: restore nav font to 15 \\(Subtitle\\); hide window title text \\(keep caption bar for drag/buttons\\)\" 2>&1)"
+      "PowerShell(git commit -m \"ui: restore nav font to 15 \\(Subtitle\\); hide window title text \\(keep caption bar for drag/buttons\\)\" 2>&1)",
+      "PowerShell(git add Views/SettingsWindow.xaml)",
+      "PowerShell(git commit -m \"settings: align left nav baseline with page title \\(reduce nav padding-top 46->40\\)\" 2>&1)",
+      "PowerShell(git add Views/Settings/GeneralSettingsPanel.cs)",
+      "PowerShell(git commit -m \"settings: simplify hotkey labels \\(remove '��ݼ�' suffix\\) and show hint only for first field\" 2>&1)",
+      "Bash(find /mnt/e/Data/Project/STool -type f \\\\\\( -name \"*.cs\" -o -name \"*.xaml\" -o -name \"*.csproj\" -o -name \"*.json\" -o -name \"*.md\" \\\\\\) ! -path \"*/bin/*\" ! -path \"*/obj/*\" ! -path \"*/.git/*\" ! -path \"*/.claude/*\" | sort)",
+      "Read(//mnt/e/Data/Project/**)",
+      "PowerShell(if \\($?\\) { \"directory exists - likely test artifact\" } else { \"not found\" })"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj",

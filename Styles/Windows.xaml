@@ -6,7 +6,7 @@
     <!-- 原生 Win11 窗口外框:SingleBorderWindow + WindowChrome 自定义标题栏,
          圆角与投影由 DWM 提供(见 Core/ModernWindowChrome.cs),不再用 AllowsTransparency 自绘。 -->
     <Style x:Key="ModernWindow" TargetType="Window">
-        <Setter Property="Background" Value="{StaticResource BackgroundBrush}"/>
+        <Setter Property="Background" Value="{StaticResource SurfaceCanvasBrush}"/>
         <Setter Property="Icon" Value="/Resources/STool.ico"/>
         <Setter Property="WindowStyle" Value="SingleBorderWindow"/>
         <Setter Property="ResizeMode" Value="CanResize"/>
@@ -35,7 +35,7 @@
                         <Grid>
                             <!-- 内容铺满整窗:标题栏为顶部透明浮层,各页面自行预留顶部约 44px。
                                  这样带侧边栏的页面,侧边栏色块可贯通全高,形成左右两栏结构。 -->
-                            <Border Background="{StaticResource BackgroundBrush}">
+                            <Border Background="{StaticResource SurfaceCanvasBrush}">
                                 <AdornerDecorator>
                                     <ContentPresenter/>
                                 </AdornerDecorator>

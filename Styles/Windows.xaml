@@ -96,19 +96,7 @@
         </Setter>
     </Style>
 
-    <Style x:Key="CardStyle" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="8"/>
-        <Setter Property="Padding" Value="16"/>
-    </Style>
-
-    <Style x:Key="PanelStyle" TargetType="Border" BasedOn="{StaticResource CardStyle}">
-        <Setter Property="Padding" Value="18"/>
-        <Setter Property="Margin" Value="0,0,0,14"/>
-    </Style>
-
+    <!-- Settings section container (bordered, used by InPlaceTranslationWindow) -->
     <Style x:Key="SettingsSection" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>

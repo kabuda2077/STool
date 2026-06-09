@@ -8,7 +8,7 @@
     <Color x:Key="PrimarySubtleColor">#EFF6FF</Color>
 
     <Color x:Key="SurfaceColor">#FFFFFF</Color>
-    <Color x:Key="SurfaceAltColor">#F1F5F9</Color>
+    <Color x:Key="SurfaceAltColor">#F1F5F9</Color>  <!-- Hover/highlight state (lighter, interactive) -->
     <Color x:Key="SurfaceHoverColor">#F8FAFC</Color>
     <Color x:Key="BorderColor">#D9E0EA</Color>
     <Color x:Key="BorderStrongColor">#CBD5E1</Color>
@@ -54,7 +54,7 @@
     <!-- ===== 重构方向:色块分层 + 柔和阴影(替代边框)===== -->
     <!-- 表面分层:画布(底) < 卡面(白,靠阴影浮起) > 凹陷(输入井,比卡面略深) -->
     <Color x:Key="SurfaceCanvasColor">#F2F4F7</Color>
-    <Color x:Key="SurfaceSunkenColor">#EDF0F4</Color>
+    <Color x:Key="SurfaceSunkenColor">#EDF0F4</Color>  <!-- Sunken/inset surface (input wells, badges) -->
     <Color x:Key="SurfaceSunkenHoverColor">#E6EAF1</Color>
     <SolidColorBrush x:Key="SurfaceCanvasBrush" Color="{StaticResource SurfaceCanvasColor}"/>
     <SolidColorBrush x:Key="SurfaceSunkenBrush" Color="{StaticResource SurfaceSunkenColor}"/>

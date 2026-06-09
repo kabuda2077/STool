@@ -81,6 +81,8 @@
         </Setter>
     </Style>
 
+    <!-- Application-level primary button alias. Use this for main actions (save, confirm, copy, done).
+         Alias allows future app-wide customization without changing PrimaryButton foundation. -->
     <Style x:Key="ModernButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}"/>
 
     <Style x:Key="SecondaryButton" TargetType="Button" BasedOn="{StaticResource BaseButton}">

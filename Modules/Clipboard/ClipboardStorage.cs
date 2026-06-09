@@ -63,9 +63,10 @@ public class ClipboardStorage : IDisposable
             using var alter = new SqliteCommand("ALTER TABLE clipboard_items ADD COLUMN source_app TEXT", _connection);
             alter.ExecuteNonQuery();
         }
-        catch (SqliteException)
+        catch (SqliteException ex) when (ex.SqliteErrorCode == 1 || ex.Message.Contains("duplicate column"))
         {
             // 列已存在,忽略
+            Log.Debug("source_app column already exists, skipping migration");
         }
 
         Log.Information($"Clipboard database initialized at {_dbPath}");

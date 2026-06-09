@@ -27,13 +27,13 @@
                 <Button x:Name="btnOcrSettings"
                         Click="BtnOcrSettings_Click"
                         Style="{StaticResource NavigationButton}"
-                        Margin="0,8,0,0"
+                        Margin="0,4,0,0"
                         Content="OCR"/>
 
                 <Button x:Name="btnTranslationSettings"
                         Click="BtnTranslationSettings_Click"
                         Style="{StaticResource NavigationButton}"
-                        Margin="0,8,0,0"
+                        Margin="0,4,0,0"
                         Content="翻译"/>
             </StackPanel>
         </Border>

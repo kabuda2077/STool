@@ -103,7 +103,24 @@
                 <TextBlock Text="复制内容会自动保存到剪贴板历史中" Style="{StaticResource EmptyStateDescription}"/>
             </StackPanel>
 
-            <ScrollViewer x:Name="listScroll" VerticalScrollBarVisibility="Auto" Padding="18,4,4,4">
+            <!-- 滚动条 overlay(叠在内容上,不占布局宽)→ 左右 padding 数值相等、真正对称 -->
+            <ScrollViewer x:Name="listScroll" VerticalScrollBarVisibility="Auto" Padding="16,4,16,4">
+                <ScrollViewer.Template>
+                    <ControlTemplate TargetType="ScrollViewer">
+                        <Grid>
+                            <ScrollContentPresenter Margin="{TemplateBinding Padding}"/>
+                            <ScrollBar x:Name="PART_VerticalScrollBar"
+                                       HorizontalAlignment="Right"
+                                       Width="8"
+                                       Margin="0,4,3,4"
+                                       Background="Transparent"
+                                       Value="{TemplateBinding VerticalOffset}"
+                                       Maximum="{TemplateBinding ScrollableHeight}"
+                                       ViewportSize="{TemplateBinding ViewportHeight}"
+                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+                        </Grid>
+                    </ControlTemplate>
+                </ScrollViewer.Template>
                 <ItemsControl x:Name="itemsList">
                     <ItemsControl.ItemTemplate>
                         <DataTemplate>

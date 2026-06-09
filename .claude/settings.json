@@ -106,7 +106,10 @@
       "PowerShell(\"restarted\")",
       "PowerShell(git add -A)",
       "PowerShell(git commit -q -m \"clipboard ui: floating pill tabs \\(sunken capsule group, blue solid pill for selected\\); bigger row blocks \\(radius 10, padding 16,14\\); balance left/right whitespace \\(compensate scrollbar width\\)\")",
-      "PowerShell(Start-Process -FilePath \".\\\\bin\\\\Debug\\\\net9.0-windows10.0.26100.0\\\\STool.exe\")"
+      "PowerShell(Start-Process -FilePath \".\\\\bin\\\\Debug\\\\net9.0-windows10.0.26100.0\\\\STool.exe\")",
+      "PowerShell(taskkill /F /IM STool.exe 2>$null)",
+      "PowerShell(dotnet build E:\\\\Data\\\\Project\\\\STool\\\\STool.csproj -v q 2>&1)",
+      "PowerShell(dotnet build -v q 2>&1)"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj",

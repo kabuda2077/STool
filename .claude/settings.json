@@ -101,7 +101,9 @@
       "Read(//e/e/Data/Project/STool/bin/Debug/net9.0-windows10.0.26100.0/**)",
       "Bash(rm -f obj/_shot.ps1 obj/_shot.png obj/_fontcheck.ps1 obj/_packtest.ps1 2>/dev/null; rm -f /c/Users/kabuda/AppData/Local/Temp/MiSans.zip 2>/dev/null; echo cleaned)",
       "Bash(start \"\" \"bin/Debug/net9.0-windows10.0.26100.0/STool.exe\")",
-      "Bash(git --no-pager diff --stat)"
+      "Bash(git --no-pager diff --stat)",
+      "PowerShell(Stop-Process -Name STool -Force -ErrorAction SilentlyContinue)",
+      "PowerShell(\"restarted\")"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj",

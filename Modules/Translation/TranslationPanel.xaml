@@ -178,17 +178,17 @@
 
             <!-- 浮动操作条:贴结果区右下角;两层结构(空白层投阴影 + 内容层无特效)防 HiDPI 文字锯齿 -->
             <Grid x:Name="actionBar"
-                  HorizontalAlignment="Right"
+                  HorizontalAlignment="Center"
                   VerticalAlignment="Bottom"
-                  Margin="0,0,12,12">
+                  Margin="0,0,0,14">
                 <!-- 阴影层:无文字,仅投柔和阴影 -->
                 <Border Background="{StaticResource SurfaceBrush}"
                         CornerRadius="10">
                     <Border.Effect>
                         <DropShadowEffect Color="{StaticResource ShadowColor}"
                                           ShadowDepth="0"
-                                          BlurRadius="16"
-                                          Opacity="0.18"/>
+                                          BlurRadius="12"
+                                          Opacity="0.10"/>
                     </Border.Effect>
                 </Border>
                 <!-- 内容层:无特效,文字原生渲染 -->

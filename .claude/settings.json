@@ -88,10 +88,23 @@
       "Bash(du -h MiSans.zip)",
       "PowerShell($zip = Join-Path $env:TEMP \"misans\\\\MiSans.zip\"; if \\(-not \\(Test-Path $zip\\)\\) { $zip = Join-Path $env:TEMP \"MiSans.zip\" }; \"ZIP=$zip exists=$\\(Test-Path $zip\\)\"; Add-Type -AssemblyName System.IO.Compression.FileSystem; $a=[System.IO.Compression.ZipFile]::OpenRead\\($zip\\); $a.Entries | Where-Object { $_.FullName -match 'SC' -and $_.FullName -match '\\\\.\\(ttf|otf\\)$' } | Select-Object -ExpandProperty FullName; $a.Dispose\\(\\))",
       "PowerShell($zip = \"C:\\\\Users\\\\kabuda\\\\AppData\\\\Local\\\\Temp\\\\MiSans.zip\"; Add-Type -AssemblyName System.IO.Compression.FileSystem; $a=[System.IO.Compression.ZipFile]::OpenRead\\($zip\\); $a.Entries | Where-Object { $_.FullName -match '\\\\.\\(ttf|otf\\)$' } | Select-Object -ExpandProperty FullName | Sort-Object; \"----TOTAL----\"; \\($a.Entries | Where-Object { $_.FullName -match '\\\\.\\(ttf|otf\\)$' }\\).Count; $a.Dispose\\(\\))",
-      "Bash(powershell.exe -NoProfile -Command 'Add-Type -AssemblyName PresentationCore; foreach\\($f in @\\('\\\\''MiSans-Regular.ttf'\\\\'','\\\\''MiSans-Medium.ttf'\\\\'','\\\\''MiSans-Semibold.ttf'\\\\''\\)\\){ $uri=[Uri]\\('\\\\''file:///E:/Data/Project/STool/Fonts/'\\\\''+$f\\); $fams=[System.Windows.Media.Fonts]::GetFontFamilies\\($uri\\); foreach\\($fam in $fams\\){ Write-Output \\($f+'\\\\''  =>  '\\\\''+$fam.Source\\); foreach\\($tf in $fam.GetTypefaces\\(\\)\\){ Write-Output \\('\\\\''      weight='\\\\''+$tf.Weight+'\\\\'' style='\\\\''+$tf.Style+'\\\\'' stretch='\\\\''+$tf.Stretch\\) } } }')"
+      "Bash(powershell.exe -NoProfile -Command 'Add-Type -AssemblyName PresentationCore; foreach\\($f in @\\('\\\\''MiSans-Regular.ttf'\\\\'','\\\\''MiSans-Medium.ttf'\\\\'','\\\\''MiSans-Semibold.ttf'\\\\''\\)\\){ $uri=[Uri]\\('\\\\''file:///E:/Data/Project/STool/Fonts/'\\\\''+$f\\); $fams=[System.Windows.Media.Fonts]::GetFontFamilies\\($uri\\); foreach\\($fam in $fams\\){ Write-Output \\($f+'\\\\''  =>  '\\\\''+$fam.Source\\); foreach\\($tf in $fam.GetTypefaces\\(\\)\\){ Write-Output \\('\\\\''      weight='\\\\''+$tf.Weight+'\\\\'' style='\\\\''+$tf.Style+'\\\\'' stretch='\\\\''+$tf.Stretch\\) } } }')",
+      "Bash(\"/c/Program Files/dotnet/dotnet.exe\" build -v q -clp:ErrorsOnly)",
+      "Bash(powershell -ExecutionPolicy Bypass -File obj/_shot.ps1)",
+      "Bash(powershell -ExecutionPolicy Bypass -File obj\\\\_shot.ps1)",
+      "Bash(powershell -ExecutionPolicy Bypass -File \"E:/Data/Project/STool/obj/_shot.ps1\")",
+      "Bash(powershell -ExecutionPolicy Bypass -Command 'Add-Type @'\\\\'' *)",
+      "Bash(findstr /i stool.exe)",
+      "Bash(powershell -NoProfile -Command \"Get-Process STool -ErrorAction SilentlyContinue | Select-Object Id,StartTime | Format-Table -AutoSize\")",
+      "Bash(powershell -NoProfile -ExecutionPolicy Bypass -File \"E:\\\\Data\\\\Project\\\\STool\\\\obj\\\\_full.ps1\")",
+      "Bash(cd /e/Data/Project/STool && ls bin/Debug/net9.0-windows10.0.26100.0/STool.dll && echo \"---\")",
+      "Read(//e/e/Data/Project/STool/bin/Debug/net9.0-windows10.0.26100.0/**)",
+      "Bash(rm -f obj/_shot.ps1 obj/_shot.png obj/_fontcheck.ps1 obj/_packtest.ps1 2>/dev/null; rm -f /c/Users/kabuda/AppData/Local/Temp/MiSans.zip 2>/dev/null; echo cleaned)",
+      "Bash(start \"\" \"bin/Debug/net9.0-windows10.0.26100.0/STool.exe\")"
     ],
     "additionalDirectories": [
-      "E:\\Data\\Project\\STool\\obj"
+      "E:\\Data\\Project\\STool\\obj",
+      "C:\\Users\\kabuda\\AppData\\Local\\Temp"
     ]
   }
 }

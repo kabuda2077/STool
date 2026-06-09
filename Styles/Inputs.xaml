@@ -13,7 +13,8 @@
         <Setter Property="Padding" Value="5,4"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="CaretBrush" Value="{StaticResource PrimaryBrush}"/>
-        <Setter Property="SelectionBrush" Value="{StaticResource PrimarySubtleBrush}"/>
+        <Setter Property="SelectionBrush" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="SelectionOpacity" Value="0.35"/>
         <Setter Property="SnapsToDevicePixels" Value="True"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -30,8 +31,7 @@
                             <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource BorderStrongBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
-                            <Setter TargetName="Root" Property="BorderThickness" Value="2"/>
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource BorderStrongBrush}"/>
                         </Trigger>
                         <Trigger Property="IsReadOnly" Value="True">
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceHoverBrush}"/>
@@ -52,6 +52,9 @@
         <Setter Property="Padding" Value="5,4"/>
         <Setter Property="FontSize" Value="13"/>
         <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="CaretBrush" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="SelectionBrush" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="SelectionOpacity" Value="0.35"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="PasswordBox">
@@ -67,7 +70,7 @@
                             <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource BorderStrongBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
-                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource BorderStrongBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -208,7 +211,6 @@
             </Trigger>
             <Trigger Property="IsKeyboardFocused" Value="True">
                 <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-                <Setter Property="BorderThickness" Value="2"/>
             </Trigger>
         </Style.Triggers>
     </Style>
@@ -222,7 +224,6 @@
             </Trigger>
             <Trigger Property="IsDropDownOpen" Value="True">
                 <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-                <Setter Property="BorderThickness" Value="2"/>
             </Trigger>
         </Style.Triggers>
     </Style>

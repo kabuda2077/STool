@@ -109,7 +109,9 @@
       "PowerShell(Start-Process -FilePath \".\\\\bin\\\\Debug\\\\net9.0-windows10.0.26100.0\\\\STool.exe\")",
       "PowerShell(taskkill /F /IM STool.exe 2>$null)",
       "PowerShell(dotnet build E:\\\\Data\\\\Project\\\\STool\\\\STool.csproj -v q 2>&1)",
-      "PowerShell(dotnet build -v q 2>&1)"
+      "PowerShell(dotnet build -v q 2>&1)",
+      "PowerShell(dotnet build -v q -clp:ErrorsOnly 2>&1)",
+      "PowerShell(git commit -q -m \"inputs: text selection highlight more visible \\(PrimaryBrush + opacity 0.35, global\\); drop focus blue border on text/password boxes -> neutral border, distinguish by surface color block; remove stray 2px border on focused sunken password/combo\")"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj",

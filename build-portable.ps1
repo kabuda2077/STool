@@ -18,13 +18,12 @@ if (Test-Path ".\releases") { Remove-Item ".\releases\STool_v${Version}_Portable
 # 创建发布目录
 New-Item -ItemType Directory -Path ".\releases" -Force | Out-Null
 
-# 构建 Release 版本（自包含，单文件）
-Write-Host "`nBuilding Release (self-contained)..." -ForegroundColor Yellow
+# 构建 Release 版本（自包含，多文件）
+Write-Host "`nBuilding Release (self-contained, multi-file)..." -ForegroundColor Yellow
 dotnet publish -c Release `
     -r win-x64 `
     --self-contained true `
-    -p:PublishSingleFile=true `
-    -p:IncludeNativeLibrariesForSelfExtract=true `
+    -p:PublishSingleFile=false `
     -p:DebugType=None `
     -p:DebugSymbols=false `
     -o .\publish

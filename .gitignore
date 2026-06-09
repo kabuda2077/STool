@@ -7,5 +7,8 @@ _verify_build/
 .vs/
 *.user
 
+# Claude AI assistant
+.claude/
+
 # Logs
 *.log

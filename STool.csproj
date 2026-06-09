@@ -26,4 +26,11 @@
     <Content Include="Resources\STool.ico" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- MiSans 字体(嵌入程序集,随 exe 分发) -->
+    <Resource Include="Fonts\MiSans-Regular.ttf" />
+    <Resource Include="Fonts\MiSans-Medium.ttf" />
+    <Resource Include="Fonts\MiSans-Semibold.ttf" />
+  </ItemGroup>
+
 </Project>

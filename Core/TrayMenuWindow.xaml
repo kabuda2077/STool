@@ -14,7 +14,7 @@
         UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Display"
         TextOptions.TextRenderingMode="ClearType"
-        FontFamily="Segoe UI, Microsoft YaHei UI">
+        FontFamily="{DynamicResource AppFontFamily}">
 
     <Window.Resources>
         <Style x:Key="TrayMenuItem" TargetType="Button">

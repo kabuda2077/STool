@@ -72,4 +72,7 @@
     <DropShadowEffect x:Key="Elevation3" Color="{StaticResource ElevationShadowColor}" BlurRadius="30" ShadowDepth="6"  Direction="270" Opacity="0.09" RenderingBias="Quality"/>
     <DropShadowEffect x:Key="Elevation4" Color="{StaticResource ElevationShadowColor}" BlurRadius="44" ShadowDepth="12" Direction="270" Opacity="0.11" RenderingBias="Quality"/>
 
+    <!-- 全局正文字体:MiSans(嵌入)优先,缺字回退雅黑/Segoe UI -->
+    <FontFamily x:Key="AppFontFamily">pack://application:,,,/Fonts/#MiSans, Microsoft YaHei UI, Segoe UI</FontFamily>
+
 </ResourceDictionary>

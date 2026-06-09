@@ -74,7 +74,21 @@
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"fix HiDPI text jaggies from shadows: WPF Effect rasterizes enclosed text to an offscreen bitmap scaled at HiDPI -> uneven/broken strokes. Move text out of effect layers — 2-layer cards \\(CardHost\\), tray menu, toast \\(empty shadow caster behind + content in front\\); drop subtle title-bar/sidebar/clipboard-tab shadows \\(tone separation\\); remove combobox dropdown shadow\")",
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"settings ui: merge title bar into content \\(gray, no top divider; keep sidebar/content left-right separation\\); selected nav item = filled pill + right rail, no border; weaken all elevation/popup shadows\")",
       "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"settings ui: full-height left rail \\(left-right two-column structure\\), restore subtle sidebar-content divider, no top divider; weaken remaining capture/annotation toolbar shadows; selected nav already = blue pill + right rail\")",
-      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"settings ui: remove sidebar-content divider; widen left rail 168->200; bigger selected nav item \\(font 14, taller padding, more spacing\\); enlarge window title 13->15 — better left/right balance\")"
+      "Bash(git -c user.name=\"STool\" -c user.email=\"stool@local\" commit -q -m \"settings ui: remove sidebar-content divider; widen left rail 168->200; bigger selected nav item \\(font 14, taller padding, more spacing\\); enlarge window title 13->15 — better left/right balance\")",
+      "Bash(echo \"---exit:$?---\")",
+      "Bash(cmd.exe /c start \"\" STool.exe)",
+      "WebSearch",
+      "WebFetch(domain:hyperos.mi.com)",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"https://hyperos.mi.com/font/\" -UseBasicParsing -TimeoutSec 15; \"STATUS=$\\($r.StatusCode\\) LEN=$\\($r.Content.Length\\)\" } catch { \"ERR=$\\($_.Exception.Message\\)\" })",
+      "PowerShell(try { $r = Invoke-WebRequest -Uri \"https://hyperos.mi.com/font/\" -UseBasicParsing -TimeoutSec 15; $r.Content } catch { \"ERR=$\\($_.Exception.Message\\)\" })",
+      "Bash(cd /tmp)",
+      "Bash(curl -sL -o MiSans.zip \"https://hyperos.mi.com/font-download/MiSans.zip\")",
+      "Bash(stat -c %s MiSans.zip)",
+      "Bash(ls -la MiSans.zip)",
+      "Bash(du -h MiSans.zip)",
+      "PowerShell($zip = Join-Path $env:TEMP \"misans\\\\MiSans.zip\"; if \\(-not \\(Test-Path $zip\\)\\) { $zip = Join-Path $env:TEMP \"MiSans.zip\" }; \"ZIP=$zip exists=$\\(Test-Path $zip\\)\"; Add-Type -AssemblyName System.IO.Compression.FileSystem; $a=[System.IO.Compression.ZipFile]::OpenRead\\($zip\\); $a.Entries | Where-Object { $_.FullName -match 'SC' -and $_.FullName -match '\\\\.\\(ttf|otf\\)$' } | Select-Object -ExpandProperty FullName; $a.Dispose\\(\\))",
+      "PowerShell($zip = \"C:\\\\Users\\\\kabuda\\\\AppData\\\\Local\\\\Temp\\\\MiSans.zip\"; Add-Type -AssemblyName System.IO.Compression.FileSystem; $a=[System.IO.Compression.ZipFile]::OpenRead\\($zip\\); $a.Entries | Where-Object { $_.FullName -match '\\\\.\\(ttf|otf\\)$' } | Select-Object -ExpandProperty FullName | Sort-Object; \"----TOTAL----\"; \\($a.Entries | Where-Object { $_.FullName -match '\\\\.\\(ttf|otf\\)$' }\\).Count; $a.Dispose\\(\\))",
+      "Bash(powershell.exe -NoProfile -Command 'Add-Type -AssemblyName PresentationCore; foreach\\($f in @\\('\\\\''MiSans-Regular.ttf'\\\\'','\\\\''MiSans-Medium.ttf'\\\\'','\\\\''MiSans-Semibold.ttf'\\\\''\\)\\){ $uri=[Uri]\\('\\\\''file:///E:/Data/Project/STool/Fonts/'\\\\''+$f\\); $fams=[System.Windows.Media.Fonts]::GetFontFamilies\\($uri\\); foreach\\($fam in $fams\\){ Write-Output \\($f+'\\\\''  =>  '\\\\''+$fam.Source\\); foreach\\($tf in $fam.GetTypefaces\\(\\)\\){ Write-Output \\('\\\\''      weight='\\\\''+$tf.Weight+'\\\\'' style='\\\\''+$tf.Style+'\\\\'' stretch='\\\\''+$tf.Stretch\\) } } }')"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj"

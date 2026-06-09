@@ -17,7 +17,7 @@
 
         <Border Grid.Column="0"
                 Background="{StaticResource SurfaceBrush}"
-                Padding="14,46,14,16">
+                Padding="14,40,14,16">
             <StackPanel>
                 <Button x:Name="btnGeneralSettings"
                         Click="BtnGeneralSettings_Click"

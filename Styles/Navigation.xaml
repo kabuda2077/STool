@@ -6,7 +6,7 @@
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
         <Setter Property="BorderBrush" Value="Transparent"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding" Value="14,11"/>
+        <Setter Property="Padding" Value="16,14"/>
         <Setter Property="HorizontalContentAlignment" Value="Left"/>
         <Setter Property="FontSize" Value="14"/>
         <Setter Property="FontWeight" Value="SemiBold"/>

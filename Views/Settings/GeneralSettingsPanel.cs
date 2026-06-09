@@ -62,13 +62,13 @@ public class GeneralSettingsPanel : StackPanel
         hotkeysSection.Children.Add(hotkeySection);
 
         // 截图快捷键
-        AddHotkeyField(hotkeysSection, "截图快捷键", ref _txtScreenshotHotkey);
+        AddHotkeyField(hotkeysSection, "截图", ref _txtScreenshotHotkey, showHint: true);
 
         // 翻译快捷键
-        AddHotkeyField(hotkeysSection, "翻译快捷键", ref _txtTranslationHotkey);
+        AddHotkeyField(hotkeysSection, "翻译", ref _txtTranslationHotkey, showHint: false);
 
         // 剪贴板快捷键
-        AddHotkeyField(hotkeysSection, "剪贴板快捷键", ref _txtClipboardHotkey);
+        AddHotkeyField(hotkeysSection, "剪贴板", ref _txtClipboardHotkey, showHint: false);
 
         // 保存按钮
         var btnSave = new System.Windows.Controls.Button
@@ -102,7 +102,7 @@ public class GeneralSettingsPanel : StackPanel
         };
     }
 
-    private void AddHotkeyField(StackPanel parent, string label, ref System.Windows.Controls.TextBox textBox)
+    private void AddHotkeyField(StackPanel parent, string label, ref System.Windows.Controls.TextBox textBox, bool showHint = true)
     {
         var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
 
@@ -121,13 +121,16 @@ public class GeneralSettingsPanel : StackPanel
         };
         panel.Children.Add(textBox);
 
-        var hint = new TextBlock
+        if (showHint)
         {
-            Text = "点击输入框后，直接按下快捷键组合（如 Ctrl+Alt+A）",
-            Style = (Style)FindResource("HintText"),
-            Margin = new Thickness(0, 3, 0, 0)
-        };
-        panel.Children.Add(hint);
+            var hint = new TextBlock
+            {
+                Text = "点击输入框后，直接按下快捷键组合（如 Ctrl+Alt+A）",
+                Style = (Style)FindResource("HintText"),
+                Margin = new Thickness(0, 3, 0, 0)
+            };
+            panel.Children.Add(hint);
+        }
 
         parent.Children.Add(panel);
     }

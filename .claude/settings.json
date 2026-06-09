@@ -103,7 +103,10 @@
       "Bash(start \"\" \"bin/Debug/net9.0-windows10.0.26100.0/STool.exe\")",
       "Bash(git --no-pager diff --stat)",
       "PowerShell(Stop-Process -Name STool -Force -ErrorAction SilentlyContinue)",
-      "PowerShell(\"restarted\")"
+      "PowerShell(\"restarted\")",
+      "PowerShell(git add -A)",
+      "PowerShell(git commit -q -m \"clipboard ui: floating pill tabs \\(sunken capsule group, blue solid pill for selected\\); bigger row blocks \\(radius 10, padding 16,14\\); balance left/right whitespace \\(compensate scrollbar width\\)\")",
+      "PowerShell(Start-Process -FilePath \".\\\\bin\\\\Debug\\\\net9.0-windows10.0.26100.0\\\\STool.exe\")"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj",

@@ -50,8 +50,7 @@
                                            FontWeight="{StaticResource FontWeightStrong}"
                                            Foreground="{StaticResource TextPrimaryBrush}"
                                            VerticalAlignment="Center"
-                                           Margin="18,0,140,0"
-                                           Visibility="Collapsed"/>
+                                           Margin="18,0,140,0"/>
 
                                 <StackPanel Orientation="Horizontal"
                                             HorizontalAlignment="Right"

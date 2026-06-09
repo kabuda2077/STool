@@ -73,18 +73,11 @@
     <Grid Margin="0,44,0,0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- 页面标题 -->
-        <TextBlock Grid.Row="0"
-                   Text="剪贴板"
-                   Style="{StaticResource SettingsPageTitle}"
-                   Margin="16,8,16,4"/>
-
         <!-- 标签栏:悬浮胶囊组(灰底圆角容器,内含药丸标签) -->
-        <Border Grid.Row="1"
+        <Border Grid.Row="0"
                 Background="{StaticResource SurfaceSunkenBrush}"
                 CornerRadius="18"
                 Padding="4"
@@ -100,7 +93,7 @@
         </Border>
 
         <!-- 列表 + 悬浮清空按钮 -->
-        <Grid Grid.Row="2">
+        <Grid Grid.Row="1">
             <!-- 空状态 -->
             <StackPanel x:Name="emptyState"
                         Style="{StaticResource EmptyStateContainer}"

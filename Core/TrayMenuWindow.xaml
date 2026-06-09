@@ -78,10 +78,7 @@
             Padding="6"
             Margin="14">
         <Border.Effect>
-            <DropShadowEffect Color="{StaticResource ShadowColor}"
-                              ShadowDepth="0"
-                              BlurRadius="18"
-                              Opacity="0.18"/>
+            <StaticResource ResourceKey="Elevation3"/>
         </Border.Effect>
         <StackPanel x:Name="menuPanel"/>
     </Border>

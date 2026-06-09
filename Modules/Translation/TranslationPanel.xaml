@@ -185,10 +185,7 @@
                 <Border Background="{StaticResource SurfaceBrush}"
                         CornerRadius="10">
                     <Border.Effect>
-                        <DropShadowEffect Color="{StaticResource ShadowColor}"
-                                          ShadowDepth="0"
-                                          BlurRadius="12"
-                                          Opacity="0.10"/>
+                        <StaticResource ResourceKey="Elevation1"/>
                     </Border.Effect>
                 </Border>
                 <!-- 内容层:无特效,文字原生渲染 -->

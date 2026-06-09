@@ -49,7 +49,7 @@
                     BorderThickness="1"
                     Visibility="Collapsed">
                 <Border.Effect>
-                    <DropShadowEffect BlurRadius="20" Opacity="0.16" ShadowDepth="0" Color="{StaticResource ShadowColor}"/>
+                    <StaticResource ResourceKey="Elevation3"/>
                 </Border.Effect>
                 <StackPanel Orientation="Horizontal">
                     <Button x:Name="btnRect" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Rectangle" ToolTip="矩形">

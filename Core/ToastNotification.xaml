@@ -20,10 +20,7 @@
             MinWidth="280"
             MaxWidth="400">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="18"
-                              Opacity="0.12"
-                              ShadowDepth="0"
-                              Color="{StaticResource ShadowColor}"/>
+            <StaticResource ResourceKey="Elevation2"/>
         </Border.Effect>
 
         <Grid>

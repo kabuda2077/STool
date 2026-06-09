@@ -16,10 +16,7 @@
             CornerRadius="6"
             Background="{StaticResource SurfaceBrush}">
         <Border.Effect>
-            <DropShadowEffect BlurRadius="18"
-                              Opacity="0.16"
-                              ShadowDepth="0"
-                              Color="{StaticResource ShadowColor}"/>
+            <StaticResource ResourceKey="Elevation2"/>
         </Border.Effect>
 
         <Grid>

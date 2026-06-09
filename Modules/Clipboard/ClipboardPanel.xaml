@@ -152,13 +152,13 @@
                                         <TextBlock Text="{Binding DisplayText}"
                                                    TextWrapping="Wrap"
                                                    Foreground="{StaticResource TextPrimaryBrush}"
-                                                   FontSize="13"
+                                                   FontSize="{StaticResource FontSizeBody}"
                                                    LineHeight="20"
                                                    MaxHeight="62"
                                                    TextTrimming="CharacterEllipsis"
                                                    Visibility="{Binding IsText, Converter={StaticResource BoolToVis}}"/>
                                         <TextBlock Text="{Binding RelativeTime}"
-                                                   FontSize="11"
+                                                   FontSize="{StaticResource FontSizeMicro}"
                                                    Foreground="{StaticResource TextSecondaryBrush}"
                                                    Margin="0,8,0,0"
                                                    ToolTip="{Binding FullTimestamp}"/>
@@ -169,11 +169,11 @@
                                         <Border Style="{StaticResource SourceBadge}"
                                                 Visibility="{Binding HasSource, Converter={StaticResource BoolToVis}}">
                                             <TextBlock Text="{Binding SourceApp}"
-                                                       FontSize="11"
+                                                       FontSize="{StaticResource FontSizeMicro}"
                                                        Foreground="{StaticResource TextSecondaryBrush}"/>
                                         </Border>
                                         <TextBlock Text="{Binding SizeText}"
-                                                   FontSize="11"
+                                                   FontSize="{StaticResource FontSizeMicro}"
                                                    Foreground="{StaticResource TextSecondaryBrush}"
                                                    HorizontalAlignment="Right"
                                                    Margin="0,6,0,0"/>

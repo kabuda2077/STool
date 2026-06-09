@@ -117,7 +117,8 @@
       "PowerShell(git commit -m \"settings nav: thicken+lengthen selected rail \\(width 3->4, vertical margin 5->3\\)\")",
       "PowerShell(dotnet build -clp:ErrorsOnly 2>&1)",
       "PowerShell(dotnet build 2>&1)",
-      "PowerShell(git commit -m \"settings ui: rail width 3 + tighter rail margin \\(2\\); shrink nav item gap 8->4\" 2>&1)"
+      "PowerShell(git commit -m \"settings ui: rail width 3 + tighter rail margin \\(2\\); shrink nav item gap 8->4\" 2>&1)",
+      "PowerShell(git commit -m \"typography: consolidate font sizes to 5-tier ramp \\(Title 18 / Subtitle 15 / Body 13 / Caption 12 / Micro 11\\) + 2 weights \\(Normal/SemiBold\\); replace all hardcoded sizes with semantic constants\" 2>&1)"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj",

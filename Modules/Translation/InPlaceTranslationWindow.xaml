@@ -31,7 +31,7 @@
                               Margin="0,2,0,0">
                     <TextBlock x:Name="txtOriginal"
                                TextWrapping="Wrap"
-                               FontSize="13"
+                               FontSize="{StaticResource FontSizeBody}"
                                LineHeight="21"
                                Foreground="{StaticResource TextPrimaryBrush}"/>
                 </ScrollViewer>
@@ -54,16 +54,16 @@
                     <TextBlock Text="翻译结果" Style="{StaticResource SettingsGroupTitle}"/>
                     <TextBlock x:Name="txtProvider"
                                Grid.Column="1"
-                               FontSize="12"
+                               FontSize="{StaticResource FontSizeCaption}"
                                Foreground="{StaticResource TextSecondaryBrush}"
                                HorizontalAlignment="Right"/>
                 </Grid>
                 <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" Margin="0,2,0,0">
                     <TextBlock x:Name="txtTranslated"
                                TextWrapping="Wrap"
-                               FontSize="14"
+                               FontSize="{StaticResource FontSizeSubtitle}"
                                LineHeight="22"
-                               FontWeight="SemiBold"
+                               FontWeight="{StaticResource FontWeightStrong}"
                                Foreground="{StaticResource TextPrimaryBrush}"/>
                 </ScrollViewer>
             </Grid>

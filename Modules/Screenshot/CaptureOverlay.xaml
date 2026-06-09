@@ -37,7 +37,7 @@
                     Padding="8,3"
                     Visibility="Collapsed"
                     IsHitTestVisible="False">
-                <TextBlock x:Name="sizeText" Foreground="White" FontSize="12" FontWeight="SemiBold"/>
+                <TextBlock x:Name="sizeText" Foreground="White" FontSize="{StaticResource FontSizeCaption}" FontWeight="{StaticResource FontWeightStrong}"/>
             </Border>
 
             <!-- 工具条(位置在代码中按选区计算并夹紧屏幕) -->

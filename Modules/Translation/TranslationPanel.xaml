@@ -94,7 +94,7 @@
             <Grid Grid.Row="0">
                 <TextBox x:Name="txtSource"
                          Style="{StaticResource SunkenTextBox}"
-                         FontSize="14"
+                         FontSize="{StaticResource FontSizeBody}"
                          TextWrapping="Wrap"
                          AcceptsReturn="True"
                          VerticalScrollBarVisibility="Auto"
@@ -102,7 +102,7 @@
                          TextChanged="TxtSource_TextChanged"/>
                 <TextBlock x:Name="srcWatermark"
                            Text="请输入要翻译的内容，可右键点击文本框粘贴"
-                           FontSize="14"
+                           FontSize="{StaticResource FontSizeBody}"
                            Foreground="{StaticResource TextSecondaryBrush}"
                            IsHitTestVisible="False"
                            VerticalAlignment="Top"
@@ -161,7 +161,7 @@
         <Grid Grid.Row="2">
             <TextBox x:Name="txtTarget"
                      Style="{StaticResource SunkenTextBox}"
-                     FontSize="14"
+                     FontSize="{StaticResource FontSizeBody}"
                      TextWrapping="Wrap"
                      AcceptsReturn="True"
                      IsReadOnly="True"
@@ -170,7 +170,7 @@
                      TextChanged="TxtTarget_TextChanged"/>
             <TextBlock x:Name="tgtWatermark"
                        Text="翻译结果"
-                       FontSize="14"
+                       FontSize="{StaticResource FontSizeBody}"
                        Foreground="{StaticResource TextSecondaryBrush}"
                        IsHitTestVisible="False"
                        VerticalAlignment="Top"

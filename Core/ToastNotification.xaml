@@ -53,13 +53,13 @@
             <StackPanel Grid.Column="1" VerticalAlignment="Center">
                 <TextBlock x:Name="titleText"
                            Text="操作成功"
-                           FontSize="13"
-                           FontWeight="SemiBold"
+                           FontSize="{StaticResource FontSizeBody}"
+                           FontWeight="{StaticResource FontWeightStrong}"
                            Foreground="{StaticResource TextPrimaryBrush}"
                            TextWrapping="Wrap"/>
                 <TextBlock x:Name="messageText"
                            Text=""
-                           FontSize="12"
+                           FontSize="{StaticResource FontSizeCaption}"
                            Foreground="{StaticResource TextSecondaryBrush}"
                            TextWrapping="Wrap"
                            Margin="0,2,0,0"

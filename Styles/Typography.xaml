@@ -1,0 +1,27 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <!-- ===== Type ramp:全局排版尺度,5 档字号 + 2 档字重 =====
+         所有"文字"FontSize 一律引用这里的常量,不再写裸数字。
+         (Segoe MDL2 图标字形 / Viewbox 矢量图标的尺寸是视觉图标尺寸,不属于排版,故不纳入。)
+
+         档位语义:
+           Title    18  页面主标题(如"通用设置")
+           Subtitle 15  窗口标题栏 / 分组标题 / 空状态标题 / 侧栏导航
+           Body     13  正文默认:输入框、按钮、列表内容、大文本框
+           Caption  12  次级标签:提供商、来源、SectionLabel
+           Micro    11  提示语、时间戳、徽章
+
+         字重只用两档:Normal(默认) 与 SemiBold(标题/强调)。原 Bold 一律并入 SemiBold。 -->
+
+    <sys:Double x:Key="FontSizeTitle">18</sys:Double>
+    <sys:Double x:Key="FontSizeSubtitle">15</sys:Double>
+    <sys:Double x:Key="FontSizeBody">13</sys:Double>
+    <sys:Double x:Key="FontSizeCaption">12</sys:Double>
+    <sys:Double x:Key="FontSizeMicro">11</sys:Double>
+
+    <FontWeight x:Key="FontWeightNormal">Normal</FontWeight>
+    <FontWeight x:Key="FontWeightStrong">SemiBold</FontWeight>
+
+</ResourceDictionary>

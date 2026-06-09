@@ -46,8 +46,8 @@
                                   VerticalAlignment="Top"
                                   Height="44">
                                 <TextBlock Text="{TemplateBinding Title}"
-                                           FontSize="15"
-                                           FontWeight="SemiBold"
+                                           FontSize="{StaticResource FontSizeSubtitle}"
+                                           FontWeight="{StaticResource FontWeightStrong}"
                                            Foreground="{StaticResource TextPrimaryBrush}"
                                            VerticalAlignment="Center"
                                            Margin="18,0,140,0"/>
@@ -127,15 +127,15 @@
     </Style>
 
     <Style x:Key="SettingsPageTitle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="19"/>
-        <Setter Property="FontWeight" Value="Bold"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeTitle}"/>
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightStrong}"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="Margin" Value="0,0,0,12"/>
     </Style>
 
     <Style x:Key="SettingsGroupTitle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="14"/>
-        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeSubtitle}"/>
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightStrong}"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="Margin" Value="0,0,0,8"/>
     </Style>
@@ -161,8 +161,8 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <ContentPresenter TextElement.FontSize="14"
-                                                              TextElement.FontWeight="SemiBold"
+                                            <ContentPresenter TextElement.FontSize="{StaticResource FontSizeSubtitle}"
+                                                              TextElement.FontWeight="{StaticResource FontWeightStrong}"
                                                               TextElement.Foreground="{StaticResource TextPrimaryBrush}"
                                                               VerticalAlignment="Center"/>
                                             <Path x:Name="Chevron"
@@ -211,13 +211,13 @@
     </Style>
 
     <Style x:Key="SectionLabel" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="12"/>
-        <Setter Property="FontWeight" Value="SemiBold"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}"/>
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightStrong}"/>
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
     </Style>
 
     <Style x:Key="HintText" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="11"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeMicro}"/>
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
         <Setter Property="TextWrapping" Value="Wrap"/>
     </Style>

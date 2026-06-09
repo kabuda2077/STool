@@ -36,7 +36,7 @@
 
             <TextBlock x:Name="txtProvider"
                        Text="提供商: Windows Local"
-                       FontSize="12"
+                       FontSize="{StaticResource FontSizeCaption}"
                        Foreground="{StaticResource TextSecondaryBrush}"
                        VerticalAlignment="Center"/>
 

@@ -14,7 +14,7 @@
         UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Display"
         TextOptions.TextRenderingMode="ClearType"
-        FontFamily="{DynamicResource AppFontFamily}">
+        FontFamily="Segoe UI, Microsoft YaHei UI">
 
     <Window.Resources>
         <Style x:Key="TrayMenuItem" TargetType="Button">
@@ -72,18 +72,17 @@
         </Style>
     </Window.Resources>
 
-    <!-- 两层:阴影层(空白)+ 内容层(无特效,菜单文字按原生 DPI 渲染,避免高 DPI 锯齿) -->
-    <Grid Margin="14">
-        <Border Background="{StaticResource SurfaceBrush}" CornerRadius="10">
-            <Border.Effect>
-                <DropShadowEffect Color="{StaticResource ShadowColor}"
-                                  ShadowDepth="0"
-                                  BlurRadius="18"
-                                  Opacity="0.18"/>
-            </Border.Effect>
-        </Border>
-        <Border Background="{StaticResource SurfaceBrush}" CornerRadius="10" Padding="6">
-            <StackPanel x:Name="menuPanel"/>
-        </Border>
-    </Grid>
+    <Border Background="{StaticResource SurfaceBrush}"
+            BorderThickness="0"
+            CornerRadius="10"
+            Padding="6"
+            Margin="14">
+        <Border.Effect>
+            <DropShadowEffect Color="{StaticResource ShadowColor}"
+                              ShadowDepth="0"
+                              BlurRadius="18"
+                              Opacity="0.18"/>
+        </Border.Effect>
+        <StackPanel x:Name="menuPanel"/>
+    </Border>
 </Window>

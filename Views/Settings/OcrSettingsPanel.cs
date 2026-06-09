@@ -116,13 +116,17 @@ public class OcrSettingsPanel : StackPanel
         return section;
     }
 
-    private FrameworkElement WrapSection(StackPanel section)
+    private Border WrapSection(StackPanel section)
     {
-        return CardHost.Wrap(section);
+        return new Border
+        {
+            Style = (Style)FindResource("SurfaceCard"),
+            Child = section
+        };
     }
 
-    /// <summary>创建可折叠分组(默认收起),后续 Add* 写入其内容区;整组包成阴影卡片(阴影层+内容层,文字清晰)。</summary>
-    private FrameworkElement CreateCollapsibleSection(string title)
+    /// <summary>创建可折叠分组(默认收起),后续 Add* 写入其内容区;整组包成阴影卡片。</summary>
+    private Border CreateCollapsibleSection(string title)
     {
         var content = new StackPanel();
         _activeSection = content;
@@ -133,7 +137,11 @@ public class OcrSettingsPanel : StackPanel
             Content = content,
             IsExpanded = false
         };
-        return CardHost.Wrap(exp);
+        return new Border
+        {
+            Style = (Style)FindResource("SurfaceCard"),
+            Child = exp
+        };
     }
 
     private void AddLabel(string text)

@@ -2,6 +2,8 @@
 bin/
 obj/
 _verify_build/
+publish/
+releases/
 
 # IDE
 .vs/

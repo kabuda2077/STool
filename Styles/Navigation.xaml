@@ -22,9 +22,9 @@
                             Padding="{TemplateBinding Padding}">
                         <Grid>
                             <Border x:Name="SelectedRail"
-                                    Width="3"
+                                    Width="4"
                                     HorizontalAlignment="Right"
-                                    Margin="0,5,2,5"
+                                    Margin="0,3,2,3"
                                     CornerRadius="2"
                                     Background="{StaticResource PrimaryBrush}"
                                     Opacity="0"/>

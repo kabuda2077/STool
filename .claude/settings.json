@@ -111,7 +111,10 @@
       "PowerShell(dotnet build E:\\\\Data\\\\Project\\\\STool\\\\STool.csproj -v q 2>&1)",
       "PowerShell(dotnet build -v q 2>&1)",
       "PowerShell(dotnet build -v q -clp:ErrorsOnly 2>&1)",
-      "PowerShell(git commit -q -m \"inputs: text selection highlight more visible \\(PrimaryBrush + opacity 0.35, global\\); drop focus blue border on text/password boxes -> neutral border, distinguish by surface color block; remove stray 2px border on focused sunken password/combo\")"
+      "PowerShell(git commit -q -m \"inputs: text selection highlight more visible \\(PrimaryBrush + opacity 0.35, global\\); drop focus blue border on text/password boxes -> neutral border, distinguish by surface color block; remove stray 2px border on focused sunken password/combo\")",
+      "PowerShell(dotnet build E:\\\\Data\\\\Project\\\\STool\\\\STool.csproj 2>&1)",
+      "PowerShell(dotnet build -clp:ErrorsOnly)",
+      "PowerShell(git commit -m \"settings nav: thicken+lengthen selected rail \\(width 3->4, vertical margin 5->3\\)\")"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj",

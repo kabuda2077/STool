@@ -33,61 +33,56 @@
                             BorderBrush="{StaticResource BorderBrush}"
                             BorderThickness="1">
                         <Grid>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="44"/>
-                                <RowDefinition Height="*"/>
-                            </Grid.RowDefinitions>
+                            <!-- 内容铺满整窗:标题栏为顶部透明浮层,各页面自行预留顶部约 44px。
+                                 这样带侧边栏的页面,侧边栏色块可贯通全高,形成左右两栏结构。 -->
+                            <Border Background="{StaticResource BackgroundBrush}">
+                                <AdornerDecorator>
+                                    <ContentPresenter/>
+                                </AdornerDecorator>
+                            </Border>
 
-                            <Border x:Name="PART_TitleBar"
-                                    Grid.Row="0"
-                                    Background="{StaticResource BackgroundBrush}">
-                                <Grid>
-                                    <TextBlock Text="{TemplateBinding Title}"
-                                               FontSize="13"
-                                               FontWeight="SemiBold"
-                                               Foreground="{StaticResource TextPrimaryBrush}"
-                                               VerticalAlignment="Center"
-                                               Margin="18,0,120,0"/>
+                            <!-- 顶部浮层:标题(左)+ 窗口按钮(右);拖拽由 WindowChrome.CaptionHeight 处理 -->
+                            <Grid x:Name="PART_TitleBar"
+                                  VerticalAlignment="Top"
+                                  Height="44">
+                                <TextBlock Text="{TemplateBinding Title}"
+                                           FontSize="13"
+                                           FontWeight="SemiBold"
+                                           Foreground="{StaticResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center"
+                                           Margin="18,0,140,0"/>
 
-                                    <StackPanel Orientation="Horizontal"
-                                                HorizontalAlignment="Right"
-                                                Margin="0,7,8,7"
-                                                shell:WindowChrome.IsHitTestVisibleInChrome="True">
-                                            <Button x:Name="PART_MinimizeButton"
-                                                    Style="{StaticResource WindowCaptionButton}"
-                                                    ToolTip="最小化">
-                                                <TextBlock Text="&#xE921;"
-                                                           FontFamily="Segoe MDL2 Assets"
-                                                           FontSize="10"/>
-                                            </Button>
-                                            <Button x:Name="PART_MaximizeButton"
-                                                    Style="{StaticResource WindowCaptionButton}"
-                                                    Margin="2,0,0,0"
-                                                    ToolTip="最大化">
-                                                <TextBlock x:Name="PART_MaximizeGlyph"
-                                                           Text="&#xE922;"
-                                                           FontFamily="Segoe MDL2 Assets"
-                                                           FontSize="10"/>
-                                            </Button>
-                                            <Button x:Name="PART_CloseButton"
-                                                    Style="{StaticResource WindowCloseButton}"
-                                                    Margin="2,0,0,0"
-                                                    ToolTip="关闭">
-                                                <TextBlock Text="&#xE8BB;"
-                                                           FontFamily="Segoe MDL2 Assets"
-                                                           FontSize="10"/>
-                                            </Button>
-                                        </StackPanel>
-                                    </Grid>
-                                </Border>
-
-                                <Border Grid.Row="1"
-                                        Background="{StaticResource BackgroundBrush}">
-                                    <AdornerDecorator>
-                                        <ContentPresenter/>
-                                    </AdornerDecorator>
-                                </Border>
+                                <StackPanel Orientation="Horizontal"
+                                            HorizontalAlignment="Right"
+                                            Margin="0,7,8,7"
+                                            shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                                    <Button x:Name="PART_MinimizeButton"
+                                            Style="{StaticResource WindowCaptionButton}"
+                                            ToolTip="最小化">
+                                        <TextBlock Text="&#xE921;"
+                                                   FontFamily="Segoe MDL2 Assets"
+                                                   FontSize="10"/>
+                                    </Button>
+                                    <Button x:Name="PART_MaximizeButton"
+                                            Style="{StaticResource WindowCaptionButton}"
+                                            Margin="2,0,0,0"
+                                            ToolTip="最大化">
+                                        <TextBlock x:Name="PART_MaximizeGlyph"
+                                                   Text="&#xE922;"
+                                                   FontFamily="Segoe MDL2 Assets"
+                                                   FontSize="10"/>
+                                    </Button>
+                                    <Button x:Name="PART_CloseButton"
+                                            Style="{StaticResource WindowCloseButton}"
+                                            Margin="2,0,0,0"
+                                            ToolTip="关闭">
+                                        <TextBlock Text="&#xE8BB;"
+                                                   FontFamily="Segoe MDL2 Assets"
+                                                   FontSize="10"/>
+                                    </Button>
+                                </StackPanel>
                             </Grid>
+                        </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
                         <!-- 最大化时去掉 1px 外边框(WindowChrome 会自动将最大化尺寸约束到工作区) -->

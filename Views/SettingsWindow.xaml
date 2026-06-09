@@ -17,7 +17,9 @@
 
         <Border Grid.Column="0"
                 Background="{StaticResource SurfaceBrush}"
-                Padding="12,16">
+                BorderBrush="{StaticResource BorderBrush}"
+                BorderThickness="0,0,1,0"
+                Padding="12,46,12,16">
             <StackPanel>
                 <Button x:Name="btnGeneralSettings"
                         Click="BtnGeneralSettings_Click"
@@ -41,12 +43,13 @@
         <Border Grid.Column="1"
                 Background="{StaticResource SurfaceCanvasBrush}">
             <ScrollViewer x:Name="contentScroll"
+                          Margin="0,44,0,0"
                           VerticalScrollBarVisibility="Auto"
                           Background="Transparent"
                           FocusVisualStyle="{x:Null}"
                           PreviewMouseWheel="ContentScroll_PreviewMouseWheel"
                           Padding="0">
-                <Grid x:Name="contentPanel" Margin="22,18"/>
+                <Grid x:Name="contentPanel" Margin="22,10,22,22"/>
             </ScrollViewer>
         </Border>
     </Grid>

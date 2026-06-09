@@ -44,7 +44,7 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="14">
+    <Grid Margin="14,44,14,14">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" MinHeight="120"/>
             <RowDefinition Height="Auto"/>

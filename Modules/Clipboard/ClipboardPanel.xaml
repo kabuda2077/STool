@@ -68,7 +68,7 @@
         </Style>
     </Window.Resources>
 
-    <Grid>
+    <Grid Margin="0,44,0,0">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>

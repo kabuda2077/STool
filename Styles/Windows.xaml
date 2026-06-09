@@ -46,7 +46,7 @@
                                   VerticalAlignment="Top"
                                   Height="44">
                                 <TextBlock Text="{TemplateBinding Title}"
-                                           FontSize="13"
+                                           FontSize="15"
                                            FontWeight="SemiBold"
                                            Foreground="{StaticResource TextPrimaryBrush}"
                                            VerticalAlignment="Center"

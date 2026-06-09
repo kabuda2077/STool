@@ -11,15 +11,13 @@
 
     <Grid Background="Transparent">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="168"/>
+            <ColumnDefinition Width="200"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
         <Border Grid.Column="0"
                 Background="{StaticResource SurfaceBrush}"
-                BorderBrush="{StaticResource BorderBrush}"
-                BorderThickness="0,0,1,0"
-                Padding="12,46,12,16">
+                Padding="14,46,14,16">
             <StackPanel>
                 <Button x:Name="btnGeneralSettings"
                         Click="BtnGeneralSettings_Click"
@@ -29,13 +27,13 @@
                 <Button x:Name="btnOcrSettings"
                         Click="BtnOcrSettings_Click"
                         Style="{StaticResource NavigationButton}"
-                        Margin="0,6,0,0"
+                        Margin="0,8,0,0"
                         Content="OCR"/>
 
                 <Button x:Name="btnTranslationSettings"
                         Click="BtnTranslationSettings_Click"
                         Style="{StaticResource NavigationButton}"
-                        Margin="0,6,0,0"
+                        Margin="0,8,0,0"
                         Content="翻译"/>
             </StackPanel>
         </Border>

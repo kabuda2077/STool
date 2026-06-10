@@ -21,6 +21,12 @@ public partial class TrayMenuWindow : Window
     public TrayMenuWindow()
     {
         InitializeComponent();
+        SourceInitialized += (_, _) =>
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(this).Handle;
+            ModernWindowChrome.TryRoundCorners(hwnd);
+            ModernWindowChrome.TryHideBorder(hwnd);
+        };
         // 注意:失焦关闭(Deactivated)在 ShowNearCursor 激活之后才挂载,
         // 避免 Show() 到激活之间的瞬时失焦导致菜单"闪一下就关"。
         PreviewKeyDown += (_, e) =>
@@ -109,9 +115,8 @@ public partial class TrayMenuWindow : Window
         double workBottom = work.Bottom / dpi.DpiScaleY;
 
         // 锚定到光标的左上方(托盘通常在右下角),弹窗向上展开。
-        // +14 抵消用于投影的透明外边距,让可见卡片贴近光标。
-        double left = cursorX - ActualWidth + 14;
-        double top = cursorY - ActualHeight + 14;
+        double left = cursorX - ActualWidth;
+        double top = cursorY - ActualHeight;
 
         if (left + ActualWidth > workRight) left = workRight - ActualWidth;
         if (left < workLeft) left = workLeft;

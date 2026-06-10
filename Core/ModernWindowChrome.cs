@@ -114,12 +114,14 @@ public static class ModernWindowChrome
 
     // ---- Win11 圆角 ----
     private const int DWMWA_WINDOW_CORNER_PREFERENCE = 33;
+    private const int DWMWA_BORDER_COLOR = 34;
     private const int DWMWCP_ROUND = 2;
+    private const int DWMWA_COLOR_NONE = unchecked((int)0xFFFFFFFE);
 
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attr, ref int value, int size);
 
-    private static void TryRoundCorners(IntPtr hwnd)
+    public static void TryRoundCorners(IntPtr hwnd)
     {
         try
         {
@@ -129,6 +131,19 @@ public static class ModernWindowChrome
         catch
         {
             // 旧版本 Windows 不支持该属性,忽略即可(降级为直角)。
+        }
+    }
+
+    public static void TryHideBorder(IntPtr hwnd)
+    {
+        try
+        {
+            int color = DWMWA_COLOR_NONE;
+            DwmSetWindowAttribute(hwnd, DWMWA_BORDER_COLOR, ref color, sizeof(int));
+        }
+        catch
+        {
+            // 旧版本 Windows 不支持该属性,忽略即可。
         }
     }
 }

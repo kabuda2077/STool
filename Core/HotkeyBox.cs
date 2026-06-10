@@ -30,6 +30,7 @@ public class HotkeyBox : TextBox
     protected override void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs e)
     {
         base.OnGotKeyboardFocus(e);
+        SelectAll();
         // 进入捕获:挂起全局快捷键,否则按 Ctrl+Alt+A 等会被系统级热键拦截而录不进来
         (System.Windows.Application.Current as STool.App)?.SuspendHotkeys();
     }

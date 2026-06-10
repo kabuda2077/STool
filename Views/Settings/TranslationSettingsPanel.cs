@@ -49,9 +49,9 @@ public class TranslationSettingsPanel : StackPanel
         _cmbProvider = new System.Windows.Controls.ComboBox
         {
             Style = (Style)FindResource("SunkenComboBox"),
-            Height = 34,
+            Height = 32,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Margin = new Thickness(0, 4, 0, 8)
+            Margin = new Thickness(0, 3, 0, 7)
         };
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "谷歌翻译", Tag = TranslationProvider.Google });
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "腾讯云翻译", Tag = TranslationProvider.Tencent });
@@ -66,9 +66,9 @@ public class TranslationSettingsPanel : StackPanel
         _cmbSourceLanguage = new System.Windows.Controls.ComboBox
         {
             Style = (Style)FindResource("SunkenComboBox"),
-            Height = 34,
+            Height = 32,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Margin = new Thickness(0, 4, 0, 8)
+            Margin = new Thickness(0, 3, 0, 7)
         };
         _cmbSourceLanguage.Items.Add(new ComboBoxItem { Content = "自动检测", Tag = "auto" });
         _cmbSourceLanguage.Items.Add(new ComboBoxItem { Content = "中文", Tag = "zh" });
@@ -81,9 +81,9 @@ public class TranslationSettingsPanel : StackPanel
         _cmbTargetLanguage = new System.Windows.Controls.ComboBox
         {
             Style = (Style)FindResource("SunkenComboBox"),
-            Height = 34,
+            Height = 32,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Margin = new Thickness(0, 4, 0, 8)
+            Margin = new Thickness(0, 3, 0, 7)
         };
         _cmbTargetLanguage.Items.Add(new ComboBoxItem { Content = "中文", Tag = "zh" });
         _cmbTargetLanguage.Items.Add(new ComboBoxItem { Content = "英文", Tag = "en" });
@@ -123,7 +123,7 @@ public class TranslationSettingsPanel : StackPanel
             Content = "保存设置",
             Style = (Style)FindResource("ModernButton"),
             Padding = new Thickness(18, 8, 18, 8),
-            Margin = new Thickness(0, 12, 0, 0),
+            Margin = new Thickness(0, 10, 0, 0),
             HorizontalAlignment = System.Windows.HorizontalAlignment.Left
         };
         btnSave.Click += BtnSave_Click;
@@ -184,7 +184,7 @@ public class TranslationSettingsPanel : StackPanel
         var textBox = new System.Windows.Controls.TextBox
         {
             Style = (Style)FindResource("SunkenTextBox"),
-            Height = 34,
+            Height = 32,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
         };
         _activeSection.Children.Add(textBox);
@@ -195,24 +195,24 @@ public class TranslationSettingsPanel : StackPanel
     {
         var inputHost = new Grid
         {
-            Height = 34,
+            Height = 32,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
         };
 
         var passwordBox = new System.Windows.Controls.PasswordBox
         {
             Style = (Style)FindResource("SunkenPasswordBox"),
-            Height = 34,
+            Height = 32,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Padding = new Thickness(5, 4, 38, 4)
+            Padding = new Thickness(5, 3, 38, 3)
         };
 
         var textBox = new System.Windows.Controls.TextBox
         {
             Style = (Style)FindResource("SunkenTextBox"),
-            Height = 34,
+            Height = 32,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Padding = new Thickness(5, 4, 38, 4),
+            Padding = new Thickness(5, 3, 38, 3),
             Visibility = Visibility.Collapsed
         };
 

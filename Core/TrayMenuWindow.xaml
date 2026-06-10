@@ -2,17 +2,17 @@
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None"
-        AllowsTransparency="True"
-        Background="{StaticResource TransparentBrush}"
+        AllowsTransparency="False"
+        Background="{StaticResource SurfaceBrush}"
         ShowInTaskbar="False"
         Topmost="True"
         ResizeMode="NoResize"
         SizeToContent="Height"
         WindowStartupLocation="Manual"
-        Width="200"
+        Width="180"
         Opacity="0"
         UseLayoutRounding="True"
-        TextOptions.TextFormattingMode="Display"
+        TextOptions.TextFormattingMode="Ideal"
         TextOptions.TextRenderingMode="ClearType"
         FontFamily="Segoe UI, Microsoft YaHei UI">
 
@@ -76,10 +76,7 @@
             BorderThickness="0"
             CornerRadius="10"
             Padding="6"
-            Margin="14">
-        <Border.Effect>
-            <StaticResource ResourceKey="MenuShadow"/>
-        </Border.Effect>
+            Margin="0">
         <StackPanel x:Name="menuPanel"/>
     </Border>
 </Window>

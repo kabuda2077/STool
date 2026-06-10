@@ -78,7 +78,7 @@ public class GeneralSettingsPanel : StackPanel
             Content = "保存设置",
             Style = (Style)FindResource("ModernButton"),
             Padding = new Thickness(18, 8, 18, 8),
-            Margin = new Thickness(0, 12, 0, 0),
+            Margin = new Thickness(0, 10, 0, 0),
             HorizontalAlignment = System.Windows.HorizontalAlignment.Left
         };
         btnSave.Click += BtnSave_Click;
@@ -116,8 +116,8 @@ public class GeneralSettingsPanel : StackPanel
 
         textBox = new HotkeyBox
         {
-            Style = (Style)FindResource("SunkenTextBox"),
-            Height = 34,
+            Style = (Style)FindResource("HotkeyTextBox"),
+            Height = 32,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
         };
         panel.Children.Add(textBox);

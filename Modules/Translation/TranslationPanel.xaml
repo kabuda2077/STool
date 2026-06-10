@@ -14,7 +14,7 @@
             <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
             <Setter Property="CornerRadius" Value="10"/>
             <Setter Property="Padding" Value="14"/>
-            <Setter Property="Effect" Value="{StaticResource StandardShadow}"/>
+            <Setter Property="Effect" Value="{StaticResource PaneShadow}"/>
         </Style>
 
         <Style x:Key="TranslationTextBox" TargetType="TextBox">
@@ -57,6 +57,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="b" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
                                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
@@ -74,7 +75,7 @@
             <Setter Property="Padding" Value="14,0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
@@ -89,16 +90,111 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="b" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                                <Setter TargetName="b" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
                             </Trigger>
                             <Trigger Property="Tag" Value="on">
-                                <Setter TargetName="b" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
                                 <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                                <Setter Property="FontWeight" Value="SemiBold"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
                 </Setter.Value>
             </Setter>
+        </Style>
+
+        <ControlTemplate x:Key="TranslationLanguageComboToggleTemplate" TargetType="ToggleButton">
+            <Border x:Name="Root"
+                    Background="{TemplateBinding Background}"
+                    BorderThickness="0"
+                    CornerRadius="7">
+                <Grid>
+                    <Path Data="M 0 0 L 4 4 L 8 0 Z"
+                          Fill="{StaticResource TextSecondaryBrush}"
+                          HorizontalAlignment="Right"
+                          VerticalAlignment="Center"
+                          Margin="0,0,10,0"/>
+                </Grid>
+            </Border>
+            <ControlTemplate.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter TargetName="Root" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+                </Trigger>
+                <Trigger Property="IsChecked" Value="True">
+                    <Setter TargetName="Root" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+                </Trigger>
+            </ControlTemplate.Triggers>
+        </ControlTemplate>
+
+        <Style x:Key="TranslationLanguageComboBoxItem" TargetType="ComboBoxItem" BasedOn="{StaticResource {x:Type ComboBoxItem}}">
+            <Setter Property="Padding" Value="8,4"/>
+            <Setter Property="Margin" Value="0,2"/>
+            <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+            <Setter Property="FontWeight" Value="{StaticResource FontWeightNormal}"/>
+        </Style>
+
+        <Style x:Key="TranslationLanguageComboBox" TargetType="ComboBox">
+            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="7,6"/>
+            <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+            <Setter Property="SnapsToDevicePixels" Value="True"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="ItemContainerStyle" Value="{StaticResource TranslationLanguageComboBoxItem}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ComboBox">
+                        <Grid>
+                            <ToggleButton x:Name="ToggleButton"
+                                          Template="{StaticResource TranslationLanguageComboToggleTemplate}"
+                                          Background="{TemplateBinding Background}"
+                                          Focusable="False"
+                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
+                                          ClickMode="Press"/>
+
+                            <ContentPresenter x:Name="ContentSite"
+                                              IsHitTestVisible="False"
+                                              Content="{TemplateBinding SelectionBoxItem}"
+                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
+                                              ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
+                                              Margin="8,0,24,0"
+                                              VerticalAlignment="Center"
+                                              HorizontalAlignment="Left"/>
+
+                            <Popup x:Name="PART_Popup"
+                                   AllowsTransparency="True"
+                                   Focusable="False"
+                                   IsOpen="{TemplateBinding IsDropDownOpen}"
+                                   Placement="Bottom"
+                                   HorizontalOffset="-8"
+                                   PopupAnimation="Fade">
+                                <Border Background="{StaticResource SurfaceBrush}"
+                                        CornerRadius="8"
+                                        MinWidth="{TemplateBinding ActualWidth}"
+                                        Padding="3,2"
+                                        Margin="8,6,8,10">
+                                    <Border.Effect>
+                                        <StaticResource ResourceKey="MenuShadow"/>
+                                    </Border.Effect>
+                                    <ScrollViewer MaxHeight="240"
+                                                  VerticalScrollBarVisibility="Auto">
+                                        <ItemsPresenter/>
+                                    </ScrollViewer>
+                                </Border>
+                            </Popup>
+                        </Grid>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <Style.Triggers>
+                <Trigger Property="IsMouseOver" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+                </Trigger>
+                <Trigger Property="IsDropDownOpen" Value="True">
+                    <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+                </Trigger>
+            </Style.Triggers>
         </Style>
 
         <!-- 浮动操作按钮:无边框,悬停/按下色块反馈 -->
@@ -107,7 +203,7 @@
             <Setter Property="Padding" Value="11,0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
             <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
@@ -121,11 +217,11 @@
                             <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </Border>
                         <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="b" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                           <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="b" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="b" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                                <Setter TargetName="b" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -136,9 +232,9 @@
 
     <Grid Margin="16,52,16,16">
         <Grid.RowDefinitions>
-            <RowDefinition Height="*" MinHeight="120"/>
+            <RowDefinition Height="1*" MinHeight="120"/>
             <RowDefinition Height="Auto"/>
-            <RowDefinition Height="*" MinHeight="120"/>
+            <RowDefinition Height="1.08*" MinHeight="120"/>
         </Grid.RowDefinitions>
 
         <!-- 上半部:输入 + 工具栏 -->
@@ -173,7 +269,7 @@
         </Border>
 
         <!-- 工具栏 -->
-        <Grid Grid.Row="1" Margin="12,14">
+        <Grid Grid.Row="1" Margin="0,14">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -181,33 +277,42 @@
             </Grid.ColumnDefinitions>
 
             <!-- 提供商切换 -->
-            <StackPanel Orientation="Horizontal">
-                <Button x:Name="btnProviderGoogle" Style="{StaticResource ProviderToggle}" Click="Provider_Click" Tag="on" Content="谷歌翻译"/>
-                <Button x:Name="btnProviderTencent" Style="{StaticResource ProviderToggle}" Click="Provider_Click" Margin="8,0,0,0" Content="腾讯翻译"/>
-            </StackPanel>
+            <Border Background="{StaticResource SurfaceBrush}"
+                    CornerRadius="10"
+                    Padding="4">
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="btnProviderGoogle" Style="{StaticResource ProviderToggle}" Click="Provider_Click" Tag="on" Content="谷歌翻译"/>
+                    <Button x:Name="btnProviderTencent" Style="{StaticResource ProviderToggle}" Click="Provider_Click" Content="腾讯翻译"/>
+                </StackPanel>
+            </Border>
 
             <!-- 语言选择:源 → 目标 -->
-            <StackPanel Grid.Column="2" Orientation="Horizontal">
-                <ComboBox x:Name="cmbSource" Style="{StaticResource SunkenComboBox}" Width="106" Height="32" SelectedIndex="0">
-                    <ComboBoxItem Content="自动检测" Tag="auto"/>
-                    <ComboBoxItem Content="中文" Tag="zh"/>
-                    <ComboBoxItem Content="英文" Tag="en"/>
-                    <ComboBoxItem Content="日文" Tag="ja"/>
-                    <ComboBoxItem Content="韩文" Tag="ko"/>
-                </ComboBox>
-                <TextBlock Text="&#xE72A;"
-                           FontFamily="Segoe MDL2 Assets"
-                           FontSize="13"
-                           Margin="10,0"
-                           VerticalAlignment="Center"
-                           Foreground="{StaticResource TextSecondaryBrush}"/>
-                <ComboBox x:Name="cmbTarget" Style="{StaticResource SunkenComboBox}" Width="106" Height="32" SelectedIndex="1">
-                    <ComboBoxItem Content="中文" Tag="zh"/>
-                    <ComboBoxItem Content="英文" Tag="en"/>
-                    <ComboBoxItem Content="日文" Tag="ja"/>
-                    <ComboBoxItem Content="韩文" Tag="ko"/>
-                </ComboBox>
-            </StackPanel>
+            <Border Grid.Column="2"
+                    Background="{StaticResource SurfaceBrush}"
+                    CornerRadius="10"
+                    Padding="3">
+                <StackPanel Orientation="Horizontal">
+                    <ComboBox x:Name="cmbSource" Style="{StaticResource TranslationLanguageComboBox}" Width="90" Height="32" SelectedIndex="0">
+                        <ComboBoxItem Content="自动检测" Tag="auto"/>
+                        <ComboBoxItem Content="中文" Tag="zh"/>
+                        <ComboBoxItem Content="英文" Tag="en"/>
+                        <ComboBoxItem Content="日文" Tag="ja"/>
+                        <ComboBoxItem Content="韩文" Tag="ko"/>
+                    </ComboBox>
+                    <TextBlock Text="&#xE72A;"
+                               FontFamily="Segoe MDL2 Assets"
+                               FontSize="13"
+                               Margin="5,0"
+                               VerticalAlignment="Center"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <ComboBox x:Name="cmbTarget" Style="{StaticResource TranslationLanguageComboBox}" Width="78" Height="32" SelectedIndex="1">
+                        <ComboBoxItem Content="中文" Tag="zh"/>
+                        <ComboBoxItem Content="英文" Tag="en"/>
+                        <ComboBoxItem Content="日文" Tag="ja"/>
+                        <ComboBoxItem Content="韩文" Tag="ko"/>
+                    </ComboBox>
+                </StackPanel>
+            </Border>
         </Grid>
 
         <!-- 下半部:翻译结果(单边框) -->
@@ -238,7 +343,7 @@
                     <Border Background="{StaticResource SurfaceBrush}"
                             CornerRadius="10">
                         <Border.Effect>
-                            <StaticResource ResourceKey="StandardShadow"/>
+                            <StaticResource ResourceKey="MenuShadow"/>
                         </Border.Effect>
                     </Border>
                     <!-- 内容层:无特效,文字原生渲染 -->

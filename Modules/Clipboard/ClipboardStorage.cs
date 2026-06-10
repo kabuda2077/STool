@@ -240,6 +240,34 @@ public class ClipboardStorage : IDisposable
         DeleteImageFiles(imagePaths);
     }
 
+    public void ClearByType(ClipboardItemType type)
+    {
+        var imagePaths = GetImagePaths("WHERE type = @type", command =>
+        {
+            command.Parameters.AddWithValue("@type", (int)type);
+        });
+
+        using (var command = new SqliteCommand("DELETE FROM clipboard_items WHERE type = @type", _connection))
+        {
+            command.Parameters.AddWithValue("@type", (int)type);
+            command.ExecuteNonQuery();
+        }
+
+        DeleteImageFiles(imagePaths);
+    }
+
+    public void ClearFavorites()
+    {
+        var imagePaths = GetImagePaths("WHERE is_favorite = 1", null);
+
+        using (var command = new SqliteCommand("DELETE FROM clipboard_items WHERE is_favorite = 1", _connection))
+        {
+            command.ExecuteNonQuery();
+        }
+
+        DeleteImageFiles(imagePaths);
+    }
+
     private List<ClipboardItem> ExecuteQuery(SqliteCommand command)
     {
         var items = new List<ClipboardItem>();

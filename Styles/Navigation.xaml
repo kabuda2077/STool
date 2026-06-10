@@ -2,11 +2,11 @@
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
     <Style x:Key="NavigationButton" TargetType="Button">
-        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-        <Setter Property="BorderBrush" Value="Transparent"/>
+        <Setter Property="BorderBrush" Value="{StaticResource TransparentBrush}"/>
         <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="Padding" Value="16,14"/>
+        <Setter Property="Padding" Value="14,11"/>
         <Setter Property="HorizontalContentAlignment" Value="Left"/>
         <Setter Property="FontSize" Value="{StaticResource FontSizeSubtitle}"/>
         <Setter Property="FontWeight" Value="{StaticResource FontWeightStrong}"/>
@@ -24,7 +24,7 @@
                             <Border x:Name="SelectedRail"
                                     Width="3"
                                     HorizontalAlignment="Right"
-                                    Margin="0,2,2,2"
+                                    Margin="0,3,1,3"
                                     CornerRadius="2"
                                     Background="{StaticResource PrimaryBrush}"
                                     Opacity="0"/>
@@ -34,11 +34,11 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
-                            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
                         </Trigger>
                         <Trigger Property="Tag" Value="Selected">
-                            <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
                             <Setter TargetName="SelectedRail" Property="Opacity" Value="1"/>
                             <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
                         </Trigger>

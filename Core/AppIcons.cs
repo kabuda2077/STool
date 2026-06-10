@@ -2,6 +2,8 @@ using System;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.IO;
+using WpfApplication = System.Windows.Application;
+using WpfColor = System.Windows.Media.Color;
 
 namespace STool.Core;
 
@@ -38,10 +40,10 @@ public static class AppIcons
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
         graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
 
-        var accent = Color.FromArgb(37, 99, 235);
-        var accentDark = Color.FromArgb(29, 78, 216);
-        var muted = Color.FromArgb(100, 116, 139);
-        var danger = Color.FromArgb(220, 38, 38);
+        var accent = ResourceColor("PrimaryColor");
+        var accentDark = ResourceColor("PrimaryColor");
+        var muted = ResourceColor("TextSecondaryColor");
+        var danger = ResourceColor("ErrorColor");
 
         using var accentPen = new Pen(accent, 1.8f)
         {
@@ -67,7 +69,7 @@ public static class AppIcons
             EndCap = LineCap.Round
         };
         using var accentBrush = new SolidBrush(accent);
-        using var softBrush = new SolidBrush(Color.FromArgb(232, 240, 255));
+        using var softBrush = new SolidBrush(ResourceColor("PrimarySoftColor"));
 
         switch (kind)
         {
@@ -114,6 +116,16 @@ public static class AppIcons
         }
 
         return bitmap;
+    }
+
+    private static Color ResourceColor(string key)
+    {
+        if (WpfApplication.Current?.TryFindResource(key) is WpfColor color)
+        {
+            return ColorTranslator.FromHtml($"#{color.R:X2}{color.G:X2}{color.B:X2}");
+        }
+
+        return Color.Empty;
     }
 
     private static void DrawRoundedRect(Graphics graphics, Pen pen, float x, float y, float width, float height, float radius)

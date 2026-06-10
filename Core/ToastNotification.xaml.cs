@@ -75,11 +75,11 @@ namespace STool.Core
                         break;
                     case ToastType.Info:
                         toast.iconText.Text = ""; // Info
-                        toast.iconBorder.Background = (System.Windows.Media.Brush)System.Windows.Application.Current.FindResource("InfoBrush");
+                        toast.iconBorder.Background = (System.Windows.Media.Brush)System.Windows.Application.Current.FindResource("PrimaryBrush");
                         break;
                     case ToastType.Warning:
                         toast.iconText.Text = ""; // Warning
-                        toast.iconBorder.Background = (System.Windows.Media.Brush)System.Windows.Application.Current.FindResource("WarningBrush");
+                        toast.iconBorder.Background = (System.Windows.Media.Brush)System.Windows.Application.Current.FindResource("PrimaryBrush");
                         break;
                     case ToastType.Error:
                         toast.iconText.Text = ""; // Error

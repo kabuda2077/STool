@@ -9,6 +9,7 @@ namespace STool.Modules.Screenshot;
 
 public partial class PinWindow : Window
 {
+    private const double ShadowPadding = 14;
     private readonly Bitmap _screenshot;
 
     public PinWindow(Bitmap screenshot) : this(screenshot, null) { }
@@ -25,16 +26,16 @@ public partial class PinWindow : Window
         if (targetDip is Rect r && r.Width >= 1 && r.Height >= 1)
         {
             // 在选区原位、原尺寸钉住(不再跳到屏幕中间)
-            Left = r.X;
-            Top = r.Y;
-            Width = r.Width;
-            Height = r.Height;
+            Left = r.X - ShadowPadding;
+            Top = r.Y - ShadowPadding;
+            Width = r.Width + ShadowPadding * 2;
+            Height = r.Height + ShadowPadding * 2;
         }
         else
         {
             // 回退:屏幕居中
-            Width = screenshot.Width;
-            Height = screenshot.Height;
+            Width = screenshot.Width + ShadowPadding * 2;
+            Height = screenshot.Height + ShadowPadding * 2;
             Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
             Top = (SystemParameters.PrimaryScreenHeight - Height) / 2;
         }

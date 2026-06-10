@@ -169,8 +169,8 @@ public partial class CaptureOverlay : Window
             {
                 Width = 10,
                 Height = 10,
-                Fill = Brushes.White,
-                Stroke = new SolidColorBrush(Color.FromRgb(0x2D, 0xC4, 0x72)),
+                Fill = ResourceBrush("SurfaceBrush"),
+                Stroke = ResourceBrush("SuccessBrush"),
                 StrokeThickness = 1.5,
                 Tag = HandleRoles[i],
                 Cursor = HandleCursor(HandleRoles[i])
@@ -446,9 +446,11 @@ public partial class CaptureOverlay : Window
                       || (b == btnEllipse && _currentTool == AnnotationTool.Ellipse)
                       || (b == btnArrow && _currentTool == AnnotationTool.Arrow)
                       || (b == btnPen && _currentTool == AnnotationTool.Pen);
-            b.Background = active ? new SolidColorBrush(Color.FromArgb(0x33, 0x25, 0x63, 0xEB)) : Brushes.Transparent;
+            b.Background = active ? ResourceBrush("PrimarySoftBrush") : ResourceBrush("TransparentBrush");
         }
     }
+
+    private Brush ResourceBrush(string key) => (Brush)FindResource(key);
 
     private void BtnUndo_Click(object sender, RoutedEventArgs e) => _annotation?.Undo();
     private void BtnRedo_Click(object sender, RoutedEventArgs e) => _annotation?.Redo();

@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None"
         AllowsTransparency="True"
-        Background="Transparent"
+        Background="{StaticResource TransparentBrush}"
         ShowInTaskbar="False"
         Topmost="True"
         ResizeMode="NoResize"
@@ -36,7 +36,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="Root" Property="Opacity" Value="0.85"/>
@@ -60,7 +60,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="Root" Property="Opacity" Value="0.85"/>
@@ -78,7 +78,7 @@
             Padding="6"
             Margin="14">
         <Border.Effect>
-            <StaticResource ResourceKey="StandardShadow"/>
+            <StaticResource ResourceKey="MenuShadow"/>
         </Border.Effect>
         <StackPanel x:Name="menuPanel"/>
     </Border>

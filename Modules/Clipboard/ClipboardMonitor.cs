@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Interop;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Runtime.InteropServices;
 using Serilog;
@@ -147,6 +148,12 @@ public class ClipboardMonitor : IDisposable
             if (image == null)
                 return null;
 
+            if (IsVisuallyBlankImage(image))
+            {
+                Log.Information("Skipping visually blank clipboard image from {SourceApp}", sourceApp ?? "unknown");
+                return null;
+            }
+
             // 保存图片到本地
             var imagePath = SaveClipboardImage(image);
             if (imagePath == null)
@@ -198,6 +205,64 @@ public class ClipboardMonitor : IDisposable
         catch
         {
             return null;
+        }
+    }
+
+    private static bool IsVisuallyBlankImage(BitmapSource image)
+    {
+        try
+        {
+            if (image.PixelWidth <= 0 || image.PixelHeight <= 0)
+                return true;
+
+            const int maxSampleSize = 64;
+            var scale = Math.Min(1.0, (double)maxSampleSize / Math.Max(image.PixelWidth, image.PixelHeight));
+            BitmapSource sample = image;
+
+            if (scale < 1.0)
+            {
+                sample = new TransformedBitmap(image, new ScaleTransform(scale, scale));
+                sample.Freeze();
+            }
+
+            var converted = new FormatConvertedBitmap(sample, PixelFormats.Bgra32, null, 0);
+            converted.Freeze();
+
+            var width = converted.PixelWidth;
+            var height = converted.PixelHeight;
+            if (width <= 0 || height <= 0)
+                return true;
+
+            var stride = width * 4;
+            var pixels = new byte[stride * height];
+            converted.CopyPixels(pixels, stride, 0);
+
+            var opaquePixels = 0;
+            var nonWhitePixels = 0;
+
+            for (var i = 0; i < pixels.Length; i += 4)
+            {
+                var b = pixels[i];
+                var g = pixels[i + 1];
+                var r = pixels[i + 2];
+                var a = pixels[i + 3];
+
+                if (a <= 8)
+                    continue;
+
+                opaquePixels++;
+                if (r < 244 || g < 244 || b < 244)
+                    nonWhitePixels++;
+            }
+
+            if (opaquePixels == 0)
+                return true;
+
+            return nonWhitePixels <= 3 || (double)nonWhitePixels / opaquePixels < 0.001;
+        }
+        catch
+        {
+            return false;
         }
     }
 

@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None"
         AllowsTransparency="True"
-        Background="Transparent"
+        Background="{StaticResource TransparentBrush}"
         Topmost="True"
         ShowInTaskbar="False"
         ResizeMode="NoResize"
@@ -14,9 +14,10 @@
     <Border x:Name="mainBorder"
             BorderThickness="0"
             CornerRadius="6"
-            Background="{StaticResource SurfaceBrush}">
+            Background="{StaticResource SurfaceBrush}"
+            Margin="14">
         <Border.Effect>
-            <StaticResource ResourceKey="StandardShadow"/>
+            <StaticResource ResourceKey="MenuShadow"/>
         </Border.Effect>
 
         <Grid>
@@ -31,26 +32,26 @@
                     Margin="0,4,4,0"
                     Visibility="Collapsed">
                 <Button x:Name="btnClose"
-                        Width="24"
-                        Height="24"
+                        Width="34"
+                        Height="34"
                         Cursor="Hand"
-                        Background="#B30F172A"
-                        Foreground="White"
+                        Background="{StaticResource PinnedCloseBackgroundBrush}"
+                        Foreground="{StaticResource OnPrimaryBrush}"
                         ToolTip="关闭 (Esc / 双击)"
                         Click="BtnClose_Click">
                     <Button.Template>
                         <ControlTemplate TargetType="Button">
-                            <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="12">
+                            <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="17">
                                 <TextBlock Text="&#xE8BB;"
                                            FontFamily="Segoe MDL2 Assets"
-                                           FontSize="10"
+                                           FontSize="13"
                                            Foreground="{TemplateBinding Foreground}"
                                            HorizontalAlignment="Center"
                                            VerticalAlignment="Center"/>
                             </Border>
                             <ControlTemplate.Triggers>
                                 <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="bg" Property="Background" Value="#DC2626"/>
+                                    <Setter TargetName="bg" Property="Background" Value="{StaticResource ErrorBrush}"/>
                                 </Trigger>
                             </ControlTemplate.Triggers>
                         </ControlTemplate>

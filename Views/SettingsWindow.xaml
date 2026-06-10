@@ -9,15 +9,15 @@
         MinHeight="500"
         WindowStartupLocation="CenterScreen">
 
-    <Grid Background="Transparent">
+    <Grid Background="{StaticResource TransparentBrush}">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="200"/>
+            <ColumnDefinition Width="172"/>
             <ColumnDefinition Width="*"/>
         </Grid.ColumnDefinitions>
 
         <Border Grid.Column="0"
                 Background="{StaticResource SurfaceBrush}"
-                Padding="10,44,10,12">
+                Padding="8,48,8,12">
             <StackPanel>
                 <Button x:Name="btnGeneralSettings"
                         Click="BtnGeneralSettings_Click"
@@ -43,7 +43,7 @@
             <ScrollViewer x:Name="contentScroll"
                           Margin="0,44,0,0"
                           VerticalScrollBarVisibility="Auto"
-                          Background="Transparent"
+                          Background="{StaticResource TransparentBrush}"
                           FocusVisualStyle="{x:Null}"
                           PreviewMouseWheel="ContentScroll_PreviewMouseWheel"
                           Padding="0">

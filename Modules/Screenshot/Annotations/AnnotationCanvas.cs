@@ -18,7 +18,7 @@ public class AnnotationCanvas
     private readonly Stack<IAnnotationCommand> _redoStack = new();
 
     private AnnotationTool _currentTool = AnnotationTool.None;
-    private System.Windows.Media.Color _currentColor = Colors.Red;
+    private System.Windows.Media.Color _currentColor;
     private double _currentThickness = 3;
 
     private System.Windows.Point _startPoint;
@@ -28,6 +28,7 @@ public class AnnotationCanvas
     public AnnotationCanvas(Canvas canvas)
     {
         _canvas = canvas;
+        _currentColor = (System.Windows.Media.Color)canvas.FindResource("AnnotationDefaultColor");
         _canvas.MouseLeftButtonDown += OnMouseLeftButtonDown;
         _canvas.MouseMove += OnMouseMove;
         _canvas.MouseLeftButtonUp += OnMouseLeftButtonUp;
@@ -104,13 +105,13 @@ public class AnnotationCanvas
             {
                 Stroke = brush,
                 StrokeThickness = _currentThickness,
-                Fill = System.Windows.Media.Brushes.Transparent
+                Fill = ResourceBrush("TransparentBrush")
             },
             AnnotationTool.Ellipse => new Ellipse
             {
                 Stroke = brush,
                 StrokeThickness = _currentThickness,
-                Fill = System.Windows.Media.Brushes.Transparent
+                Fill = ResourceBrush("TransparentBrush")
             },
             AnnotationTool.Arrow => new Line
             {
@@ -130,6 +131,9 @@ public class AnnotationCanvas
             _ => null
         };
     }
+
+    private System.Windows.Media.Brush ResourceBrush(string key)
+        => (System.Windows.Media.Brush)_canvas.FindResource(key);
 
     private void UpdateShape(Shape shape, System.Windows.Point start, System.Windows.Point current)
     {
@@ -209,4 +213,3 @@ public class AnnotationCanvas
         _redoStack.Clear();
     }
 }
-

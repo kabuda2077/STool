@@ -111,7 +111,7 @@
         <Setter Property="CornerRadius" Value="10"/>
         <Setter Property="Padding" Value="16"/>
         <Setter Property="Margin" Value="0,0,0,14"/>
-        <Setter Property="Effect" Value="{StaticResource StandardShadow}"/>
+        <Setter Property="Effect" Value="{StaticResource PaneShadow}"/>
     </Style>
 
     <Style x:Key="SettingsPageTitle" TargetType="TextBlock">
@@ -143,7 +143,7 @@
                                       FocusVisualStyle="{x:Null}">
                             <ToggleButton.Template>
                                 <ControlTemplate TargetType="ToggleButton">
-                                    <Border x:Name="HeaderBg" Background="Transparent" CornerRadius="6" Padding="2,4">
+                                    <Border x:Name="HeaderBg" Background="{StaticResource TransparentBrush}" CornerRadius="6" Padding="2,4">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
@@ -173,7 +173,7 @@
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="HeaderBg" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                                            <Setter TargetName="HeaderBg" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
                                         </Trigger>
                                         <Trigger Property="IsChecked" Value="True">
                                             <Setter TargetName="Chevron" Property="RenderTransform">

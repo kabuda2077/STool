@@ -5,11 +5,11 @@
         WindowState="Maximized"
         Topmost="True"
         AllowsTransparency="True"
-        Background="Transparent"
+        Background="{StaticResource TransparentBrush}"
         ShowInTaskbar="False">
     <Grid>
         <Image x:Name="screenshotImage" Stretch="None"/>
-        <Canvas x:Name="annotationCanvas" Background="Transparent"/>
+        <Canvas x:Name="annotationCanvas" Background="{StaticResource TransparentBrush}"/>
 
         <Border x:Name="toolbarBorder"
                 Background="{StaticResource SurfaceBrush}"
@@ -21,10 +21,7 @@
                 HorizontalAlignment="Center"
                 Margin="0,0,0,20">
             <Border.Effect>
-                <DropShadowEffect BlurRadius="22"
-                                  Opacity="0.16"
-                                  ShadowDepth="0"
-                                  Color="{StaticResource ShadowColor}"/>
+                <StaticResource ResourceKey="MenuShadow"/>
             </Border.Effect>
 
             <StackPanel Orientation="Horizontal" Height="36">

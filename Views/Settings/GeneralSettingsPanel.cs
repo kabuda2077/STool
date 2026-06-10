@@ -70,6 +70,8 @@ public class GeneralSettingsPanel : StackPanel
         // 剪贴板快捷键
         AddHotkeyField(hotkeysSection, "剪贴板", ref _txtClipboardHotkey, showHint: false);
 
+        Children.Add(WrapSection(hotkeysSection));
+
         // 保存按钮
         var btnSave = new System.Windows.Controls.Button
         {
@@ -80,8 +82,7 @@ public class GeneralSettingsPanel : StackPanel
             HorizontalAlignment = System.Windows.HorizontalAlignment.Left
         };
         btnSave.Click += BtnSave_Click;
-        hotkeysSection.Children.Add(btnSave);
-        Children.Add(WrapSection(hotkeysSection));
+        Children.Add(btnSave);
 
         // 添加底部占位，防止内容过少
         Children.Add(new Border { Height = 20 });

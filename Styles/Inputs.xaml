@@ -28,7 +28,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource PrimarySoftBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
@@ -67,7 +67,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource PrimarySoftBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
@@ -95,7 +95,7 @@
         <ControlTemplate.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-                <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                <Setter TargetName="Root" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
             </Trigger>
             <Trigger Property="IsChecked" Value="True">
                 <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
@@ -111,17 +111,17 @@
             <Setter.Value>
                 <ControlTemplate TargetType="ComboBoxItem">
                     <Border x:Name="Root"
-                            Background="Transparent"
+                            Background="{StaticResource TransparentBrush}"
                             CornerRadius="6"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter/>
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsHighlighted" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
                         </Trigger>
                         <Trigger Property="IsSelected" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
                             <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -166,6 +166,7 @@
                                Focusable="False"
                                IsOpen="{TemplateBinding IsDropDownOpen}"
                                Placement="Bottom"
+                               HorizontalOffset="-8"
                                PopupAnimation="Fade">
                             <Border Background="{StaticResource SurfaceBrush}"
                                     BorderBrush="{StaticResource BorderBrush}"
@@ -173,7 +174,10 @@
                                     CornerRadius="8"
                                     MinWidth="{TemplateBinding ActualWidth}"
                                     Padding="4"
-                                    Margin="0,4,0,0">
+                                    Margin="8,6,8,10">
+                                <Border.Effect>
+                                    <StaticResource ResourceKey="MenuShadow"/>
+                                </Border.Effect>
                                 <ScrollViewer MaxHeight="240"
                                               VerticalScrollBarVisibility="Auto">
                                     <ItemsPresenter/>
@@ -194,7 +198,7 @@
         <Setter Property="BorderThickness" Value="0"/>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
             </Trigger>
             <Trigger Property="IsKeyboardFocused" Value="True">
                 <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
@@ -207,7 +211,7 @@
         <Setter Property="BorderThickness" Value="0"/>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
             </Trigger>
             <Trigger Property="IsKeyboardFocused" Value="True">
                 <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
@@ -220,7 +224,7 @@
         <Setter Property="BorderThickness" Value="0"/>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
-                <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
             </Trigger>
             <Trigger Property="IsDropDownOpen" Value="True">
                 <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
@@ -253,7 +257,7 @@
                                 VerticalAlignment="Center">
                             <Path x:Name="Check"
                                   Data="M 3.2 8.1 L 6.7 11.5 L 12.9 4.7"
-                                  Stroke="White"
+                                  Stroke="{StaticResource OnPrimaryBrush}"
                                   StrokeThickness="2"
                                   StrokeStartLineCap="Round"
                                   StrokeEndLineCap="Round"
@@ -268,7 +272,8 @@
                     </Grid>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                            <Setter TargetName="Box" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+                            <Setter TargetName="Box" Property="BorderBrush" Value="{StaticResource PrimarySoftBrush}"/>
                         </Trigger>
                         <Trigger Property="IsChecked" Value="True">
                             <Setter TargetName="Box" Property="Background" Value="{StaticResource PrimaryBrush}"/>
@@ -293,11 +298,11 @@
     <Style TargetType="ScrollBar">
         <Setter Property="Width" Value="10"/>
         <Setter Property="MinWidth" Value="10"/>
-        <Setter Property="Background" Value="Transparent"/>
+        <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="ScrollBar">
-                    <Grid Background="Transparent">
+                    <Grid Background="{StaticResource TransparentBrush}">
                         <Track x:Name="PART_Track" IsDirectionReversed="True">
                             <Track.DecreaseRepeatButton>
                                 <RepeatButton Command="ScrollBar.LineUpCommand" Opacity="0" IsTabStop="False"/>
@@ -312,7 +317,7 @@
                                                     Margin="2"/>
                                             <ControlTemplate.Triggers>
                                                 <Trigger Property="IsMouseOver" Value="True">
-                                                    <Setter TargetName="ThumbRoot" Property="Background" Value="{StaticResource PrimaryBrush}"/>
+                                                    <Setter TargetName="ThumbRoot" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
                                                 </Trigger>
                                                 <Trigger Property="IsDragging" Value="True">
                                                     <Setter TargetName="ThumbRoot" Property="Background" Value="{StaticResource TextSecondaryBrush}"/>

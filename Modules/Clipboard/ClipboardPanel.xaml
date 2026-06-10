@@ -12,7 +12,64 @@
     <Window.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVis"/>
 
-        <!-- 顶部标签:悬浮胶囊;选中态 Tag="on" → 蓝色实心药丸 + 白字 -->
+        <Style TargetType="{x:Type ContextMenu}">
+            <Setter Property="Background" Value="Transparent"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="HasDropShadow" Value="False"/>
+            <Setter Property="OverridesDefaultStyle" Value="True"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type ContextMenu}">
+                        <Border Background="{StaticResource TransparentBrush}"
+                                Padding="10">
+                            <Border Background="{StaticResource SurfaceBrush}"
+                                    CornerRadius="9"
+                                    Padding="5">
+                                <Border.Effect>
+                                    <StaticResource ResourceKey="MenuShadow"/>
+                                </Border.Effect>
+                                <StackPanel IsItemsHost="True"/>
+                            </Border>
+                        </Border>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style TargetType="{x:Type MenuItem}">
+            <Setter Property="Height" Value="34"/>
+            <Setter Property="MinWidth" Value="116"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type MenuItem}">
+                        <Border x:Name="root"
+                                Background="{StaticResource TransparentBrush}"
+                                CornerRadius="6"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter ContentSource="Header"
+                                              RecognizesAccessKey="True"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsHighlighted" Value="True">
+                                <Setter TargetName="root" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+                                <Setter TargetName="root" Property="Opacity" Value="0.55"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <!-- 顶部标签:悬浮胶囊;选中态 Tag="on" → 深色实心药丸 + 白字 -->
         <Style x:Key="TabButton" TargetType="Button">
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FontSize" Value="13"/>
@@ -33,8 +90,8 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="pill" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                                <Setter TargetName="pill" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
                             </Trigger>
                             <Trigger Property="Tag" Value="on">
                                 <Setter TargetName="pill" Property="Background" Value="{StaticResource PrimaryBrush}"/>
@@ -47,7 +104,7 @@
             </Setter>
         </Style>
 
-        <!-- 列表行:白色行块浮于画布,间隙分隔,无线条;悬停浅蓝 -->
+        <!-- 列表行:白色行块浮于画布,间隙分隔,无线条;悬停用稍深灰和背景区分 -->
         <Style x:Key="ClipRow" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
             <Setter Property="CornerRadius" Value="10"/>
@@ -56,7 +113,7 @@
             <Setter Property="Cursor" Value="Hand"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                    <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
@@ -113,7 +170,7 @@
                                        HorizontalAlignment="Right"
                                        Width="8"
                                        Margin="0,4,3,4"
-                                       Background="Transparent"
+                                       Background="{StaticResource TransparentBrush}"
                                        Value="{TemplateBinding VerticalOffset}"
                                        Maximum="{TemplateBinding ScrollableHeight}"
                                        ViewportSize="{TemplateBinding ViewportHeight}"
@@ -192,7 +249,7 @@
                     Margin="0,0,20,20"
                     Width="46" Height="46"
                     Cursor="Hand"
-                    ToolTip="清空剪贴板"
+                    ToolTip="清空全部"
                     Click="BtnClearAll_Click">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">
@@ -201,7 +258,7 @@
                                 BorderThickness="0"
                                 CornerRadius="23">
                             <Border.Effect>
-                                <StaticResource ResourceKey="StandardShadow"/>
+                                <StaticResource ResourceKey="MenuShadow"/>
                             </Border.Effect>
                             <TextBlock x:Name="ic" Text="&#xE74D;"
                                        FontFamily="Segoe MDL2 Assets"

@@ -50,6 +50,7 @@ public partial class ClipboardPanel : Window
         var any = vms.Count > 0;
         emptyState.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
         listScroll.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+        btnClearAll.ToolTip = GetClearActionText();
     }
 
     private void Tab_Click(object sender, RoutedEventArgs e)
@@ -70,6 +71,7 @@ public partial class ClipboardPanel : Window
         tabImage.Tag = _tab == Tab.Image ? "on" : null;
         tabFile.Tag = _tab == Tab.File ? "on" : null;
         tabFavorite.Tag = _tab == Tab.Favorite ? "on" : null;
+        btnClearAll.ToolTip = GetClearActionText();
     }
 
     // 双击复制(恢复到剪贴板),不弹出通知
@@ -117,20 +119,52 @@ public partial class ClipboardPanel : Window
         return null;
     }
 
-    // 悬浮垃圾桶:清空全部,二次确认
+    // 悬浮垃圾桶:按当前分类清空;只有"全部"页清空所有记录
     private void BtnClearAll_Click(object sender, RoutedEventArgs e)
     {
-        var result = System.Windows.MessageBox.Show(
-            "确定清空所有剪贴板历史吗？此操作不可恢复。",
-            "清空剪贴板",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
+        var action = GetClearActionText();
+        var confirmed = ConfirmDialog.Show(
+            this,
+            action,
+            $"确定{action}吗？此操作不可恢复。",
+            "清空",
+            "取消");
 
-        if (result == MessageBoxResult.Yes)
+        if (confirmed)
         {
-            _manager.ClearAll();
+            switch (_tab)
+            {
+                case Tab.Text:
+                    _manager.ClearByType(ClipboardItemType.Text);
+                    break;
+                case Tab.Image:
+                    _manager.ClearByType(ClipboardItemType.Image);
+                    break;
+                case Tab.File:
+                    _manager.ClearByType(ClipboardItemType.File);
+                    break;
+                case Tab.Favorite:
+                    _manager.ClearFavorites();
+                    break;
+                default:
+                    _manager.ClearAll();
+                    break;
+            }
+
             LoadRecent();
         }
+    }
+
+    private string GetClearActionText()
+    {
+        return _tab switch
+        {
+            Tab.Text => "清空文本",
+            Tab.Image => "清空图像",
+            Tab.File => "清空文件",
+            Tab.Favorite => "清空收藏",
+            _ => "清空全部"
+        };
     }
 
     private ClipboardItemViewModel ToViewModel(ClipboardItem item)

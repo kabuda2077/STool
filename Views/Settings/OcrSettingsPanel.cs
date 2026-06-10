@@ -168,13 +168,92 @@ public class OcrSettingsPanel : StackPanel
 
     private System.Windows.Controls.PasswordBox AddPasswordBox()
     {
+        var inputHost = new Grid
+        {
+            Height = 34,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
+        };
+
         var passwordBox = new System.Windows.Controls.PasswordBox
         {
             Style = (Style)FindResource("SunkenPasswordBox"),
             Height = 34,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
+            Padding = new Thickness(5, 4, 38, 4)
         };
-        _activeSection.Children.Add(passwordBox);
+
+        var textBox = new System.Windows.Controls.TextBox
+        {
+            Style = (Style)FindResource("SunkenTextBox"),
+            Height = 34,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
+            Padding = new Thickness(5, 4, 38, 4),
+            Visibility = Visibility.Collapsed
+        };
+
+        var revealButton = new System.Windows.Controls.Button
+        {
+            Style = (Style)FindResource("IconButton"),
+            Width = 32,
+            Height = 32,
+            Padding = new Thickness(0),
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = "显示密钥",
+            Content = new TextBlock
+            {
+                Text = "\uE890",
+                FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"),
+                FontSize = 14,
+                Foreground = (System.Windows.Media.Brush)FindResource("TextSecondaryBrush")
+            }
+        };
+
+        var isRevealed = false;
+        var isSyncing = false;
+
+        passwordBox.PasswordChanged += (_, _) =>
+        {
+            if (isSyncing || isRevealed) return;
+            isSyncing = true;
+            textBox.Text = passwordBox.Password;
+            isSyncing = false;
+        };
+
+        textBox.TextChanged += (_, _) =>
+        {
+            if (isSyncing || !isRevealed) return;
+            isSyncing = true;
+            passwordBox.Password = textBox.Text;
+            isSyncing = false;
+        };
+
+        revealButton.Click += (_, _) =>
+        {
+            isRevealed = !isRevealed;
+            if (isRevealed)
+            {
+                textBox.Text = passwordBox.Password;
+                passwordBox.Visibility = Visibility.Collapsed;
+                textBox.Visibility = Visibility.Visible;
+                revealButton.ToolTip = "隐藏密钥";
+                textBox.Focus();
+                textBox.CaretIndex = textBox.Text.Length;
+            }
+            else
+            {
+                passwordBox.Password = textBox.Text;
+                textBox.Visibility = Visibility.Collapsed;
+                passwordBox.Visibility = Visibility.Visible;
+                revealButton.ToolTip = "显示密钥";
+                passwordBox.Focus();
+            }
+        };
+
+        inputHost.Children.Add(passwordBox);
+        inputHost.Children.Add(textBox);
+        inputHost.Children.Add(revealButton);
+        _activeSection.Children.Add(inputHost);
         return passwordBox;
     }
 

@@ -162,6 +162,16 @@ public class ClipboardManager : IDisposable
         _storage.ClearAll();
     }
 
+    public void ClearByType(ClipboardItemType type)
+    {
+        _storage.ClearByType(type);
+    }
+
+    public void ClearFavorites()
+    {
+        _storage.ClearFavorites();
+    }
+
     public void RestoreToClipboard(ClipboardItem item)
     {
         try

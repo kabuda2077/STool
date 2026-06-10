@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None"
         AllowsTransparency="True"
-        Background="Transparent"
+        Background="{StaticResource TransparentBrush}"
         Topmost="True"
         ShowInTaskbar="False"
         SizeToContent="WidthAndHeight"
@@ -41,7 +41,7 @@
                            Text="&#xE73E;"
                            FontFamily="Segoe MDL2 Assets"
                            FontSize="14"
-                           Foreground="White"
+                           Foreground="{StaticResource OnPrimaryBrush}"
                            HorizontalAlignment="Center"
                            VerticalAlignment="Center"/>
             </Border>

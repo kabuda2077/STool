@@ -12,6 +12,8 @@ releases/
 
 # Claude AI assistant
 .claude/
+CLAUDE.md
+CLAUDE.local.md
 
 # Logs
 *.log

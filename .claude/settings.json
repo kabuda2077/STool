@@ -130,7 +130,12 @@
       "Bash(find /mnt/e/Data/Project/STool -type f \\\\\\( -name \"*.cs\" -o -name \"*.xaml\" -o -name \"*.csproj\" -o -name \"*.json\" -o -name \"*.md\" \\\\\\) ! -path \"*/bin/*\" ! -path \"*/obj/*\" ! -path \"*/.git/*\" ! -path \"*/.claude/*\" | sort)",
       "Read(//mnt/e/Data/Project/**)",
       "PowerShell(if \\($?\\) { \"directory exists - likely test artifact\" } else { \"not found\" })",
-      "PowerShell(git commit -m \"ui: hide title text in SettingsWindow`n`nSet empty Title for SettingsWindow to hide title bar text.`nClipboard/Translation panels keep their titles visible.\" 2>&1)"
+      "PowerShell(git commit -m \"ui: hide title text in SettingsWindow`n`nSet empty Title for SettingsWindow to hide title bar text.`nClipboard/Translation panels keep their titles visible.\" 2>&1)",
+      "Bash(git remote *)",
+      "Bash(git branch *)",
+      "Bash(git push *)",
+      "PowerShell(.\\\\build-portable.ps1 -Version \"1.0.0\")",
+      "Bash(pwsh -File build-portable.ps1 -Version \"1.0.0\")"
     ],
     "additionalDirectories": [
       "E:\\Data\\Project\\STool\\obj",

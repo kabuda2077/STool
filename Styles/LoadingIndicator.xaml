@@ -53,7 +53,7 @@
     <Style x:Key="EmptyStateIcon" TargetType="TextBlock">
         <Setter Property="FontFamily" Value="Segoe MDL2 Assets"/>
         <Setter Property="FontSize" Value="64"/>
-        <Setter Property="Foreground" Value="{StaticResource TextDisabledBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
         <Setter Property="HorizontalAlignment" Value="Center"/>
         <Setter Property="Opacity" Value="0.5"/>
     </Style>

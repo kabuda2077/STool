@@ -1,67 +1,28 @@
 <ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
 
-    <!-- Modern productivity palette: calm surfaces, crisp text, one clear accent. -->
-    <Color x:Key="PrimaryColor">#2563EB</Color>
-    <Color x:Key="PrimaryHoverColor">#1D4ED8</Color>
-    <Color x:Key="PrimaryActiveColor">#1E40AF</Color>
-    <Color x:Key="PrimarySubtleColor">#EFF6FF</Color>
-
+    <!-- Minimal grayscale palette -->
+    <Color x:Key="PrimaryColor">#3F3F46</Color>
     <Color x:Key="SurfaceColor">#FFFFFF</Color>
-    <Color x:Key="SurfaceAltColor">#F1F5F9</Color>  <!-- Hover/highlight state (lighter, interactive) -->
-    <Color x:Key="SurfaceHoverColor">#F8FAFC</Color>
-    <Color x:Key="BorderColor">#D9E0EA</Color>
-    <Color x:Key="BorderStrongColor">#CBD5E1</Color>
-
-    <Color x:Key="TextPrimaryColor">#111827</Color>
-    <Color x:Key="TextSecondaryColor">#64748B</Color>
-    <Color x:Key="TextDisabledColor">#94A3B8</Color>
+    <Color x:Key="SurfaceAltColor">#F4F4F5</Color>
+    <Color x:Key="BorderColor">#E4E4E7</Color>
+    <Color x:Key="TextPrimaryColor">#18181B</Color>
+    <Color x:Key="TextSecondaryColor">#71717A</Color>
+    <Color x:Key="ErrorColor">#DC2626</Color>
 
     <SolidColorBrush x:Key="PrimaryBrush" Color="{StaticResource PrimaryColor}"/>
-    <SolidColorBrush x:Key="PrimaryHoverBrush" Color="{StaticResource PrimaryHoverColor}"/>
-    <SolidColorBrush x:Key="PrimaryActiveBrush" Color="{StaticResource PrimaryActiveColor}"/>
-    <SolidColorBrush x:Key="PrimarySubtleBrush" Color="{StaticResource PrimarySubtleColor}"/>
-    <SolidColorBrush x:Key="PrimaryBorderSubtleBrush" Color="#BFDBFE"/>
-
-    <SolidColorBrush x:Key="SecondaryBrush" Color="#10B981"/>
-    <SolidColorBrush x:Key="SecondaryHoverBrush" Color="#059669"/>
-    <SolidColorBrush x:Key="AccentBrush" Color="#F59E0B"/>
-    <SolidColorBrush x:Key="AccentHoverBrush" Color="#D97706"/>
-
     <SolidColorBrush x:Key="SurfaceBrush" Color="{StaticResource SurfaceColor}"/>
     <SolidColorBrush x:Key="SurfaceAltBrush" Color="{StaticResource SurfaceAltColor}"/>
-    <SolidColorBrush x:Key="SurfaceHoverBrush" Color="{StaticResource SurfaceHoverColor}"/>
     <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}"/>
-    <SolidColorBrush x:Key="BorderStrongBrush" Color="{StaticResource BorderStrongColor}"/>
-
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}"/>
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}"/>
-    <SolidColorBrush x:Key="TextDisabledBrush" Color="{StaticResource TextDisabledColor}"/>
+    <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}"/>
 
-    <SolidColorBrush x:Key="SuccessBrush" Color="#16A34A"/>
-    <SolidColorBrush x:Key="WarningBrush" Color="#F59E0B"/>
-    <SolidColorBrush x:Key="ErrorBrush" Color="#DC2626"/>
-    <SolidColorBrush x:Key="ErrorActiveBrush" Color="#B91C1C"/>
-    <SolidColorBrush x:Key="ErrorSubtleBrush" Color="#FEF2F2"/>
-    <SolidColorBrush x:Key="InfoBrush" Color="#2563EB"/>
-
-    <SolidColorBrush x:Key="OverlayBrush" Color="#990F172A"/>
-    <SolidColorBrush x:Key="OverlayLightBrush" Color="#660F172A"/>
-    <SolidColorBrush x:Key="ToolbarBrush" Color="#F9FFFFFF"/>
-    <SolidColorBrush x:Key="ScrollThumbBrush" Color="#AAB6C5D6"/>
-    <SolidColorBrush x:Key="ScrollThumbHoverBrush" Color="#7E8DA1B6"/>
-
-    <!-- ===== 重构方向:色块分层 + 柔和阴影(替代边框)===== -->
-    <!-- 表面分层:画布(底) < 卡面(白,靠阴影浮起) > 凹陷(输入井,比卡面略深) -->
-    <Color x:Key="SurfaceCanvasColor">#F2F4F7</Color>
-    <Color x:Key="SurfaceSunkenColor">#EDF0F4</Color>  <!-- Sunken/inset surface (input wells, badges) -->
-    <Color x:Key="SurfaceSunkenHoverColor">#E6EAF1</Color>
-    <SolidColorBrush x:Key="SurfaceCanvasBrush" Color="{StaticResource SurfaceCanvasColor}"/>
-    <SolidColorBrush x:Key="SurfaceSunkenBrush" Color="{StaticResource SurfaceSunkenColor}"/>
-    <SolidColorBrush x:Key="SurfaceSunkenHoverBrush" Color="{StaticResource SurfaceSunkenHoverColor}"/>
+    <!-- Overlay for modals/screenshots -->
+    <SolidColorBrush x:Key="OverlayBrush" Color="#99000000"/>
 
     <!-- Standard shadow for all elevated surfaces -->
     <Color x:Key="ShadowColor">#0B1220</Color>
-    <DropShadowEffect x:Key="StandardShadow" Color="{StaticResource ShadowColor}" BlurRadius="20" ShadowDepth="2" Direction="270" Opacity="0.08" RenderingBias="Quality"/>
+    <DropShadowEffect x:Key="StandardShadow" Color="{StaticResource ShadowColor}" BlurRadius="12" ShadowDepth="1" Direction="270" Opacity="0.04" RenderingBias="Quality"/>
 
 </ResourceDictionary>

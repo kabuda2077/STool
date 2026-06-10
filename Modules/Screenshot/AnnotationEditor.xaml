@@ -12,7 +12,7 @@
         <Canvas x:Name="annotationCanvas" Background="Transparent"/>
 
         <Border x:Name="toolbarBorder"
-                Background="{StaticResource ToolbarBrush}"
+                Background="{StaticResource SurfaceBrush}"
                 CornerRadius="9"
                 Padding="7"
                 BorderBrush="{StaticResource BorderBrush}"

@@ -24,8 +24,8 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceHoverBrush}"/>
-                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource BorderStrongBrush}"/>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
@@ -34,7 +34,7 @@
                             <Setter TargetName="Root" Property="Opacity" Value="0.86"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
-                            <Setter Property="Foreground" Value="{StaticResource TextDisabledBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
                             <Setter TargetName="Root" Property="Opacity" Value="0.55"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -65,12 +65,12 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter Property="Background" Value="{StaticResource PrimaryHoverBrush}"/>
-                            <Setter Property="BorderBrush" Value="{StaticResource PrimaryHoverBrush}"/>
+                            <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+                            <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter Property="Background" Value="{StaticResource PrimaryActiveBrush}"/>
-                            <Setter Property="BorderBrush" Value="{StaticResource PrimaryActiveBrush}"/>
+                            <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+                            <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter TargetName="Root" Property="Opacity" Value="0.5"/>
@@ -133,7 +133,7 @@
                             <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="{StaticResource PrimarySubtleBrush}"/>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">
                             <Setter Property="Opacity" Value="0.45"/>
@@ -167,7 +167,7 @@
                             <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="{StaticResource PrimarySubtleBrush}"/>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -190,7 +190,7 @@
                             <Setter Property="Foreground" Value="White"/>
                         </Trigger>
                         <Trigger Property="IsPressed" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="{StaticResource ErrorActiveBrush}"/>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource ErrorBrush}"/>
                             <Setter Property="Foreground" Value="White"/>
                         </Trigger>
                     </ControlTemplate.Triggers>
@@ -200,8 +200,8 @@
     </Style>
 
     <Style x:Key="SuccessButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
-        <Setter Property="Background" Value="{StaticResource SuccessBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource SuccessBrush}"/>
+        <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
     </Style>
 
     <Style x:Key="DangerButton" TargetType="Button" BasedOn="{StaticResource PrimaryButton}">
@@ -223,7 +223,7 @@
                     </Border>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsMouseOver" Value="True">
-                            <Setter TargetName="Root" Property="Background" Value="{StaticResource ErrorSubtleBrush}"/>
+                            <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
                         </Trigger>
                         <Trigger Property="IsKeyboardFocused" Value="True">
                             <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource ErrorBrush}"/>

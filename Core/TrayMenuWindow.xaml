@@ -36,7 +36,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{StaticResource PrimarySubtleBrush}"/>
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="Root" Property="Opacity" Value="0.85"/>
@@ -60,7 +60,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Root" Property="Background" Value="{StaticResource ErrorSubtleBrush}"/>
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
                                 <Setter TargetName="Root" Property="Opacity" Value="0.85"/>

@@ -17,7 +17,7 @@
 
         <Border Grid.Column="0"
                 Background="{StaticResource SurfaceBrush}"
-                Padding="14,40,14,16">
+                Padding="10,44,10,12">
             <StackPanel>
                 <Button x:Name="btnGeneralSettings"
                         Click="BtnGeneralSettings_Click"
@@ -27,19 +27,19 @@
                 <Button x:Name="btnOcrSettings"
                         Click="BtnOcrSettings_Click"
                         Style="{StaticResource NavigationButton}"
-                        Margin="0,4,0,0"
+                        Margin="0,2,0,0"
                         Content="OCR"/>
 
                 <Button x:Name="btnTranslationSettings"
                         Click="BtnTranslationSettings_Click"
                         Style="{StaticResource NavigationButton}"
-                        Margin="0,4,0,0"
+                        Margin="0,2,0,0"
                         Content="翻译"/>
             </StackPanel>
         </Border>
 
         <Border Grid.Column="1"
-                Background="{StaticResource SurfaceCanvasBrush}">
+                Background="{StaticResource SurfaceAltBrush}">
             <ScrollViewer x:Name="contentScroll"
                           Margin="0,44,0,0"
                           VerticalScrollBarVisibility="Auto"

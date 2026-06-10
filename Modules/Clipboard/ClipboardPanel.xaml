@@ -33,7 +33,7 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="pill" Property="Background" Value="{StaticResource SurfaceSunkenHoverBrush}"/>
+                                <Setter TargetName="pill" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
                                 <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
                             </Trigger>
                             <Trigger Property="Tag" Value="on">
@@ -56,14 +56,14 @@
             <Setter Property="Cursor" Value="Hand"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{StaticResource PrimarySubtleBrush}"/>
+                    <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
                 </Trigger>
             </Style.Triggers>
         </Style>
 
         <!-- 来源应用徽章:中性色块药丸 -->
         <Style x:Key="SourceBadge" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource SurfaceSunkenBrush}"/>
+            <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
             <Setter Property="CornerRadius" Value="4"/>
             <Setter Property="Padding" Value="7,2"/>
             <Setter Property="HorizontalAlignment" Value="Right"/>
@@ -78,7 +78,7 @@
 
         <!-- 标签栏:悬浮胶囊组(灰底圆角容器,内含药丸标签) -->
         <Border Grid.Row="0"
-                Background="{StaticResource SurfaceSunkenBrush}"
+                Background="{StaticResource SurfaceAltBrush}"
                 CornerRadius="18"
                 Padding="4"
                 HorizontalAlignment="Left"

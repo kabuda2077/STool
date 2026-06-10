@@ -94,9 +94,7 @@ public class AppBootstrap : IDisposable
         menu.AddItem("截图", config.Hotkeys.Screenshot, OnScreenshotHotkey);
         menu.AddItem("翻译", config.Hotkeys.Translation, OnTranslationHotkey);
         menu.AddItem("剪贴板历史", config.Hotkeys.Clipboard, OnClipboardHotkey);
-        menu.AddSeparator();
         menu.AddItem("设置", string.Empty, () => OnSettings(null, EventArgs.Empty));
-        menu.AddSeparator();
         menu.AddItem("退出 STool", string.Empty, () => OnExit(null, EventArgs.Empty), danger: true);
         menu.ShowNearCursor();
     }

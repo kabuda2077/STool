@@ -53,7 +53,9 @@ public partial class TranslationPanel : Window
 
     private void TxtSource_TextChanged(object sender, TextChangedEventArgs e)
     {
-        srcWatermark.Visibility = string.IsNullOrEmpty(txtSource.Text) ? Visibility.Visible : Visibility.Collapsed;
+        var hasText = !string.IsNullOrEmpty(txtSource.Text);
+        srcWatermark.Visibility = hasText ? Visibility.Collapsed : Visibility.Visible;
+        btnClearSource.Visibility = hasText ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void TxtTarget_TextChanged(object sender, TextChangedEventArgs e)
@@ -111,6 +113,13 @@ public partial class TranslationPanel : Window
     }
 
     private void BtnCopyOnly_Click(object sender, RoutedEventArgs e) => CopyText();
+
+    private void BtnClearSource_Click(object sender, RoutedEventArgs e)
+    {
+        txtSource.Clear();
+        txtTarget.Clear();
+        txtSource.Focus();
+    }
 
     private void BtnCopyHide_Click(object sender, RoutedEventArgs e)
     {

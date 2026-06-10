@@ -10,13 +10,71 @@
         WindowStartupLocation="CenterScreen">
 
     <Window.Resources>
+        <Style x:Key="TranslationPane" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="14"/>
+            <Setter Property="Effect" Value="{StaticResource StandardShadow}"/>
+        </Style>
+
+        <Style x:Key="TranslationTextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+            <Setter Property="CaretBrush" Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="SelectionBrush" Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="SelectionOpacity" Value="0.35"/>
+            <Setter Property="VerticalContentAlignment" Value="Top"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Background="{TemplateBinding Background}"
+                                      Focusable="False"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="SourceClearButton" TargetType="Button">
+            <Setter Property="Width" Value="34"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="b"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="7">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsPressed" Value="True">
+                                <Setter TargetName="b" Property="Opacity" Value="0.82"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
         <!-- 提供商切换按钮:选中态用 Tag="on" 触发 -->
         <Style x:Key="ProviderToggle" TargetType="Button">
             <Setter Property="Height" Value="32"/>
             <Setter Property="Padding" Value="14,0"/>
             <Setter Property="Cursor" Value="Hand"/>
             <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Background" Value="{StaticResource SurfaceSunkenBrush}"/>
+            <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
             <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
             <Setter Property="BorderThickness" Value="0"/>
             <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
@@ -31,10 +89,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="b" Property="Background" Value="{StaticResource SurfaceSunkenHoverBrush}"/>
+                                <Setter TargetName="b" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
                             </Trigger>
                             <Trigger Property="Tag" Value="on">
-                                <Setter TargetName="b" Property="Background" Value="{StaticResource PrimarySubtleBrush}"/>
+                                <Setter TargetName="b" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
                                 <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -64,10 +122,10 @@
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="b" Property="Background" Value="{StaticResource SurfaceSunkenHoverBrush}"/>
+                                <Setter TargetName="b" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
                             </Trigger>
                             <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="b" Property="Background" Value="{StaticResource SurfaceSunkenBrush}"/>
+                                <Setter TargetName="b" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>
@@ -76,7 +134,7 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="14,44,14,14">
+    <Grid Margin="16,52,16,16">
         <Grid.RowDefinitions>
             <RowDefinition Height="*" MinHeight="120"/>
             <RowDefinition Height="Auto"/>
@@ -84,21 +142,14 @@
         </Grid.RowDefinitions>
 
         <!-- 上半部:输入 + 工具栏 -->
-        <Grid Grid.Row="0">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="*"/>
-                <RowDefinition Height="Auto"/>
-            </Grid.RowDefinitions>
-
-            <!-- 输入框(单边框,聚焦变蓝) -->
-            <Grid Grid.Row="0">
+        <Border Grid.Row="0"
+                Style="{StaticResource TranslationPane}">
+            <Grid>
                 <TextBox x:Name="txtSource"
-                         Style="{StaticResource SunkenTextBox}"
-                         FontSize="{StaticResource FontSizeBody}"
+                         Style="{StaticResource TranslationTextBox}"
                          TextWrapping="Wrap"
                          AcceptsReturn="True"
                          VerticalScrollBarVisibility="Auto"
-                         VerticalContentAlignment="Top"
                          TextChanged="TxtSource_TextChanged"/>
                 <TextBlock x:Name="srcWatermark"
                            Text="请输入要翻译的内容，可右键点击文本框粘贴"
@@ -106,114 +157,117 @@
                            Foreground="{StaticResource TextSecondaryBrush}"
                            IsHitTestVisible="False"
                            VerticalAlignment="Top"
-                           Margin="7,6,0,0"/>
-            </Grid>
-
-            <!-- 工具栏 -->
-            <Grid Grid.Row="1" Margin="0,10,0,0">
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="Auto"/>
-                    <ColumnDefinition Width="*"/>
-                    <ColumnDefinition Width="Auto"/>
-                </Grid.ColumnDefinitions>
-
-                <!-- 提供商切换 -->
-                <StackPanel Orientation="Horizontal">
-                    <Button x:Name="btnProviderGoogle" Style="{StaticResource ProviderToggle}" Click="Provider_Click" Tag="on" Content="谷歌翻译"/>
-                    <Button x:Name="btnProviderTencent" Style="{StaticResource ProviderToggle}" Click="Provider_Click" Margin="8,0,0,0" Content="腾讯翻译"/>
-                </StackPanel>
-
-                <!-- 语言选择:源 → 目标 -->
-                <StackPanel Grid.Column="2" Orientation="Horizontal">
-                    <ComboBox x:Name="cmbSource" Style="{StaticResource SunkenComboBox}" Width="106" Height="32" SelectedIndex="0">
-                        <ComboBoxItem Content="自动检测" Tag="auto"/>
-                        <ComboBoxItem Content="中文" Tag="zh"/>
-                        <ComboBoxItem Content="英文" Tag="en"/>
-                        <ComboBoxItem Content="日文" Tag="ja"/>
-                        <ComboBoxItem Content="韩文" Tag="ko"/>
-                    </ComboBox>
-                    <TextBlock Text="&#xE72A;"
+                           Margin="0,0,0,0"/>
+                <Button x:Name="btnClearSource"
+                        Style="{StaticResource SourceClearButton}"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Bottom"
+                        Visibility="Collapsed"
+                        ToolTip="清空"
+                        Click="BtnClearSource_Click">
+                    <TextBlock Text="&#xE894;"
                                FontFamily="Segoe MDL2 Assets"
-                               FontSize="13"
-                               Margin="8,0"
-                               VerticalAlignment="Center"
-                               Foreground="{StaticResource TextSecondaryBrush}"/>
-                    <ComboBox x:Name="cmbTarget" Style="{StaticResource SunkenComboBox}" Width="106" Height="32" SelectedIndex="1">
-                        <ComboBoxItem Content="中文" Tag="zh"/>
-                        <ComboBoxItem Content="英文" Tag="en"/>
-                        <ComboBoxItem Content="日文" Tag="ja"/>
-                        <ComboBoxItem Content="韩文" Tag="ko"/>
-                    </ComboBox>
-                </StackPanel>
+                               FontSize="12"/>
+                </Button>
             </Grid>
-        </Grid>
+        </Border>
 
-        <!-- 分隔条 -->
-        <GridSplitter Grid.Row="1"
-                      Height="10"
-                      HorizontalAlignment="Stretch"
-                      VerticalAlignment="Center"
-                      Background="Transparent"
-                      ResizeBehavior="PreviousAndNext"
-                      ResizeDirection="Rows"/>
+        <!-- 工具栏 -->
+        <Grid Grid.Row="1" Margin="12,14">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+                <ColumnDefinition Width="Auto"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 提供商切换 -->
+            <StackPanel Orientation="Horizontal">
+                <Button x:Name="btnProviderGoogle" Style="{StaticResource ProviderToggle}" Click="Provider_Click" Tag="on" Content="谷歌翻译"/>
+                <Button x:Name="btnProviderTencent" Style="{StaticResource ProviderToggle}" Click="Provider_Click" Margin="8,0,0,0" Content="腾讯翻译"/>
+            </StackPanel>
+
+            <!-- 语言选择:源 → 目标 -->
+            <StackPanel Grid.Column="2" Orientation="Horizontal">
+                <ComboBox x:Name="cmbSource" Style="{StaticResource SunkenComboBox}" Width="106" Height="32" SelectedIndex="0">
+                    <ComboBoxItem Content="自动检测" Tag="auto"/>
+                    <ComboBoxItem Content="中文" Tag="zh"/>
+                    <ComboBoxItem Content="英文" Tag="en"/>
+                    <ComboBoxItem Content="日文" Tag="ja"/>
+                    <ComboBoxItem Content="韩文" Tag="ko"/>
+                </ComboBox>
+                <TextBlock Text="&#xE72A;"
+                           FontFamily="Segoe MDL2 Assets"
+                           FontSize="13"
+                           Margin="10,0"
+                           VerticalAlignment="Center"
+                           Foreground="{StaticResource TextSecondaryBrush}"/>
+                <ComboBox x:Name="cmbTarget" Style="{StaticResource SunkenComboBox}" Width="106" Height="32" SelectedIndex="1">
+                    <ComboBoxItem Content="中文" Tag="zh"/>
+                    <ComboBoxItem Content="英文" Tag="en"/>
+                    <ComboBoxItem Content="日文" Tag="ja"/>
+                    <ComboBoxItem Content="韩文" Tag="ko"/>
+                </ComboBox>
+            </StackPanel>
+        </Grid>
 
         <!-- 下半部:翻译结果(单边框) -->
-        <Grid Grid.Row="2">
-            <TextBox x:Name="txtTarget"
-                     Style="{StaticResource SunkenTextBox}"
-                     FontSize="{StaticResource FontSizeBody}"
-                     TextWrapping="Wrap"
-                     AcceptsReturn="True"
-                     IsReadOnly="True"
-                     VerticalScrollBarVisibility="Auto"
-                     VerticalContentAlignment="Top"
-                     TextChanged="TxtTarget_TextChanged"/>
-            <TextBlock x:Name="tgtWatermark"
-                       Text="翻译结果"
-                       FontSize="{StaticResource FontSizeBody}"
-                       Foreground="{StaticResource TextSecondaryBrush}"
-                       IsHitTestVisible="False"
-                       VerticalAlignment="Top"
-                       Margin="7,6,0,0"/>
+        <Border Grid.Row="2"
+                Style="{StaticResource TranslationPane}">
+            <Grid>
+                <TextBox x:Name="txtTarget"
+                         Style="{StaticResource TranslationTextBox}"
+                         TextWrapping="Wrap"
+                         AcceptsReturn="True"
+                         IsReadOnly="True"
+                         VerticalScrollBarVisibility="Auto"
+                         TextChanged="TxtTarget_TextChanged"/>
+                <TextBlock x:Name="tgtWatermark"
+                           Text="翻译结果"
+                           FontSize="{StaticResource FontSizeBody}"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           IsHitTestVisible="False"
+                           VerticalAlignment="Top"
+                           Margin="0"/>
 
-            <!-- 浮动操作条:贴结果区右下角;两层结构(空白层投阴影 + 内容层无特效)防 HiDPI 文字锯齿 -->
-            <Grid x:Name="actionBar"
-                  HorizontalAlignment="Center"
-                  VerticalAlignment="Bottom"
-                  Margin="0,0,0,14">
-                <!-- 阴影层:无文字,仅投柔和阴影 -->
-                <Border Background="{StaticResource SurfaceBrush}"
-                        CornerRadius="10">
-                    <Border.Effect>
-                        <StaticResource ResourceKey="StandardShadow"/>
-                    </Border.Effect>
-                </Border>
-                <!-- 内容层:无特效,文字原生渲染 -->
-                <Border Background="{StaticResource SurfaceBrush}"
-                        CornerRadius="10"
-                        Padding="5">
-                    <StackPanel Orientation="Horizontal">
-                        <Button x:Name="btnCopyOnly" Style="{StaticResource FloatingAction}" Click="BtnCopyOnly_Click">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                <TextBlock Text="仅复制"/>
-                            </StackPanel>
-                        </Button>
-                        <Button x:Name="btnCopyHide" Style="{StaticResource FloatingAction}" Click="BtnCopyHide_Click" Margin="4,0,0,0">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                <TextBlock Text="复制并隐藏"/>
-                            </StackPanel>
-                        </Button>
-                        <Button x:Name="btnCopyInput" Style="{StaticResource FloatingAction}" Click="BtnCopyInput_Click" Margin="4,0,0,0">
-                            <StackPanel Orientation="Horizontal">
-                                <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
-                                <TextBlock Text="复制并输入"/>
-                            </StackPanel>
-                        </Button>
-                    </StackPanel>
-                </Border>
+                <!-- 浮动操作条:贴结果区底部;两层结构(空白层投阴影 + 内容层无特效)防 HiDPI 文字锯齿 -->
+                <Grid x:Name="actionBar"
+                      HorizontalAlignment="Center"
+                      VerticalAlignment="Bottom"
+                      Margin="0,0,0,0">
+                    <!-- 阴影层:无文字,仅投柔和阴影 -->
+                    <Border Background="{StaticResource SurfaceBrush}"
+                            CornerRadius="10">
+                        <Border.Effect>
+                            <StaticResource ResourceKey="StandardShadow"/>
+                        </Border.Effect>
+                    </Border>
+                    <!-- 内容层:无特效,文字原生渲染 -->
+                    <Border Background="{StaticResource SurfaceBrush}"
+                            CornerRadius="10"
+                            Padding="5">
+                        <StackPanel Orientation="Horizontal">
+                            <Button x:Name="btnCopyOnly" Style="{StaticResource FloatingAction}" Click="BtnCopyOnly_Click">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE8C8;" FontFamily="Segoe MDL2 Assets" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="仅复制"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="btnCopyHide" Style="{StaticResource FloatingAction}" Click="BtnCopyHide_Click" Margin="4,0,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE8BB;" FontFamily="Segoe MDL2 Assets" FontSize="12" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="复制并隐藏"/>
+                                </StackPanel>
+                            </Button>
+                            <Button x:Name="btnCopyInput" Style="{StaticResource FloatingAction}" Click="BtnCopyInput_Click" Margin="4,0,0,0">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="&#xE70F;" FontFamily="Segoe MDL2 Assets" FontSize="13" Margin="0,0,6,0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="复制并输入"/>
+                                </StackPanel>
+                            </Button>
+                        </StackPanel>
+                    </Border>
+                </Grid>
             </Grid>
-        </Grid>
+        </Border>
     </Grid>
 </Window>

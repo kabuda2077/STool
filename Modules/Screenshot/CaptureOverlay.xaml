@@ -23,6 +23,24 @@
             <!-- 标注层:覆盖选区,工具激活时才可命中绘制(需 Background 才能接收鼠标) -->
             <Canvas x:Name="annotationCanvas" Background="Transparent" IsHitTestVisible="False" ClipToBounds="True"/>
 
+            <!-- 原位翻译层:覆盖选区内容,模拟微信截图的"原文替换为译文"效果 -->
+            <Border x:Name="translationOverlay"
+                    Background="{StaticResource SurfaceBrush}"
+                    Padding="8"
+                    Visibility="Collapsed"
+                    ClipToBounds="True"
+                    IsHitTestVisible="False">
+                <ScrollViewer x:Name="translationOverlayScroll"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled">
+                    <TextBlock x:Name="translationOverlayText"
+                               TextWrapping="Wrap"
+                               FontSize="{StaticResource FontSizeBody}"
+                               LineHeight="20"
+                               Foreground="{StaticResource TextPrimaryBrush}"/>
+                </ScrollViewer>
+            </Border>
+
             <!-- 选区边框 -->
             <Border x:Name="selectionBorder"
                     BorderBrush="#2DC472"
@@ -42,7 +60,7 @@
 
             <!-- 工具条(位置在代码中按选区计算并夹紧屏幕) -->
             <Border x:Name="toolbar"
-                    Background="{StaticResource ToolbarBrush}"
+                    Background="{StaticResource SurfaceBrush}"
                     CornerRadius="9"
                     Padding="6"
                     BorderBrush="{StaticResource BorderBrush}"
@@ -139,7 +157,7 @@
                     <Button x:Name="btnConfirm" Style="{StaticResource IconButton}" Click="BtnConfirm_Click" Margin="2,0,0,0" ToolTip="完成 (Enter)">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
                             <Path Data="M20 6 L9 17 L4 12"
-                                  Stroke="{StaticResource SuccessBrush}" StrokeThickness="2.2"
+                                  Stroke="{StaticResource PrimaryBrush}" StrokeThickness="2.2"
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
                         </Canvas></Viewbox>
                     </Button>

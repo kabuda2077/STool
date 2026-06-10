@@ -10,13 +10,19 @@ $ErrorActionPreference = "Stop"
 Write-Host "=== STool Portable Build ===" -ForegroundColor Cyan
 Write-Host "Version: $Version" -ForegroundColor Green
 
+$artifactRoot = ".\artifacts"
+$publishDir = Join-Path $artifactRoot "publish"
+$releaseDir = Join-Path $artifactRoot "releases"
+
 # 清理旧的发布文件
 Write-Host "`nCleaning previous builds..." -ForegroundColor Yellow
-if (Test-Path ".\publish") { Remove-Item ".\publish" -Recurse -Force }
-if (Test-Path ".\releases") { Remove-Item ".\releases\STool_v${Version}_Portable.zip" -ErrorAction SilentlyContinue }
+if (Test-Path $publishDir) { Remove-Item $publishDir -Recurse -Force }
+if (Test-Path (Join-Path $releaseDir "STool_v${Version}_Portable.zip")) {
+    Remove-Item (Join-Path $releaseDir "STool_v${Version}_Portable.zip") -ErrorAction SilentlyContinue
+}
 
 # 创建发布目录
-New-Item -ItemType Directory -Path ".\releases" -Force | Out-Null
+New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
 
 # 构建 Release 版本（自包含，多文件）
 Write-Host "`nBuilding Release (self-contained, multi-file)..." -ForegroundColor Yellow
@@ -26,7 +32,7 @@ dotnet publish -c Release `
     -p:PublishSingleFile=false `
     -p:DebugType=None `
     -p:DebugSymbols=false `
-    -o .\publish
+    -o $publishDir
 
 if ($LASTEXITCODE -ne 0) {
     Write-Host "Build failed!" -ForegroundColor Red
@@ -37,7 +43,7 @@ Write-Host "Build succeeded!" -ForegroundColor Green
 
 # 清理不必要的文件
 Write-Host "`nCleaning unnecessary files..." -ForegroundColor Yellow
-Remove-Item ".\publish\*.pdb" -ErrorAction SilentlyContinue
+Remove-Item (Join-Path $publishDir "*.pdb") -ErrorAction SilentlyContinue
 
 # 创建 README 文件
 $readmeContent = @"
@@ -52,9 +58,9 @@ STool v$Version - 便携版
 
 ## 功能
 
-- 截图工具 (Alt+1)
-- 翻译工具 (Alt+2)
-- 剪贴板历史 (Alt+3)
+- 截图工具 (Ctrl+Alt+A)
+- 翻译工具 (Ctrl+Alt+T)
+- 剪贴板历史 (Ctrl+Alt+V)
 - OCR 文字识别
 
 ## 系统要求
@@ -68,7 +74,7 @@ STool v$Version - 便携版
 
 ## 数据存储
 
-- 配置文件: %APPDATA%\STool\appsettings.json
+- 配置文件: %APPDATA%\STool\config.json
 - 剪贴板数据: %APPDATA%\STool\clipboard.db
 - 日志文件: %APPDATA%\STool\Logs\
 
@@ -77,12 +83,12 @@ STool v$Version - 便携版
 GitHub: https://github.com/kabuda2077/STool
 "@
 
-$readmeContent | Out-File -FilePath ".\publish\README.txt" -Encoding UTF8
+$readmeContent | Out-File -FilePath (Join-Path $publishDir "README.txt") -Encoding UTF8
 
 # 打包成 zip
 Write-Host "`nCreating zip package..." -ForegroundColor Yellow
-$zipPath = ".\releases\STool_v${Version}_Portable.zip"
-Compress-Archive -Path ".\publish\*" -DestinationPath $zipPath -Force
+$zipPath = Join-Path $releaseDir "STool_v${Version}_Portable.zip"
+Compress-Archive -Path (Join-Path $publishDir "*") -DestinationPath $zipPath -Force
 
 # 获取文件大小
 $fileSize = (Get-Item $zipPath).Length / 1MB
@@ -92,7 +98,7 @@ Write-Host "Size: $([math]::Round($fileSize, 2)) MB" -ForegroundColor Green
 
 # 显示发布目录内容
 Write-Host "`nPublish directory contents:" -ForegroundColor Yellow
-Get-ChildItem ".\publish" | ForEach-Object {
+Get-ChildItem $publishDir | ForEach-Object {
     $size = if ($_.PSIsContainer) { "" } else { " ($([math]::Round($_.Length / 1MB, 2)) MB)" }
     Write-Host "  $($_.Name)$size"
 }

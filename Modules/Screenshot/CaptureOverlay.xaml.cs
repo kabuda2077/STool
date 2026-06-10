@@ -210,6 +210,8 @@ public partial class CaptureOverlay : Window
         if (_currentTool != AnnotationTool.None) return;        // 标注模式交给 annotationCanvas
         if (IsOverToolbar(e)) return;
 
+        HideTranslationOverlay();
+
         var p = e.GetPosition(overlayCanvas);
         _dragStart = p;
         _selectionAtStart = _selection;
@@ -356,6 +358,14 @@ public partial class CaptureOverlay : Window
         annotationCanvas.Width = _selection.Width;
         annotationCanvas.Height = _selection.Height;
         annotationCanvas.Clip = new RectangleGeometry(new Rect(0, 0, _selection.Width, _selection.Height));
+
+        // 原位翻译层贴合选区
+        Canvas.SetLeft(translationOverlay, _selection.X);
+        Canvas.SetTop(translationOverlay, _selection.Y);
+        translationOverlay.Width = _selection.Width;
+        translationOverlay.Height = _selection.Height;
+        translationOverlay.Clip = new RectangleGeometry(new Rect(0, 0, _selection.Width, _selection.Height));
+        ApplyTranslationOverlayLayout();
 
         PositionToolbar();
     }
@@ -514,21 +524,22 @@ public partial class CaptureOverlay : Window
 
     private async void BtnTranslate_Click(object sender, RoutedEventArgs e)
     {
+        HideTranslationOverlay();
         var bmp = RenderSelectionBitmap();
-        CloseOverlay();
+        ShowTranslationOverlay("翻译中...");
         var ocr = ((App)System.Windows.Application.Current).GetService<STool.Modules.Ocr.OcrManager>();
         var tr = ((App)System.Windows.Application.Current).GetService<STool.Modules.Translation.TranslationManager>();
-        if (ocr == null || tr == null) { Core.ToastNotification.Show("翻译不可用", "服务未初始化", Core.ToastNotification.ToastType.Error); bmp.Dispose(); return; }
+        if (ocr == null || tr == null) { Core.ToastNotification.Show("翻译不可用", "服务未初始化", Core.ToastNotification.ToastType.Error); HideTranslationOverlay(); bmp.Dispose(); return; }
         try
         {
             var o = await ocr.RecognizeAsync(bmp);
             if (!o.Success || string.IsNullOrWhiteSpace(o.FullText))
-            { Core.ToastNotification.Show("OCR 失败", o.ErrorMessage ?? "未识别到文字", Core.ToastNotification.ToastType.Warning); return; }
+            { Core.ToastNotification.Show("OCR 失败", o.ErrorMessage ?? "未识别到文字", Core.ToastNotification.ToastType.Warning); HideTranslationOverlay(); return; }
             var t = await tr.TranslateAsync(o.FullText);
-            if (!t.Success) { Core.ToastNotification.Show("翻译失败", t.ErrorMessage ?? "", Core.ToastNotification.ToastType.Error); return; }
-            new STool.Modules.Translation.InPlaceTranslationWindow(o.FullText, t.TranslatedText, t.Provider).Show();
+            if (!t.Success) { Core.ToastNotification.Show("翻译失败", t.ErrorMessage ?? "", Core.ToastNotification.ToastType.Error); HideTranslationOverlay(); return; }
+            ShowTranslationOverlay(t.TranslatedText);
         }
-        catch (Exception ex) { Core.ToastNotification.Show("翻译失败", ex.Message, Core.ToastNotification.ToastType.Error); }
+        catch (Exception ex) { HideTranslationOverlay(); Core.ToastNotification.Show("翻译失败", ex.Message, Core.ToastNotification.ToastType.Error); }
         finally { bmp.Dispose(); }
     }
 
@@ -555,8 +566,11 @@ public partial class CaptureOverlay : Window
         ph = Math.Min(ph, _frozen.Height - py);
         var crop = _frozen.Clone(new System.Drawing.Rectangle(px, py, Math.Max(1, pw), Math.Max(1, ph)), _frozen.PixelFormat);
 
-        // 无标注则直接返回裁剪图
-        if (annotationCanvas.Children.Count == 0)
+        var hasTranslation = translationOverlay.Visibility == Visibility.Visible;
+        var hasAnnotations = annotationCanvas.Children.Count > 0;
+
+        // 无标注/译文则直接返回裁剪图
+        if (!hasAnnotations && !hasTranslation)
             return crop;
 
         // 合成标注层
@@ -566,8 +580,16 @@ public partial class CaptureOverlay : Window
         using (var ctx = visual.RenderOpen())
         {
             ctx.DrawImage(baseSource, new Rect(0, 0, pw, ph));
-            var vb = new VisualBrush(annotationCanvas) { Stretch = Stretch.Fill };
-            ctx.DrawRectangle(vb, null, new Rect(0, 0, pw, ph));
+            if (hasTranslation)
+            {
+                var translationBrush = new VisualBrush(translationOverlay) { Stretch = Stretch.Fill };
+                ctx.DrawRectangle(translationBrush, null, new Rect(0, 0, pw, ph));
+            }
+            if (hasAnnotations)
+            {
+                var vb = new VisualBrush(annotationCanvas) { Stretch = Stretch.Fill };
+                ctx.DrawRectangle(vb, null, new Rect(0, 0, pw, ph));
+            }
         }
         rtb.Render(visual);
         crop.Dispose();
@@ -578,6 +600,58 @@ public partial class CaptureOverlay : Window
         => (Math.Max(1, (int)Math.Round(w * _scaleX)), Math.Max(1, (int)Math.Round(h * _scaleY)));
 
     private static double Clamp(double v, double lo, double hi) => v < lo ? lo : (v > hi ? hi : v);
+
+    private void ShowTranslationOverlay(string text)
+    {
+        translationOverlayText.Text = text;
+        translationOverlay.Visibility = Visibility.Visible;
+        Panel.SetZIndex(translationOverlay, 35);
+        Panel.SetZIndex(selectionBorder, 40);
+        UpdateVisuals();
+        ApplyTranslationOverlayLayout();
+    }
+
+    private void HideTranslationOverlay()
+    {
+        if (translationOverlay.Visibility != Visibility.Visible)
+            return;
+        translationOverlay.Visibility = Visibility.Collapsed;
+        translationOverlayText.Text = string.Empty;
+    }
+
+    private void ApplyTranslationOverlayLayout()
+    {
+        if (translationOverlay.Visibility != Visibility.Visible)
+            return;
+
+        var h = Math.Max(1, _selection.Height);
+        var w = Math.Max(1, _selection.Width);
+        var padding = h switch
+        {
+            < 42 => 4,
+            < 64 => 6,
+            < 96 => 8,
+            _ => 12
+        };
+
+        var fontSize = h switch
+        {
+            < 36 => 11,
+            < 52 => 12,
+            < 72 => 13,
+            _ => 14
+        };
+
+        translationOverlay.Padding = new Thickness(padding, Math.Max(2, padding - 1), padding, Math.Max(2, padding - 1));
+        translationOverlayText.FontSize = fontSize;
+        translationOverlayText.LineHeight = Math.Ceiling(fontSize * 1.35);
+        translationOverlayText.MaxWidth = Math.Max(1, w - padding * 2);
+
+        // 高度很小的单行选区里,滚动条本身会吃掉空间;先隐藏滚动条保证文字完整露出。
+        translationOverlayScroll.VerticalScrollBarVisibility = h < 72
+            ? ScrollBarVisibility.Disabled
+            : ScrollBarVisibility.Auto;
+    }
 
     private static BitmapSource ToBitmapSource(System.Drawing.Bitmap bmp)
     {

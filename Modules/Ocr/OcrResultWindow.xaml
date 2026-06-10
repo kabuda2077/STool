@@ -9,25 +9,53 @@
         MinHeight="340"
         WindowStartupLocation="CenterScreen">
 
-    <Grid Margin="16,44,16,16">
+    <Window.Resources>
+        <Style x:Key="OcrResultPane" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="Padding" Value="14"/>
+            <Setter Property="Effect" Value="{StaticResource StandardShadow}"/>
+        </Style>
+
+        <Style x:Key="OcrResultTextBox" TargetType="TextBox">
+            <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+            <Setter Property="CaretBrush" Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="SelectionBrush" Value="{StaticResource PrimaryBrush}"/>
+            <Setter Property="SelectionOpacity" Value="0.35"/>
+            <Setter Property="VerticalContentAlignment" Value="Top"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="TextBox">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Background="{TemplateBinding Background}"
+                                      Focusable="False"/>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="16,52,16,16">
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <TextBox x:Name="txtResult"
-                 Grid.Row="0"
-                 Style="{StaticResource ModernTextBox}"
-                 BorderThickness="0"
-                 Background="Transparent"
-                 TextWrapping="Wrap"
-                 AcceptsReturn="True"
-                 IsReadOnly="False"
-                 VerticalScrollBarVisibility="Auto"
-                 VerticalContentAlignment="Top"
-                 Padding="2,0"/>
+        <Border Grid.Row="0"
+                Style="{StaticResource OcrResultPane}">
+            <TextBox x:Name="txtResult"
+                     Style="{StaticResource OcrResultTextBox}"
+                     TextWrapping="Wrap"
+                     AcceptsReturn="True"
+                     IsReadOnly="False"
+                     VerticalScrollBarVisibility="Auto"/>
+        </Border>
 
-        <Grid Grid.Row="1" Margin="0,12,0,0">
+        <Grid Grid.Row="1" Margin="8,14,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>

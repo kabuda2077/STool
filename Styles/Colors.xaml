@@ -60,11 +60,8 @@
     <SolidColorBrush x:Key="SurfaceSunkenBrush" Color="{StaticResource SurfaceSunkenColor}"/>
     <SolidColorBrush x:Key="SurfaceSunkenHoverBrush" Color="{StaticResource SurfaceSunkenHoverColor}"/>
 
-    <!-- Elevation 阴影分级:冷色、大模糊、低透明、向下,统一全局深度语言 -->
-    <Color x:Key="ElevationShadowColor">#0B1220</Color>
-    <DropShadowEffect x:Key="Elevation1" Color="{StaticResource ElevationShadowColor}" BlurRadius="16" ShadowDepth="1"  Direction="270" Opacity="0.05" RenderingBias="Quality"/>
-    <DropShadowEffect x:Key="Elevation2" Color="{StaticResource ElevationShadowColor}" BlurRadius="22" ShadowDepth="3"  Direction="270" Opacity="0.06" RenderingBias="Quality"/>
-    <DropShadowEffect x:Key="Elevation3" Color="{StaticResource ElevationShadowColor}" BlurRadius="30" ShadowDepth="6"  Direction="270" Opacity="0.09" RenderingBias="Quality"/>
-    <DropShadowEffect x:Key="Elevation4" Color="{StaticResource ElevationShadowColor}" BlurRadius="44" ShadowDepth="12" Direction="270" Opacity="0.11" RenderingBias="Quality"/>
+    <!-- Standard shadow for all elevated surfaces -->
+    <Color x:Key="ShadowColor">#0B1220</Color>
+    <DropShadowEffect x:Key="StandardShadow" Color="{StaticResource ShadowColor}" BlurRadius="20" ShadowDepth="2" Direction="270" Opacity="0.08" RenderingBias="Quality"/>
 
 </ResourceDictionary>

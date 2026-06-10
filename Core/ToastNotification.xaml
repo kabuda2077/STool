@@ -20,7 +20,7 @@
             MinWidth="280"
             MaxWidth="400">
         <Border.Effect>
-            <StaticResource ResourceKey="Elevation2"/>
+            <StaticResource ResourceKey="StandardShadow"/>
         </Border.Effect>
 
         <Grid>

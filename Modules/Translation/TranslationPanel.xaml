@@ -185,7 +185,7 @@
                 <Border Background="{StaticResource SurfaceBrush}"
                         CornerRadius="10">
                     <Border.Effect>
-                        <StaticResource ResourceKey="Elevation1"/>
+                        <StaticResource ResourceKey="StandardShadow"/>
                     </Border.Effect>
                 </Border>
                 <!-- 内容层:无特效,文字原生渲染 -->

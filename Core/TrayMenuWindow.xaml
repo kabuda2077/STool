@@ -78,7 +78,7 @@
             Padding="6"
             Margin="14">
         <Border.Effect>
-            <StaticResource ResourceKey="Elevation3"/>
+            <StaticResource ResourceKey="StandardShadow"/>
         </Border.Effect>
         <StackPanel x:Name="menuPanel"/>
     </Border>

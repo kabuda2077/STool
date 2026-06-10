@@ -16,7 +16,7 @@
             CornerRadius="6"
             Background="{StaticResource SurfaceBrush}">
         <Border.Effect>
-            <StaticResource ResourceKey="Elevation2"/>
+            <StaticResource ResourceKey="StandardShadow"/>
         </Border.Effect>
 
         <Grid>

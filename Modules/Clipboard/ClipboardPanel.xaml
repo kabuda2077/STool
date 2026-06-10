@@ -201,7 +201,7 @@
                                 BorderThickness="0"
                                 CornerRadius="23">
                             <Border.Effect>
-                                <StaticResource ResourceKey="Elevation2"/>
+                                <StaticResource ResourceKey="StandardShadow"/>
                             </Border.Effect>
                             <TextBlock x:Name="ic" Text="&#xE74D;"
                                        FontFamily="Segoe MDL2 Assets"

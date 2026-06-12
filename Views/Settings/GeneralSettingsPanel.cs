@@ -10,6 +10,7 @@ public class GeneralSettingsPanel : StackPanel
 {
     private readonly ConfigManager _configManager;
     private System.Windows.Controls.CheckBox _chkAutoStart = null!;
+    private System.Windows.Controls.CheckBox _chkHideTrayIcon = null!;
     private System.Windows.Controls.TextBox _txtScreenshotHotkey = null!;
     private System.Windows.Controls.TextBox _txtTranslationHotkey = null!;
     private System.Windows.Controls.TextBox _txtClipboardHotkey = null!;
@@ -50,6 +51,29 @@ public class GeneralSettingsPanel : StackPanel
         _chkAutoStart.Unchecked += ChkAutoStart_Changed;
         startupSection.Children.Add(_chkAutoStart);
         Children.Add(WrapSection(startupSection));
+
+        var traySection = CreateSection();
+        traySection.Children.Add(new TextBlock
+        {
+            Text = "托盘",
+            Style = (Style)FindResource("SettingsGroupTitle")
+        });
+
+        _chkHideTrayIcon = new System.Windows.Controls.CheckBox
+        {
+            Content = "隐藏托盘图标",
+            Margin = new Thickness(0)
+        };
+        traySection.Children.Add(_chkHideTrayIcon);
+
+        var trayHint = new TextBlock
+        {
+            Text = "隐藏后仍可通过快捷键打开功能面板，重新显示可在本窗口取消勾选。",
+            Style = (Style)FindResource("HintText"),
+            Margin = new Thickness(0, 6, 0, 0)
+        };
+        traySection.Children.Add(trayHint);
+        Children.Add(WrapSection(traySection));
 
         var hotkeysSection = CreateSection();
 
@@ -142,6 +166,7 @@ public class GeneralSettingsPanel : StackPanel
 
         // 加载开机自启状态
         _chkAutoStart.IsChecked = IsAutoStartEnabled();
+        _chkHideTrayIcon.IsChecked = config.HideTrayIcon;
 
         // 加载快捷键
         _txtScreenshotHotkey.Text = config.Hotkeys.Screenshot;
@@ -170,11 +195,13 @@ public class GeneralSettingsPanel : StackPanel
             config.Hotkeys.Screenshot = _txtScreenshotHotkey.Text.Trim();
             config.Hotkeys.Translation = _txtTranslationHotkey.Text.Trim();
             config.Hotkeys.Clipboard = _txtClipboardHotkey.Text.Trim();
+            config.HideTrayIcon = _chkHideTrayIcon.IsChecked == true;
 
             _configManager.Save(config);
             ((App)System.Windows.Application.Current).ReloadHotkeys();
+            ((App)System.Windows.Application.Current).ReloadTrayIconVisibility();
 
-            ToastNotification.Show("设置已保存", "快捷键已更新", ToastNotification.ToastType.Success);
+            ToastNotification.Show("设置已保存", "通用设置已更新", ToastNotification.ToastType.Success);
         }
         catch (Exception ex)
         {

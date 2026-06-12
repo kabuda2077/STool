@@ -9,6 +9,7 @@ public class AppConfig
     public TranslationConfig Translation { get; set; } = new();
     public ClipboardConfig Clipboard { get; set; } = new();
     public bool AutoStart { get; set; }
+    public bool HideTrayIcon { get; set; }
 }
 
 public class HotkeyConfig

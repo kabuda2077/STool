@@ -71,7 +71,7 @@ public class AppBootstrap : IDisposable
         var notifyIcon = new NotifyIcon
         {
             Icon = AppIcons.LoadTrayIcon(),
-            Visible = true,
+            Visible = !_configManager.Get().HideTrayIcon,
             Text = "STool - 快捷工具"
         };
 
@@ -94,7 +94,7 @@ public class AppBootstrap : IDisposable
         menu.AddItem("截图", config.Hotkeys.Screenshot, OnScreenshotHotkey);
         menu.AddItem("翻译", config.Hotkeys.Translation, OnTranslationHotkey);
         menu.AddItem("剪贴板历史", config.Hotkeys.Clipboard, OnClipboardHotkey);
-        menu.AddItem("设置", string.Empty, () => OnSettings(null, EventArgs.Empty));
+        menu.AddItem("设置", string.Empty, ShowSettings);
         menu.AddItem("退出 STool", string.Empty, () => OnExit(null, EventArgs.Empty), danger: true);
         menu.ShowNearCursor();
     }
@@ -129,6 +129,12 @@ public class AppBootstrap : IDisposable
         _hotkeyManager.UnregisterAll();
         _configManager.Reload();
         RegisterConfiguredHotkeys();
+    }
+
+    public void ReloadTrayIconVisibility()
+    {
+        _configManager.Reload();
+        _notifyIcon.Visible = !_configManager.Get().HideTrayIcon;
     }
 
     /// <summary>
@@ -183,7 +189,7 @@ public class AppBootstrap : IDisposable
         panel.Show();
     }
 
-    private void OnSettings(object? sender, EventArgs e)
+    public void ShowSettings()
     {
         // 单例:已打开则激活,避免多个设置窗口
         if (_settingsWindow != null)

@@ -17,13 +17,17 @@ public partial class App : System.Windows.Application
         _singleInstance = new SingleInstance("Main");
         if (!_singleInstance.IsFirstInstance)
         {
-            System.Windows.MessageBox.Show("STool 已在运行中", "STool", MessageBoxButton.OK, MessageBoxImage.Information);
+            _singleInstance.ActivateFirstInstance();
             Shutdown();
             return;
         }
 
         // 初始化应用
         _bootstrap = new AppBootstrap();
+        _singleInstance.StartActivationListener(() =>
+        {
+            Dispatcher.Invoke(() => _bootstrap?.ShowSettings());
+        });
 
         base.OnStartup(e);
     }
@@ -45,9 +49,19 @@ public partial class App : System.Windows.Application
         _bootstrap?.ReloadHotkeys();
     }
 
+    public void ReloadTrayIconVisibility()
+    {
+        _bootstrap?.ReloadTrayIconVisibility();
+    }
+
     public void SuspendHotkeys()
     {
         _bootstrap?.SuspendGlobalHotkeys();
+    }
+
+    public void ShowSettings()
+    {
+        _bootstrap?.ShowSettings();
     }
 }
 

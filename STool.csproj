@@ -24,7 +24,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="Resources\STool.ico" CopyToOutputDirectory="PreserveNewest" />
+    <Resource Include="Resources\STool.ico" />
   </ItemGroup>
 
 </Project>

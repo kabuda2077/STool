@@ -133,21 +133,89 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- 标签栏:悬浮胶囊组(灰底圆角容器,内含药丸标签) -->
-        <Border Grid.Row="0"
-                Background="{StaticResource SurfaceAltBrush}"
-                CornerRadius="18"
-                Padding="4"
-                HorizontalAlignment="Left"
-                Margin="16,4,16,8">
-            <StackPanel Orientation="Horizontal">
-                <Button x:Name="tabAll" Style="{StaticResource TabButton}" Tag="on" Content="全部" Click="Tab_Click"/>
-                <Button x:Name="tabText" Style="{StaticResource TabButton}" Content="文本" Click="Tab_Click"/>
-                <Button x:Name="tabImage" Style="{StaticResource TabButton}" Content="图像" Click="Tab_Click"/>
-                <Button x:Name="tabFile" Style="{StaticResource TabButton}" Content="文件" Click="Tab_Click"/>
-                <Button x:Name="tabFavorite" Style="{StaticResource TabButton}" Content="收藏" Click="Tab_Click"/>
-            </StackPanel>
-        </Border>
+        <Grid Grid.Row="0" Margin="16,4,16,8">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
+
+            <!-- 标签栏:悬浮胶囊组(灰底圆角容器,内含药丸标签) -->
+            <Border Background="{StaticResource SurfaceAltBrush}"
+                    CornerRadius="18"
+                    Padding="4"
+                    HorizontalAlignment="Left">
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="tabAll" Style="{StaticResource TabButton}" Tag="on" Content="全部" Click="Tab_Click"/>
+                    <Button x:Name="tabText" Style="{StaticResource TabButton}" Content="文本" Click="Tab_Click"/>
+                    <Button x:Name="tabImage" Style="{StaticResource TabButton}" Content="图像" Click="Tab_Click"/>
+                    <Button x:Name="tabFile" Style="{StaticResource TabButton}" Content="文件" Click="Tab_Click"/>
+                    <Button x:Name="tabFavorite" Style="{StaticResource TabButton}" Content="收藏" Click="Tab_Click"/>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1"
+                    Width="218"
+                    Height="30"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderThickness="0"
+                    CornerRadius="15"
+                    Padding="13,0"
+                    HorizontalAlignment="Right">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <TextBlock Text="&#xE721;"
+                               FontFamily="Segoe MDL2 Assets"
+                               FontSize="12"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               VerticalAlignment="Center"
+                               Margin="0,0,8,0"/>
+
+                    <Grid Grid.Column="1" Height="30" VerticalAlignment="Center">
+                        <TextBlock x:Name="searchPlaceholder"
+                                   Text="搜索剪贴板"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   FontSize="13"
+                                   Opacity="0.72"
+                                   IsHitTestVisible="False"
+                                   VerticalAlignment="Center"/>
+                        <TextBox x:Name="txtSearch"
+                                 Background="{StaticResource TransparentBrush}"
+                                 BorderThickness="0"
+                                 Padding="0"
+                                 Height="30"
+                                 FontSize="13"
+                                 VerticalContentAlignment="Center"
+                                 TextChanged="TxtSearch_TextChanged"/>
+                    </Grid>
+
+                    <Button x:Name="btnClearSearch"
+                            Grid.Column="2"
+                            Width="24"
+                            Height="24"
+                            Margin="8,0,0,0"
+                            Padding="0"
+                            Style="{StaticResource IconButton}"
+                            ToolTip="清除搜索"
+                            Visibility="Collapsed"
+                            Click="BtnClearSearch_Click">
+                        <Viewbox Width="12" Height="12">
+                            <Canvas Width="24" Height="24">
+                                <Path Data="M18 6 L6 18 M6 6 L18 18"
+                                      Stroke="{StaticResource TextSecondaryBrush}"
+                                      StrokeThickness="2"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"/>
+                            </Canvas>
+                        </Viewbox>
+                    </Button>
+                </Grid>
+            </Border>
+        </Grid>
 
         <!-- 列表 + 悬浮清空按钮 -->
         <Grid Grid.Row="1">
@@ -156,12 +224,14 @@
                         Style="{StaticResource EmptyStateContainer}"
                         Visibility="Collapsed">
                 <TextBlock Text="&#xE8F4;" Style="{StaticResource EmptyStateIcon}"/>
-                <TextBlock Text="暂无记录" Style="{StaticResource EmptyStateTitle}"/>
-                <TextBlock Text="复制内容会自动保存到剪贴板历史中" Style="{StaticResource EmptyStateDescription}"/>
+                <TextBlock x:Name="emptyTitle" Text="暂无记录" Style="{StaticResource EmptyStateTitle}"/>
+                <TextBlock x:Name="emptyDescription" Text="复制内容会自动保存到剪贴板历史中" Style="{StaticResource EmptyStateDescription}"/>
             </StackPanel>
 
             <!-- 滚动条 overlay(叠在内容上,不占布局宽)→ 左右 padding 数值相等、真正对称 -->
-            <ScrollViewer x:Name="listScroll" VerticalScrollBarVisibility="Auto" Padding="16,4,16,4">
+            <ScrollViewer x:Name="listScroll"
+                          VerticalScrollBarVisibility="Auto"
+                          Padding="16,4,16,4">
                 <ScrollViewer.Template>
                     <ControlTemplate TargetType="ScrollViewer">
                         <Grid>
@@ -260,18 +330,34 @@
                             <Border.Effect>
                                 <StaticResource ResourceKey="MenuShadow"/>
                             </Border.Effect>
-                            <TextBlock x:Name="ic" Text="&#xE74D;"
-                                       FontFamily="Segoe MDL2 Assets"
-                                       FontSize="17"
-                                       Foreground="{StaticResource TextSecondaryBrush}"
-                                       HorizontalAlignment="Center"
-                                       VerticalAlignment="Center"/>
+                            <Viewbox Width="18" Height="18"
+                                     HorizontalAlignment="Center"
+                                     VerticalAlignment="Center">
+                                <Canvas Width="24" Height="24">
+                                    <Path x:Name="trashLid"
+                                          Data="M4 7 H20 M9 7 V5 A1 1 0 0 1 10 4 H14 A1 1 0 0 1 15 5 V7"
+                                          Stroke="{StaticResource TextSecondaryBrush}"
+                                          StrokeThickness="2"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round"/>
+                                    <Path x:Name="trashBody"
+                                          Data="M6 7 L7 20 A2 2 0 0 0 9 22 H15 A2 2 0 0 0 17 20 L18 7 M10 11 V18 M14 11 V18"
+                                          Stroke="{StaticResource TextSecondaryBrush}"
+                                          StrokeThickness="2"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"
+                                          StrokeLineJoin="Round"
+                                          Fill="{StaticResource TransparentBrush}"/>
+                                </Canvas>
+                            </Viewbox>
                         </Border>
                         <ControlTemplate.Triggers>
                             <Trigger Property="IsMouseOver" Value="True">
                                 <Setter TargetName="fab" Property="Background" Value="{StaticResource ErrorBrush}"/>
                                 <Setter TargetName="fab" Property="BorderBrush" Value="{StaticResource ErrorBrush}"/>
-                                <Setter TargetName="ic" Property="Foreground" Value="White"/>
+                                <Setter TargetName="trashLid" Property="Stroke" Value="{StaticResource OnPrimaryBrush}"/>
+                                <Setter TargetName="trashBody" Property="Stroke" Value="{StaticResource OnPrimaryBrush}"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
                     </ControlTemplate>

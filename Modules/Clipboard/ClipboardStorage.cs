@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using Serilog;
+using STool.Core;
 
 namespace STool.Modules.Clipboard;
 
@@ -18,13 +19,8 @@ public class ClipboardStorage : IDisposable
 
     public ClipboardStorage()
     {
-        var appDataPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "STool"
-        );
-
-        Directory.CreateDirectory(appDataPath);
-        _dbPath = Path.Combine(appDataPath, "clipboard.db");
+        AppPaths.EnsureStandardDirectories();
+        _dbPath = AppPaths.ClipboardDbPath;
 
         _connection = new SqliteConnection($"Data Source={_dbPath}");
         _connection.Open();
@@ -114,6 +110,10 @@ public class ClipboardStorage : IDisposable
         var sql = @"
             SELECT * FROM clipboard_items
             WHERE text_content LIKE @keyword
+               OR file_paths LIKE @keyword
+               OR image_path LIKE @keyword
+               OR source_app LIKE @keyword
+               OR tag LIKE @keyword
             ORDER BY created_at DESC
             LIMIT @limit
         ";

@@ -18,15 +18,11 @@ public class AppBootstrap : IDisposable
     public AppBootstrap()
     {
         // 初始化日志
-        var appDataPath = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-            "STool"
-        );
-        Directory.CreateDirectory(Path.Combine(appDataPath, "Logs"));
+        AppPaths.EnsureStandardDirectories();
 
         Log.Logger = new LoggerConfiguration()
             .WriteTo.File(
-                Path.Combine(appDataPath, "Logs", "app.log"),
+                Path.Combine(AppPaths.LogsDirectory, "app.log"),
                 rollingInterval: RollingInterval.Day,
                 retainedFileCountLimit: 7
             )
@@ -94,7 +90,9 @@ public class AppBootstrap : IDisposable
         menu.AddItem("截图", config.Hotkeys.Screenshot, OnScreenshotHotkey);
         menu.AddItem("翻译", config.Hotkeys.Translation, OnTranslationHotkey);
         menu.AddItem("剪贴板历史", config.Hotkeys.Clipboard, OnClipboardHotkey);
+        menu.AddSeparator();
         menu.AddItem("设置", string.Empty, ShowSettings);
+        menu.AddSeparator();
         menu.AddItem("退出 STool", string.Empty, () => OnExit(null, EventArgs.Empty), danger: true);
         menu.ShowNearCursor();
     }

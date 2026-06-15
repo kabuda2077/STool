@@ -61,22 +61,23 @@ public partial class SettingsWindow : Window
 
     private void ShowGeneralSettings()
     {
-        var panel = new GeneralSettingsPanel(_configManager);
-        contentPanel.Children.Clear();
-        contentPanel.Children.Add(panel);
+        ShowPanel(new GeneralSettingsPanel(_configManager));
     }
 
     private void ShowOcrSettings()
     {
-        var panel = new OcrSettingsPanel(_configManager);
-        contentPanel.Children.Clear();
-        contentPanel.Children.Add(panel);
+        ShowPanel(new OcrSettingsPanel(_configManager));
     }
 
     private void ShowTranslationSettings()
     {
-        var panel = new TranslationSettingsPanel(_configManager);
+        ShowPanel(new TranslationSettingsPanel(_configManager));
+    }
+
+    private void ShowPanel(UIElement panel)
+    {
         contentPanel.Children.Clear();
         contentPanel.Children.Add(panel);
+        contentScroll.ScrollToTop();
     }
 }

@@ -7,6 +7,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Runtime.InteropServices;
 using Serilog;
+using STool.Core;
 
 namespace STool.Modules.Clipboard;
 
@@ -270,16 +271,10 @@ public class ClipboardMonitor : IDisposable
     {
         try
         {
-            var appDataPath = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-                "STool",
-                "ClipboardImages"
-            );
-
-            Directory.CreateDirectory(appDataPath);
+            Directory.CreateDirectory(AppPaths.ClipboardImagesDirectory);
 
             var fileName = $"clipboard_{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid():N}.png";
-            var filePath = Path.Combine(appDataPath, fileName);
+            var filePath = Path.Combine(AppPaths.ClipboardImagesDirectory, fileName);
 
             var encoder = new PngBitmapEncoder();
             encoder.Frames.Add(BitmapFrame.Create(image));

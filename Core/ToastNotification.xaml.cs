@@ -1,7 +1,6 @@
 using System;
 using System.Windows;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using System.Windows.Threading;
 
 namespace STool.Core
@@ -31,26 +30,6 @@ namespace STool.Core
             var workArea = SystemParameters.WorkArea;
             Left = workArea.Right - ActualWidth;
             Top = workArea.Bottom - ActualHeight;
-
-            // 淡入动画
-            var fadeIn = new DoubleAnimation
-            {
-                From = 0,
-                To = 1,
-                Duration = TimeSpan.FromMilliseconds(200),
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-            };
-            BeginAnimation(OpacityProperty, fadeIn);
-
-            // 从下方滑入
-            var slideIn = new DoubleAnimation
-            {
-                From = Top + 20,
-                To = Top,
-                Duration = TimeSpan.FromMilliseconds(300),
-                EasingFunction = new CubicEase { EasingMode = EasingMode.EaseOut }
-            };
-            BeginAnimation(TopProperty, slideIn);
         }
 
         public static void Show(string title, string message = "", ToastType type = ToastType.Success, int duration = DEFAULT_DURATION)
@@ -103,23 +82,5 @@ namespace STool.Core
             });
         }
 
-        protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
-        {
-            // 淡出动画
-            var fadeOut = new DoubleAnimation
-            {
-                From = 1,
-                To = 0,
-                Duration = TimeSpan.FromMilliseconds(150)
-            };
-
-            fadeOut.Completed += (s, args) =>
-            {
-                base.OnClosing(new System.ComponentModel.CancelEventArgs(false));
-            };
-
-            e.Cancel = true;
-            BeginAnimation(OpacityProperty, fadeOut);
-        }
     }
 }

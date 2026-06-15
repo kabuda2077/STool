@@ -18,6 +18,7 @@ public partial class ClipboardPanel : Window
     private readonly ClipboardManager _manager;
     private List<ClipboardItem> _allRaw = new();
     private Tab _tab = Tab.All;
+    private string _searchText = string.Empty;
 
     public ClipboardPanel(ClipboardManager manager)
     {
@@ -35,6 +36,8 @@ public partial class ClipboardPanel : Window
     private void ApplyFilter()
     {
         IEnumerable<ClipboardItem> q = _allRaw;
+        var hasSearch = !string.IsNullOrWhiteSpace(_searchText);
+
         q = _tab switch
         {
             Tab.Text => q.Where(i => i.Type == ClipboardItemType.Text),
@@ -44,13 +47,57 @@ public partial class ClipboardPanel : Window
             _ => q
         };
 
+        if (hasSearch)
+        {
+            q = q.Where(MatchesSearch);
+        }
+
         var vms = q.Select(ToViewModel).ToList();
         itemsList.ItemsSource = vms;
 
         var any = vms.Count > 0;
         emptyState.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
         listScroll.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+        emptyTitle.Text = hasSearch ? "没有匹配结果" : "暂无记录";
+        emptyDescription.Text = hasSearch ? "换个关键词试试" : "复制内容会自动保存到剪贴板历史中";
         btnClearAll.ToolTip = GetClearActionText();
+
+    }
+
+    private bool MatchesSearch(ClipboardItem item)
+    {
+        var keyword = _searchText.Trim();
+        if (keyword.Length == 0)
+        {
+            return true;
+        }
+
+        return Contains(item.TextContent, keyword)
+            || Contains(item.SourceApp, keyword)
+            || Contains(item.Tag, keyword)
+            || Contains(item.ImagePath, keyword)
+            || (item.FilePaths?.Any(path => Contains(path, keyword)) == true);
+    }
+
+    private static bool Contains(string? text, string keyword)
+    {
+        return !string.IsNullOrEmpty(text)
+            && text.IndexOf(keyword, StringComparison.CurrentCultureIgnoreCase) >= 0;
+    }
+
+    private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        _searchText = txtSearch.Text;
+        var hasSearch = !string.IsNullOrWhiteSpace(_searchText);
+        searchPlaceholder.Visibility = hasSearch ? Visibility.Collapsed : Visibility.Visible;
+        btnClearSearch.Visibility = hasSearch ? Visibility.Visible : Visibility.Collapsed;
+        ApplyFilter();
+    }
+
+    private void BtnClearSearch_Click(object sender, RoutedEventArgs e)
+    {
+        txtSearch.Clear();
+        txtSearch.Focus();
     }
 
     private void Tab_Click(object sender, RoutedEventArgs e)
@@ -85,7 +132,11 @@ public partial class ClipboardPanel : Window
             var item = _allRaw.FirstOrDefault(i => i.Id == id);
             if (item != null)
             {
-                try { _manager.RestoreToClipboard(item); }
+                try
+                {
+                    _manager.RestoreToClipboard(item);
+                    Close();
+                }
                 catch { /* 忽略恢复失败 */ }
             }
         }

@@ -24,12 +24,12 @@ if (Test-Path (Join-Path $releaseDir "STool_v${Version}_Portable.zip")) {
 # 创建发布目录
 New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
 
-# 构建 Release 版本（自包含，多文件）
-Write-Host "`nBuilding Release (self-contained, multi-file)..." -ForegroundColor Yellow
+# 构建 Release 版本（依赖本机 .NET Desktop Runtime，单文件）
+Write-Host "`nBuilding Release (framework-dependent, single-file)..." -ForegroundColor Yellow
 dotnet publish -c Release `
     -r win-x64 `
-    --self-contained true `
-    -p:PublishSingleFile=false `
+    --self-contained false `
+    -p:PublishSingleFile=true `
     -p:DebugType=None `
     -p:DebugSymbols=false `
     -o $publishDir
@@ -66,7 +66,9 @@ STool v$Version - 便携版
 ## 系统要求
 
 - Windows 10/11 (64位)
-- .NET 9.0 运行时（已包含，无需额外安装）
+- .NET 9 Desktop Runtime x64
+
+下载地址: https://dotnet.microsoft.com/download/dotnet/9.0
 
 ## 开机自启
 
@@ -74,9 +76,14 @@ STool v$Version - 便携版
 
 ## 数据存储
 
-- 配置文件: %APPDATA%\STool\config.json
-- 剪贴板数据: %APPDATA%\STool\clipboard.db
-- 日志文件: %APPDATA%\STool\Logs\
+- 配置文件: .\Data\config.json
+- 剪贴板数据: .\Data\clipboard.db
+- 剪贴板图片: .\Data\ClipboardImages\
+- 日志文件: .\Data\Logs\
+- 本地密钥: .\Data\secure.key
+
+API Key 等敏感配置会写入 config.json,但内容使用 .\Data\secure.key 加密。
+备份或迁移时请保留整个 Data 文件夹；不要把 Data 文件夹分享给别人。
 
 ---
 

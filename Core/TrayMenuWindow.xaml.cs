@@ -38,11 +38,14 @@ public partial class TrayMenuWindow : Window
 
     public void AddSeparator()
     {
+        var brush = ((Brush)FindResource("BorderBrush")).Clone();
+        brush.Opacity = 0.55;
+
         menuPanel.Children.Add(new Border
         {
-            Height = 1,
-            Background = (Brush)FindResource("BorderBrush"),
-            Margin = new Thickness(6, 4, 6, 4)
+            Height = 0.5,
+            Background = brush,
+            Margin = new Thickness(10, 2, 10, 2)
         });
     }
 
@@ -60,6 +63,7 @@ public partial class TrayMenuWindow : Window
         var text = new TextBlock
         {
             Text = label,
+            Foreground = (Brush)FindResource(danger ? "ErrorBrush" : "TextPrimaryBrush"),
             VerticalAlignment = VerticalAlignment.Center
         };
         Grid.SetColumn(text, 0);
@@ -93,7 +97,6 @@ public partial class TrayMenuWindow : Window
         Loaded += (_, _) =>
         {
             PositionNearCursor();
-            Opacity = 1;
             Activate();
             // 菜单已显示并激活,现在才允许失焦自动关闭。
             Deactivated += (_, _) => CloseMenu();

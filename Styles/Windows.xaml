@@ -7,7 +7,6 @@
          圆角与投影由 DWM 提供(见 Core/ModernWindowChrome.cs),不再用 AllowsTransparency 自绘。 -->
     <Style x:Key="ModernWindow" TargetType="Window">
         <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
-        <Setter Property="Icon" Value="/Resources/STool.ico"/>
         <Setter Property="WindowStyle" Value="SingleBorderWindow"/>
         <Setter Property="ResizeMode" Value="CanResize"/>
         <Setter Property="FontFamily" Value="Segoe UI, Microsoft YaHei UI"/>

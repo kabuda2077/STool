@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using Serilog;
 using STool.Modules.Screenshot.Annotations;
 using Point = System.Windows.Point;
 using Color = System.Windows.Media.Color;
@@ -49,9 +50,26 @@ public partial class CaptureOverlay : Window
     private AnnotationTool _currentTool = AnnotationTool.None;
     private Button[] _toolButtons = Array.Empty<Button>();
 
-    public CaptureOverlay()
+    public CaptureOverlay() : this(false) { }
+
+    /// <summary>
+    /// 预热构造:仅触发 InitializeComponent(BAML 解析 + 模板/JIT 一次性成本),
+    /// 跳过抓屏与 Loaded 逻辑,实例随即丢弃。用于消除首次截图的冷启动延迟。
+    /// </summary>
+    public static CaptureOverlay CreateForWarmUp() => new CaptureOverlay(true);
+
+    private CaptureOverlay(bool prewarm)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        Log.Information("[Capture] ctor begin (prewarm={Prewarm})", prewarm);
         InitializeComponent();
+
+        if (prewarm)
+        {
+            // 不抓屏、不挂 Loaded、不显示;只为把 WPF 一次性初始化成本提前付掉
+            Log.Information("[Capture] prewarm ctor end at {Elapsed}ms", sw.ElapsedMilliseconds);
+            return;
+        }
 
         // 覆盖整个虚拟屏幕(DIP)
         Left = SystemParameters.VirtualScreenLeft;
@@ -61,30 +79,38 @@ public partial class CaptureOverlay : Window
 
         // 冻结屏幕
         _frozen = ScreenCapture.CaptureAllScreens();
+        Log.Information("[Capture] frozen captured at {Elapsed}ms ({W}x{H})", sw.ElapsedMilliseconds, _frozen.Width, _frozen.Height);
         screenshotImage.Source = ToBitmapSource(_frozen);
 
         Loaded += OnLoaded;
+        Log.Information("[Capture] ctor end at {Elapsed}ms", sw.ElapsedMilliseconds);
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        Log.Information("[Capture] OnLoaded begin");
         var t = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
         _scaleX = t.M11; _scaleY = t.M22;
 
         CreateHandles();
         _annotation = new AnnotationCanvas(annotationCanvas);
         _toolButtons = new[] { btnRect, btnEllipse, btnArrow, btnPen };
+        Log.Information("[Capture] handles+annotation ready at {Elapsed}ms", sw.ElapsedMilliseconds);
 
         // 枚举底层窗口(用于"识别窗口"悬停吸附)
         EnumerateWindows();
+        Log.Information("[Capture] EnumerateWindows done at {Elapsed}ms ({Count} windows)", sw.ElapsedMilliseconds, _windowRects.Count);
 
         // 初始:识别光标所在窗口(无则工作区);未确认前不显示工具条
         _selection = DetectSelectionOrDefault();
+        Log.Information("[Capture] DetectSelection done at {Elapsed}ms", sw.ElapsedMilliseconds);
 
         selectionBorder.Visibility = Visibility.Visible;
         toolbar.Visibility = Visibility.Collapsed;
         UpdateVisuals();
         Activate();
+        Log.Information("[Capture] OnLoaded end at {Elapsed}ms", sw.ElapsedMilliseconds);
     }
 
     /// <summary>默认选区 = 光标所在显示器的工作区(物理像素换算到窗口 DIP 坐标)。</summary>
@@ -115,6 +141,8 @@ public partial class CaptureOverlay : Window
     {
         _windowRects.Clear();
         var self = new WindowInteropHelper(this).Handle;
+        var swTotal = System.Diagnostics.Stopwatch.StartNew();
+        var dwmSw = new System.Diagnostics.Stopwatch();
         EnumWindows((hwnd, _) =>
         {
             if (hwnd == self || !IsWindowVisible(hwnd) || IsIconic(hwnd))
@@ -123,16 +151,22 @@ public partial class CaptureOverlay : Window
             if (DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, out int cloaked, sizeof(int)) == 0 && cloaked != 0)
                 return true;
             // 优先用扩展框架边界(去掉不可见缩放边框),失败回退 GetWindowRect
+            dwmSw.Restart();
             NRECT r;
             if (DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out r, Marshal.SizeOf<NRECT>()) != 0)
             {
                 if (!GetWindowRect(hwnd, out r)) return true;
             }
+            dwmSw.Stop();
+            // 单个窗口的 DWM/GetWindowRect 查询慢(>50ms)说明该窗口可能无响应,记录其句柄便于定位
+            if (dwmSw.ElapsedMilliseconds > 50)
+                Log.Warning("[Capture] slow window query: hwnd={Hwnd} took {Ms}ms", hwnd, dwmSw.ElapsedMilliseconds);
             int w = r.Right - r.Left, h = r.Bottom - r.Top;
             if (w < 24 || h < 24) return true;
             _windowRects.Add(new System.Drawing.Rectangle(r.Left, r.Top, w, h));
             return true;
         }, IntPtr.Zero);
+        Log.Information("[Capture] EnumWindows callback loop took {Ms}ms", swTotal.ElapsedMilliseconds);
     }
 
     /// <summary>光标所在的最上层窗口选区;无则回退到工作区。</summary>
@@ -549,6 +583,7 @@ public partial class CaptureOverlay : Window
 
     private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
+        Log.Information("[Capture] KeyDown: {Key} (focused={HasFocus})", e.Key, IsKeyboardFocusWithin);
         if (e.Key == Key.Escape) { CloseOverlay(); return; }
         if (e.Key == Key.Enter) { CopyAndClose(); return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Z) { _annotation?.Undo(); return; }

@@ -24,12 +24,13 @@ if (Test-Path (Join-Path $releaseDir "STool_v${Version}_Portable.zip")) {
 # 创建发布目录
 New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
 
-# 构建 Release 版本（依赖本机 .NET Desktop Runtime，单文件）
-Write-Host "`nBuilding Release (framework-dependent, single-file)..." -ForegroundColor Yellow
+# 构建 Release 版本（依赖本机 .NET Desktop Runtime，单文件，R2R 预编译）
+Write-Host "`nBuilding Release (framework-dependent, single-file, ReadyToRun)..." -ForegroundColor Yellow
 dotnet publish -c Release `
     -r win-x64 `
     --self-contained false `
     -p:PublishSingleFile=true `
+    -p:PublishReadyToRun=true `
     -p:DebugType=None `
     -p:DebugSymbols=false `
     -o $publishDir

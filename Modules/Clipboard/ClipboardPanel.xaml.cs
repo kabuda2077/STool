@@ -1,12 +1,16 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using STool.Core;
 
 namespace STool.Modules.Clipboard;
@@ -20,16 +24,40 @@ public partial class ClipboardPanel : Window
     private Tab _tab = Tab.All;
     private string _searchText = string.Empty;
 
+    // D: ViewModel 按 Id 缓存,切分类/搜索时复用,避免重复造 VM 与重复解码
+    private readonly Dictionary<string, ClipboardItemViewModel> _vmCache = new();
+
+    // C: 搜索去抖
+    private readonly DispatcherTimer _searchDebounce;
+
+    // B: 缩略图后台解码并发限流(最多 3 个同时解码)
+    private static readonly SemaphoreSlim ThumbThrottle = new(3);
+
     public ClipboardPanel(ClipboardManager manager)
     {
         _manager = manager;
         InitializeComponent();
+
+        _searchDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
+        _searchDebounce.Tick += (_, _) =>
+        {
+            _searchDebounce.Stop();
+            ApplyFilter();
+        };
+
         LoadRecent();
     }
 
     private void LoadRecent()
     {
-        _allRaw = _manager.GetRecent(200);
+        var fresh = _manager.GetRecent(200);
+
+        // D: 数据刷新时,清理缓存中已不存在的条目,避免无限增长
+        var liveIds = new HashSet<string>(fresh.Select(i => i.Id));
+        foreach (var staleId in _vmCache.Keys.Where(id => !liveIds.Contains(id)).ToList())
+            _vmCache.Remove(staleId);
+
+        _allRaw = fresh;
         ApplyFilter();
     }
 
@@ -52,16 +80,17 @@ public partial class ClipboardPanel : Window
             q = q.Where(MatchesSearch);
         }
 
-        var vms = q.Select(ToViewModel).ToList();
+        var vms = q.Select(GetOrCreateViewModel).ToList();
         itemsList.ItemsSource = vms;
 
         var any = vms.Count > 0;
         emptyState.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
-        listScroll.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+        itemsList.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
+        emptyClipboardIcon.Visibility = hasSearch ? Visibility.Collapsed : Visibility.Visible;
+        emptySearchIcon.Visibility = hasSearch ? Visibility.Visible : Visibility.Collapsed;
         emptyTitle.Text = hasSearch ? "没有匹配结果" : "暂无记录";
-        emptyDescription.Text = hasSearch ? "换个关键词试试" : "复制内容会自动保存到剪贴板历史中";
+        emptyDescription.Text = hasSearch ? "试试更短的关键词，或切换分类查看" : "复制内容会自动保存到剪贴板历史中";
         btnClearAll.ToolTip = GetClearActionText();
-
     }
 
     private bool MatchesSearch(ClipboardItem item)
@@ -91,7 +120,10 @@ public partial class ClipboardPanel : Window
         var hasSearch = !string.IsNullOrWhiteSpace(_searchText);
         searchPlaceholder.Visibility = hasSearch ? Visibility.Collapsed : Visibility.Visible;
         btnClearSearch.Visibility = hasSearch ? Visibility.Visible : Visibility.Collapsed;
-        ApplyFilter();
+
+        // C: 去抖,停止输入 200ms 后再过滤,避免每键全量重建
+        _searchDebounce.Stop();
+        _searchDebounce.Start();
     }
 
     private void BtnClearSearch_Click(object sender, RoutedEventArgs e)
@@ -149,6 +181,7 @@ public partial class ClipboardPanel : Window
         if (id != null)
         {
             _manager.ToggleFavorite(id);
+            _vmCache.Remove(id);   // D: 收藏态变了,使该 VM 失效以便重建
             LoadRecent();
         }
     }
@@ -159,6 +192,7 @@ public partial class ClipboardPanel : Window
         if (id != null)
         {
             _manager.Delete(id);
+            _vmCache.Remove(id);
             LoadRecent();
         }
     }
@@ -218,6 +252,17 @@ public partial class ClipboardPanel : Window
         };
     }
 
+    // D: 命中缓存直接复用;否则新建(不在此处解码图片,解码留给可见时的 ThumbImage_Loaded)
+    private ClipboardItemViewModel GetOrCreateViewModel(ClipboardItem item)
+    {
+        if (_vmCache.TryGetValue(item.Id, out var cached))
+            return cached;
+
+        var vm = ToViewModel(item);
+        _vmCache[item.Id] = vm;
+        return vm;
+    }
+
     private ClipboardItemViewModel ToViewModel(ClipboardItem item)
     {
         var vm = new ClipboardItemViewModel
@@ -226,7 +271,7 @@ public partial class ClipboardPanel : Window
             RelativeTime = RelativeTimeFormatter.Format(item.CreatedAt),
             FullTimestamp = RelativeTimeFormatter.GetFullTimestamp(item.CreatedAt),
             IsFavorite = item.IsFavorite,
-            FavoriteGlyph = item.IsFavorite ? "" : "",
+            FavoriteGlyph = item.IsFavorite ? "★" : "☆",
             FavoriteTooltip = item.IsFavorite ? "取消收藏" : "收藏",
             SourceApp = item.SourceApp ?? string.Empty
         };
@@ -234,7 +279,7 @@ public partial class ClipboardPanel : Window
         if (item.Type == ClipboardItemType.Image && !string.IsNullOrEmpty(item.ImagePath) && File.Exists(item.ImagePath))
         {
             vm.IsImage = true;
-            vm.ImageSource = LoadThumbnail(item.ImagePath!);
+            vm.ImagePath = item.ImagePath;            // B: 仅记录路径,延迟到可见时解码
             var (w, h) = ReadPngSize(item.ImagePath!);
             vm.SizeText = w > 0 ? $"{w} × {h}" : "图片";
         }
@@ -254,6 +299,35 @@ public partial class ClipboardPanel : Window
         return vm;
     }
 
+    // B: 行进入可视区(虚拟化实例化)时才触发解码;后台线程解码,限流,完成后回 UI 线程赋值
+    private void ThumbImage_Loaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not System.Windows.Controls.Image img || img.DataContext is not ClipboardItemViewModel vm)
+            return;
+        if (!vm.IsImage || vm.ImageSource != null || vm.ThumbRequested || string.IsNullOrEmpty(vm.ImagePath))
+            return;
+
+        vm.ThumbRequested = true;
+        var path = vm.ImagePath;
+
+        _ = Task.Run(async () =>
+        {
+            await ThumbThrottle.WaitAsync();
+            try
+            {
+                var bmp = LoadThumbnail(path);
+                if (bmp != null)
+                    Dispatcher.Invoke(() => vm.ImageSource = bmp);
+                else
+                    vm.ThumbRequested = false;   // 解码失败,允许后续重试
+            }
+            finally
+            {
+                ThumbThrottle.Release();
+            }
+        });
+    }
+
     private static ImageSource? LoadThumbnail(string path)
     {
         try
@@ -264,7 +338,7 @@ public partial class ClipboardPanel : Window
             bmp.DecodePixelHeight = 240;                  // 缩略图,降低内存
             bmp.UriSource = new Uri(path);
             bmp.EndInit();
-            bmp.Freeze();
+            bmp.Freeze();                                 // 跨线程:冻结后可在 UI 线程使用
             return bmp;
         }
         catch
@@ -299,19 +373,37 @@ public partial class ClipboardPanel : Window
 /// <summary>
 /// 剪贴板条目视图模型
 /// </summary>
-public class ClipboardItemViewModel
+public class ClipboardItemViewModel : INotifyPropertyChanged
 {
     public string Id { get; set; } = string.Empty;
     public bool IsImage { get; set; }
     public bool IsText { get; set; }
     public string DisplayText { get; set; } = string.Empty;
-    public ImageSource? ImageSource { get; set; }
+
+    // B: 图片路径与延迟解码标记
+    public string? ImagePath { get; set; }
+    public bool ThumbRequested { get; set; }
+
+    private ImageSource? _imageSource;
+    public ImageSource? ImageSource
+    {
+        get => _imageSource;
+        set
+        {
+            if (ReferenceEquals(_imageSource, value)) return;
+            _imageSource = value;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ImageSource)));
+        }
+    }
+
     public string RelativeTime { get; set; } = string.Empty;
     public string FullTimestamp { get; set; } = string.Empty;
     public string SourceApp { get; set; } = string.Empty;
     public bool HasSource => !string.IsNullOrEmpty(SourceApp);
     public string SizeText { get; set; } = string.Empty;
     public bool IsFavorite { get; set; }
-    public string FavoriteGlyph { get; set; } = "";
+    public string FavoriteGlyph { get; set; } = "☆";
     public string FavoriteTooltip { get; set; } = "收藏";
+
+    public event PropertyChangedEventHandler? PropertyChanged;
 }

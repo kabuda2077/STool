@@ -45,11 +45,11 @@ public partial class TrayMenuWindow : Window
         {
             Height = 0.5,
             Background = brush,
-            Margin = new Thickness(10, 2, 10, 2)
+            Margin = new Thickness(38, 2, 38, 2)
         });
     }
 
-    public void AddItem(string label, string shortcut, Action onClick, bool danger = false)
+    public void AddItem(string label, string shortcut, Action onClick, TrayMenuIconKind icon, bool danger = false)
     {
         var button = new Button
         {
@@ -57,8 +57,15 @@ public partial class TrayMenuWindow : Window
         };
 
         var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var iconBrush = (Brush)FindResource(danger ? "ErrorBrush" : "TextSecondaryBrush");
+        var iconView = CreateIcon(icon, iconBrush);
+        iconView.Margin = new Thickness(0, 0, 10, 0);
+        Grid.SetColumn(iconView, 0);
+        grid.Children.Add(iconView);
 
         var text = new TextBlock
         {
@@ -66,7 +73,7 @@ public partial class TrayMenuWindow : Window
             Foreground = (Brush)FindResource(danger ? "ErrorBrush" : "TextPrimaryBrush"),
             VerticalAlignment = VerticalAlignment.Center
         };
-        Grid.SetColumn(text, 0);
+        Grid.SetColumn(text, 1);
         grid.Children.Add(text);
 
         if (!string.IsNullOrEmpty(shortcut))
@@ -79,7 +86,7 @@ public partial class TrayMenuWindow : Window
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(16, 0, 0, 0)
             };
-            Grid.SetColumn(shortcutText, 1);
+            Grid.SetColumn(shortcutText, 2);
             grid.Children.Add(shortcutText);
         }
 
@@ -91,6 +98,66 @@ public partial class TrayMenuWindow : Window
         };
         menuPanel.Children.Add(button);
     }
+
+    private static Viewbox CreateIcon(TrayMenuIconKind icon, Brush brush)
+    {
+        var canvas = new Canvas
+        {
+            Width = 24,
+            Height = 24
+        };
+
+        foreach (var data in GetIconData(icon))
+        {
+            canvas.Children.Add(new System.Windows.Shapes.Path
+            {
+                Data = Geometry.Parse(data),
+                Stroke = brush,
+                StrokeThickness = 2,
+                StrokeStartLineCap = PenLineCap.Round,
+                StrokeEndLineCap = PenLineCap.Round,
+                StrokeLineJoin = PenLineJoin.Round,
+                Fill = System.Windows.Media.Brushes.Transparent
+            });
+        }
+
+        return new Viewbox
+        {
+            Width = 18,
+            Height = 18,
+            Child = canvas,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+    }
+
+    private static string[] GetIconData(TrayMenuIconKind icon) => icon switch
+    {
+        TrayMenuIconKind.Screenshot => new[]
+        {
+            "M5 3 H19 A2 2 0 0 1 21 5 V19 A2 2 0 0 1 19 21 H5 A2 2 0 0 1 3 19 V5 A2 2 0 0 1 5 3 Z",
+            "M8 8 H16 M8 12 H14 M8 16 H12"
+        },
+        TrayMenuIconKind.Translate => new[]
+        {
+            "M5 8 L11 14 M4 14 L10 8 L12 5 M2 5 H14 M7 2 H8",
+            "M22 22 L17 12 L12 22 M14 18 H20"
+        },
+        TrayMenuIconKind.Clipboard => new[]
+        {
+            "M8 4 H16 A2 2 0 0 1 18 6 V20 A2 2 0 0 1 16 22 H8 A2 2 0 0 1 6 20 V6 A2 2 0 0 1 8 4 Z",
+            "M9 4 A3 3 0 0 1 15 4 M9 10 H15 M9 14 H14"
+        },
+        TrayMenuIconKind.Settings => new[]
+        {
+            "M12 8 A4 4 0 1 0 12 16 A4 4 0 1 0 12 8 Z",
+            "M12 2 V4 M12 20 V22 M4.93 4.93 L6.34 6.34 M17.66 17.66 L19.07 19.07 M2 12 H4 M20 12 H22 M4.93 19.07 L6.34 17.66 M17.66 6.34 L19.07 4.93"
+        },
+        TrayMenuIconKind.Exit => new[]
+        {
+            "M18 6 L6 18 M6 6 L18 18"
+        },
+        _ => Array.Empty<string>()
+    };
 
     public void ShowNearCursor()
     {

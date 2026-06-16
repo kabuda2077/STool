@@ -12,7 +12,7 @@
         SnapsToDevicePixels="True">
 
     <Border Background="{StaticResource SurfaceBrush}"
-            CornerRadius="10"
+                CornerRadius="8"
             Padding="18"
             Margin="18"
             MinWidth="340"

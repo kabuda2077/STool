@@ -278,7 +278,7 @@
 
             <!-- 提供商切换 -->
             <Border Background="{StaticResource SurfaceBrush}"
-                    CornerRadius="10"
+                    CornerRadius="8"
                     Padding="4">
                 <StackPanel Orientation="Horizontal">
                     <Button x:Name="btnProviderGoogle" Style="{StaticResource ProviderToggle}" Click="Provider_Click" Tag="on" Content="谷歌翻译"/>
@@ -289,7 +289,7 @@
             <!-- 语言选择:源 → 目标 -->
             <Border Grid.Column="2"
                     Background="{StaticResource SurfaceBrush}"
-                    CornerRadius="10"
+                    CornerRadius="8"
                     Padding="3">
                 <StackPanel Orientation="Horizontal">
                     <ComboBox x:Name="cmbSource" Style="{StaticResource TranslationLanguageComboBox}" Width="90" Height="32" SelectedIndex="0">
@@ -341,14 +341,14 @@
                       Margin="0,0,0,0">
                     <!-- 阴影层:无文字,仅投柔和阴影 -->
                     <Border Background="{StaticResource SurfaceBrush}"
-                            CornerRadius="10">
+                            CornerRadius="8">
                         <Border.Effect>
                             <StaticResource ResourceKey="MenuShadow"/>
                         </Border.Effect>
                     </Border>
                     <!-- 内容层:无特效,文字原生渲染 -->
                     <Border Background="{StaticResource SurfaceBrush}"
-                            CornerRadius="10"
+                            CornerRadius="8"
                             Padding="5">
                         <StackPanel Orientation="Horizontal">
                             <Button x:Name="btnCopyOnly" Style="{StaticResource FloatingAction}" Click="BtnCopyOnly_Click">

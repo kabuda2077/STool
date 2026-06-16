@@ -61,7 +61,7 @@
             <!-- 工具条(位置在代码中按选区计算并夹紧屏幕) -->
             <Border x:Name="toolbar"
                     Background="{StaticResource SurfaceBrush}"
-                    CornerRadius="9"
+                    CornerRadius="8"
                     Padding="6"
                     BorderBrush="{StaticResource BorderBrush}"
                     BorderThickness="1"

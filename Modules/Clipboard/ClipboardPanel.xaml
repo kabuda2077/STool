@@ -24,7 +24,7 @@
                         <Border Background="{StaticResource TransparentBrush}"
                                 Padding="10">
                             <Border Background="{StaticResource SurfaceBrush}"
-                                    CornerRadius="9"
+                                    CornerRadius="8"
                                     Padding="5">
                                 <Border.Effect>
                                     <StaticResource ResourceKey="MenuShadow"/>
@@ -95,7 +95,7 @@
                             </Trigger>
                             <Trigger Property="Tag" Value="on">
                                 <Setter TargetName="pill" Property="Background" Value="{StaticResource PrimaryBrush}"/>
-                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="Foreground" Value="{StaticResource OnPrimaryBrush}"/>
                                 <Setter Property="FontWeight" Value="SemiBold"/>
                             </Trigger>
                         </ControlTemplate.Triggers>
@@ -107,7 +107,7 @@
         <!-- 列表行:白色行块浮于画布,间隙分隔,无线条;悬停用稍深灰和背景区分 -->
         <Style x:Key="ClipRow" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-            <Setter Property="CornerRadius" Value="10"/>
+            <Setter Property="CornerRadius" Value="8"/>
             <Setter Property="Padding" Value="16,14"/>
             <Setter Property="Margin" Value="0,4"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -223,101 +223,187 @@
             <StackPanel x:Name="emptyState"
                         Style="{StaticResource EmptyStateContainer}"
                         Visibility="Collapsed">
-                <TextBlock Text="&#xE8F4;" Style="{StaticResource EmptyStateIcon}"/>
+                <Border Width="68"
+                        Height="68"
+                        Background="{StaticResource SurfaceBrush}"
+                        CornerRadius="18"
+                        HorizontalAlignment="Center">
+                    <Border.Effect>
+                        <StaticResource ResourceKey="PaneShadow"/>
+                    </Border.Effect>
+                    <Grid>
+                        <Viewbox x:Name="emptyClipboardIcon"
+                                 Width="30"
+                                 Height="30"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center">
+                            <Canvas Width="24" Height="24">
+                                <Path Data="M8 4 H16 A2 2 0 0 1 18 6 V20 A2 2 0 0 1 16 22 H8 A2 2 0 0 1 6 20 V6 A2 2 0 0 1 8 4 Z M9 4 A3 3 0 0 1 15 4 M9 10 H15 M9 14 H14"
+                                      Stroke="{StaticResource TextSecondaryBrush}"
+                                      StrokeThickness="2"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      Fill="{StaticResource TransparentBrush}"
+                                      Opacity="0.72"/>
+                            </Canvas>
+                        </Viewbox>
+                        <Viewbox x:Name="emptySearchIcon"
+                                 Width="30"
+                                 Height="30"
+                                 HorizontalAlignment="Center"
+                                 VerticalAlignment="Center"
+                                 Visibility="Collapsed">
+                            <Canvas Width="24" Height="24">
+                                <Path Data="M11 4 A7 7 0 1 0 11 18 A7 7 0 1 0 11 4 Z M16 16 L21 21"
+                                      Stroke="{StaticResource TextSecondaryBrush}"
+                                      StrokeThickness="2"
+                                      StrokeStartLineCap="Round"
+                                      StrokeEndLineCap="Round"
+                                      StrokeLineJoin="Round"
+                                      Fill="{StaticResource TransparentBrush}"
+                                      Opacity="0.72"/>
+                            </Canvas>
+                        </Viewbox>
+                    </Grid>
+                </Border>
                 <TextBlock x:Name="emptyTitle" Text="暂无记录" Style="{StaticResource EmptyStateTitle}"/>
                 <TextBlock x:Name="emptyDescription" Text="复制内容会自动保存到剪贴板历史中" Style="{StaticResource EmptyStateDescription}"/>
             </StackPanel>
 
-            <!-- 滚动条 overlay(叠在内容上,不占布局宽)→ 左右 padding 数值相等、真正对称 -->
-            <ScrollViewer x:Name="listScroll"
-                          VerticalScrollBarVisibility="Auto"
-                          Padding="16,4,16,4">
-                <ScrollViewer.Template>
-                    <ControlTemplate TargetType="ScrollViewer">
+            <!-- 列表:虚拟化 ListBox(Recycling + 像素滚动,行高不等);保留 8px 细滚动条 -->
+            <ListBox x:Name="itemsList"
+                     Background="{StaticResource TransparentBrush}"
+                     BorderThickness="0"
+                     Padding="0"
+                     HorizontalContentAlignment="Stretch"
+                     ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                     ScrollViewer.VerticalScrollBarVisibility="Auto"
+                     ScrollViewer.CanContentScroll="True"
+                     VirtualizingPanel.IsVirtualizing="True"
+                     VirtualizingPanel.VirtualizationMode="Recycling"
+                     VirtualizingPanel.ScrollUnit="Pixel">
+                <ListBox.Template>
+                    <ControlTemplate TargetType="ListBox">
                         <Grid>
-                            <ScrollContentPresenter Margin="{TemplateBinding Padding}"/>
-                            <ScrollBar x:Name="PART_VerticalScrollBar"
-                                       HorizontalAlignment="Right"
-                                       Width="8"
-                                       Margin="0,4,3,4"
-                                       Background="{StaticResource TransparentBrush}"
-                                       Value="{TemplateBinding VerticalOffset}"
-                                       Maximum="{TemplateBinding ScrollableHeight}"
-                                       ViewportSize="{TemplateBinding ViewportHeight}"
-                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+                            <ScrollViewer x:Name="PART_Scroll"
+                                          Focusable="False"
+                                          Padding="16,4,16,4"
+                                          CanContentScroll="True"
+                                          VerticalScrollBarVisibility="Auto"
+                                          HorizontalScrollBarVisibility="Disabled">
+                                <ScrollViewer.Template>
+                                    <ControlTemplate TargetType="ScrollViewer">
+                                        <Grid>
+                                            <ScrollContentPresenter Margin="{TemplateBinding Padding}"
+                                                                    CanContentScroll="{TemplateBinding CanContentScroll}"/>
+                                            <ScrollBar x:Name="PART_VerticalScrollBar"
+                                                       HorizontalAlignment="Right"
+                                                       Width="8"
+                                                       Margin="0,4,3,4"
+                                                       Background="{StaticResource TransparentBrush}"
+                                                       Value="{TemplateBinding VerticalOffset}"
+                                                       Maximum="{TemplateBinding ScrollableHeight}"
+                                                       ViewportSize="{TemplateBinding ViewportHeight}"
+                                                       Visibility="{TemplateBinding ComputedVerticalScrollBarVisibility}"/>
+                                        </Grid>
+                                    </ControlTemplate>
+                                </ScrollViewer.Template>
+                                <ItemsPresenter/>
+                            </ScrollViewer>
                         </Grid>
                     </ControlTemplate>
-                </ScrollViewer.Template>
-                <ItemsControl x:Name="itemsList">
-                    <ItemsControl.ItemTemplate>
-                        <DataTemplate>
-                            <Border Style="{StaticResource ClipRow}"
-                                    MouseLeftButtonDown="Item_MouseLeftButtonDown">
-                                <Border.Tag>
-                                    <Binding Path="Id"/>
-                                </Border.Tag>
-                                <Border.ContextMenu>
-                                    <ContextMenu>
-                                        <MenuItem Header="{Binding FavoriteTooltip}" Click="MenuFavorite_Click"/>
-                                        <MenuItem Header="删除" Click="MenuDelete_Click"/>
-                                    </ContextMenu>
-                                </Border.ContextMenu>
-                                <Grid>
-                                    <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="*"/>
-                                        <ColumnDefinition Width="Auto"/>
-                                    </Grid.ColumnDefinitions>
+                </ListBox.Template>
+                <ListBox.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <VirtualizingStackPanel/>
+                    </ItemsPanelTemplate>
+                </ListBox.ItemsPanel>
+                <ListBox.ItemContainerStyle>
+                    <Style TargetType="ListBoxItem">
+                        <Setter Property="Padding" Value="0"/>
+                        <Setter Property="Margin" Value="0"/>
+                        <Setter Property="Background" Value="Transparent"/>
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+                        <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="ListBoxItem">
+                                    <ContentPresenter/>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                    </Style>
+                </ListBox.ItemContainerStyle>
+                <ListBox.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource ClipRow}"
+                                MouseLeftButtonDown="Item_MouseLeftButtonDown">
+                            <Border.Tag>
+                                <Binding Path="Id"/>
+                            </Border.Tag>
+                            <Border.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="{Binding FavoriteTooltip}" Click="MenuFavorite_Click"/>
+                                    <MenuItem Header="删除" Click="MenuDelete_Click"/>
+                                </ContextMenu>
+                            </Border.ContextMenu>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*"/>
+                                    <ColumnDefinition Width="Auto"/>
+                                </Grid.ColumnDefinitions>
 
-                                    <!-- 内容 + 时间 -->
-                                    <StackPanel Margin="0,0,12,0">
-                                        <Image Source="{Binding ImageSource}"
-                                               MaxHeight="120"
-                                               HorizontalAlignment="Left"
-                                               Stretch="Uniform"
-                                               RenderOptions.BitmapScalingMode="HighQuality"
-                                               Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}"/>
-                                        <TextBlock Text="{Binding DisplayText}"
-                                                   TextWrapping="Wrap"
-                                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                                   FontSize="{StaticResource FontSizeBody}"
-                                                   LineHeight="20"
-                                                   MaxHeight="62"
-                                                   TextTrimming="CharacterEllipsis"
-                                                   Visibility="{Binding IsText, Converter={StaticResource BoolToVis}}"/>
-                                        <TextBlock Text="{Binding RelativeTime}"
-                                                   FontSize="{StaticResource FontSizeMicro}"
-                                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                                   Margin="0,8,0,0"
-                                                   ToolTip="{Binding FullTimestamp}"/>
-                                    </StackPanel>
+                                <!-- 内容 + 时间 -->
+                                <StackPanel Margin="0,0,12,0">
+                                    <Image Source="{Binding ImageSource}"
+                                           MaxHeight="120"
+                                           HorizontalAlignment="Left"
+                                           Stretch="Uniform"
+                                           RenderOptions.BitmapScalingMode="HighQuality"
+                                           Loaded="ThumbImage_Loaded"
+                                           Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}"/>
+                                    <TextBlock Text="{Binding DisplayText}"
+                                               TextWrapping="Wrap"
+                                               Foreground="{StaticResource TextPrimaryBrush}"
+                                               FontSize="{StaticResource FontSizeBody}"
+                                               LineHeight="20"
+                                               MaxHeight="62"
+                                               TextTrimming="CharacterEllipsis"
+                                               Visibility="{Binding IsText, Converter={StaticResource BoolToVis}}"/>
+                                    <TextBlock Text="{Binding RelativeTime}"
+                                               FontSize="{StaticResource FontSizeMicro}"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               Margin="0,8,0,0"
+                                               ToolTip="{Binding FullTimestamp}"/>
+                                </StackPanel>
 
-                                    <!-- 来源 + 尺寸 + 悬停操作 -->
-                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
-                                        <Border Style="{StaticResource SourceBadge}"
-                                                Visibility="{Binding HasSource, Converter={StaticResource BoolToVis}}">
-                                            <TextBlock Text="{Binding SourceApp}"
-                                                       FontSize="{StaticResource FontSizeMicro}"
-                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
-                                        </Border>
-                                        <TextBlock Text="{Binding SizeText}"
+                                <!-- 来源 + 尺寸 + 悬停操作 -->
+                                <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                    <Border Style="{StaticResource SourceBadge}"
+                                            Visibility="{Binding HasSource, Converter={StaticResource BoolToVis}}">
+                                        <TextBlock Text="{Binding SourceApp}"
                                                    FontSize="{StaticResource FontSizeMicro}"
-                                                   Foreground="{StaticResource TextSecondaryBrush}"
-                                                   HorizontalAlignment="Right"
-                                                   Margin="0,6,0,0"/>
-                                    </StackPanel>
-                                </Grid>
-                            </Border>
-                        </DataTemplate>
-                    </ItemsControl.ItemTemplate>
-                </ItemsControl>
-            </ScrollViewer>
+                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
+                                    </Border>
+                                    <TextBlock Text="{Binding SizeText}"
+                                               FontSize="{StaticResource FontSizeMicro}"
+                                               Foreground="{StaticResource TextSecondaryBrush}"
+                                               HorizontalAlignment="Right"
+                                               Margin="0,6,0,0"/>
+                                </StackPanel>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
 
             <!-- 悬浮清空按钮 -->
             <Button x:Name="btnClearAll"
                     VerticalAlignment="Bottom"
                     HorizontalAlignment="Right"
                     Margin="0,0,20,20"
-                    Width="46" Height="46"
+                    Width="44" Height="44"
                     Cursor="Hand"
                     ToolTip="清空全部"
                     Click="BtnClearAll_Click">
@@ -326,11 +412,11 @@
                         <Border x:Name="fab"
                                 Background="{StaticResource SurfaceBrush}"
                                 BorderThickness="0"
-                                CornerRadius="23">
+                                CornerRadius="22">
                             <Border.Effect>
                                 <StaticResource ResourceKey="MenuShadow"/>
                             </Border.Effect>
-                            <Viewbox Width="18" Height="18"
+                            <Viewbox Width="20" Height="20"
                                      HorizontalAlignment="Center"
                                      VerticalAlignment="Center">
                                 <Canvas Width="24" Height="24">

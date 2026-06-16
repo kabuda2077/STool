@@ -9,7 +9,7 @@
         ResizeMode="NoResize"
         SizeToContent="Height"
         WindowStartupLocation="Manual"
-        Width="180"
+        Width="206"
         UseLayoutRounding="True"
         TextOptions.TextFormattingMode="Ideal"
         TextOptions.TextRenderingMode="ClearType"
@@ -29,7 +29,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Root"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="6"
+                                CornerRadius="7"
                                 Padding="10,0">
                             <ContentPresenter VerticalAlignment="Center"
                                               TextElement.Foreground="{TemplateBinding Foreground}"/>
@@ -54,7 +54,7 @@
 
     <Border Background="{StaticResource SurfaceBrush}"
             BorderThickness="0"
-            CornerRadius="10"
+            CornerRadius="8"
             Padding="6"
             Margin="0">
         <StackPanel x:Name="menuPanel"/>

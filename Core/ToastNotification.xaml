@@ -14,7 +14,7 @@
 
     <Border Background="{StaticResource SurfaceBrush}"
             BorderThickness="0"
-            CornerRadius="10"
+                CornerRadius="8"
             Padding="14,12"
             Margin="20"
             MinWidth="280"

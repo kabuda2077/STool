@@ -203,11 +203,7 @@ public class AppBootstrap : IDisposable
         Log.Information("Screenshot hotkey triggered");
 
         // 一体化取景窗自行处理选区/标注/复制/保存等,无需外部事件
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        var overlay = new STool.Modules.Screenshot.CaptureOverlay();
-        Log.Information("[Capture] overlay constructed at {Elapsed}ms, calling Show()", sw.ElapsedMilliseconds);
-        overlay.Show();
-        Log.Information("[Capture] overlay Show() returned at {Elapsed}ms", sw.ElapsedMilliseconds);
+        new STool.Modules.Screenshot.CaptureOverlay().Show();
     }
 
     private void OnTranslationHotkey()

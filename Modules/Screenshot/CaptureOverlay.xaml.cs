@@ -50,6 +50,10 @@ public partial class CaptureOverlay : Window
     private AnnotationTool _currentTool = AnnotationTool.None;
     private Button[] _toolButtons = Array.Empty<Button>();
 
+    // 诊断:从构造结束开始计时,用于把 Show() 内部耗时拆成
+    // [ctor→SourceInitialized](建句柄) 与 [SourceInitialized→Loaded](首帧渲染/合成)两段
+    private readonly System.Diagnostics.Stopwatch _showTimer = new();
+
     public CaptureOverlay() : this(false) { }
 
     /// <summary>
@@ -60,14 +64,11 @@ public partial class CaptureOverlay : Window
 
     private CaptureOverlay(bool prewarm)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        Log.Information("[Capture] ctor begin (prewarm={Prewarm})", prewarm);
         InitializeComponent();
 
         if (prewarm)
         {
             // 不抓屏、不挂 Loaded、不显示;只为把 WPF 一次性初始化成本提前付掉
-            Log.Information("[Capture] prewarm ctor end at {Elapsed}ms", sw.ElapsedMilliseconds);
             return;
         }
 
@@ -79,39 +80,86 @@ public partial class CaptureOverlay : Window
 
         // 冻结屏幕
         _frozen = ScreenCapture.CaptureAllScreens();
-        Log.Information("[Capture] frozen captured at {Elapsed}ms ({W}x{H})", sw.ElapsedMilliseconds, _frozen.Width, _frozen.Height);
         screenshotImage.Source = ToBitmapSource(_frozen);
 
         Loaded += OnLoaded;
-        Log.Information("[Capture] ctor end at {Elapsed}ms", sw.ElapsedMilliseconds);
+        _showTimer.Restart();   // 问题二观察基准:统计 ctor end → Loaded 的首帧合成耗时
+    }
+
+    /// <summary>句柄创建完成(在 Loaded 之前)。强制夺取前台键盘焦点(修复 Esc/Enter 失效)。</summary>
+    protected override void OnSourceInitialized(EventArgs e)
+    {
+        base.OnSourceInitialized(e);
+        ForceForeground();
+    }
+
+    /// <summary>
+    /// 后台进程(托盘+全局热键)弹出的窗口默认抢不到前台,导致 Esc/Enter 被原前台应用
+    /// (如 always-on-top 的 dashboard)吃掉。这里用 AttachThreadInput 绕过前台锁定,
+    /// 把前台窗口线程的输入队列临时附加到本线程,从而成功 SetForegroundWindow + 取键盘焦点。
+    /// </summary>
+    private void ForceForeground()
+    {
+        try
+        {
+            var hwnd = new WindowInteropHelper(this).Handle;
+            if (hwnd == IntPtr.Zero) return;
+
+            var foreHwnd = GetForegroundWindow();
+            uint foreThread = foreHwnd != IntPtr.Zero ? GetWindowThreadProcessId(foreHwnd, IntPtr.Zero) : 0;
+            uint thisThread = GetCurrentThreadId();
+
+            bool attached = false;
+            if (foreThread != 0 && foreThread != thisThread)
+                attached = AttachThreadInput(foreThread, thisThread, true);
+
+            SetForegroundWindow(hwnd);
+            Activate();
+            Focus();
+            Keyboard.Focus(this);
+
+            if (attached)
+                AttachThreadInput(foreThread, thisThread, false);
+
+            // 仅在未夺到键盘焦点时告警(Esc/Enter 会失效),正常成功不刷日志
+            if (!IsKeyboardFocusWithin)
+                Log.Warning("[Capture] ForceForeground did not gain keyboard focus (attached={Attached})", attached);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Capture] ForceForeground failed");
+        }
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        Log.Information("[Capture] OnLoaded begin");
+        // 问题二观察点:SourceInitialized → Loaded 之间是 DWM 首帧合成,偶发卡 ~5s。
+        // 正常很快、不刷日志;仅当超过阈值才告警一条,便于继续观察而不污染日志。
+        var sinceCtor = _showTimer.ElapsedMilliseconds;
+        if (sinceCtor >= FirstFrameWarnMs)
+            Log.Warning("[Capture] slow first-frame composition: {Ms}ms (ctor end → Loaded)", sinceCtor);
+
         var t = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
         _scaleX = t.M11; _scaleY = t.M22;
 
         CreateHandles();
         _annotation = new AnnotationCanvas(annotationCanvas);
         _toolButtons = new[] { btnRect, btnEllipse, btnArrow, btnPen };
-        Log.Information("[Capture] handles+annotation ready at {Elapsed}ms", sw.ElapsedMilliseconds);
 
         // 枚举底层窗口(用于"识别窗口"悬停吸附)
         EnumerateWindows();
-        Log.Information("[Capture] EnumerateWindows done at {Elapsed}ms ({Count} windows)", sw.ElapsedMilliseconds, _windowRects.Count);
 
         // 初始:识别光标所在窗口(无则工作区);未确认前不显示工具条
         _selection = DetectSelectionOrDefault();
-        Log.Information("[Capture] DetectSelection done at {Elapsed}ms", sw.ElapsedMilliseconds);
 
         selectionBorder.Visibility = Visibility.Visible;
         toolbar.Visibility = Visibility.Collapsed;
         UpdateVisuals();
         Activate();
-        Log.Information("[Capture] OnLoaded end at {Elapsed}ms", sw.ElapsedMilliseconds);
     }
+
+    /// <summary>首帧合成耗时告警阈值(毫秒)。低于此值视为正常,不记日志。</summary>
+    private const long FirstFrameWarnMs = 1500;
 
     /// <summary>默认选区 = 光标所在显示器的工作区(物理像素换算到窗口 DIP 坐标)。</summary>
     private Rect DefaultSelectionRect()
@@ -132,6 +180,13 @@ public partial class CaptureOverlay : Window
     [DllImport("user32.dll")] private static extern bool GetWindowRect(IntPtr h, out NRECT r);
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr h, int attr, out NRECT r, int size);
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr h, int attr, out int v, int size);
+
+    // 强制夺取前台焦点(绕过 Windows 前台锁定:把目标前台线程的输入队列临时附加到本线程)
+    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hWnd, IntPtr pid);
+    [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
+    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
     [StructLayout(LayoutKind.Sequential)] private struct NRECT { public int Left, Top, Right, Bottom; }
     private const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
     private const int DWMWA_CLOAKED = 14;
@@ -166,7 +221,9 @@ public partial class CaptureOverlay : Window
             _windowRects.Add(new System.Drawing.Rectangle(r.Left, r.Top, w, h));
             return true;
         }, IntPtr.Zero);
-        Log.Information("[Capture] EnumWindows callback loop took {Ms}ms", swTotal.ElapsedMilliseconds);
+        // 整个枚举循环异常慢(某窗口无响应拖累)时才告警
+        if (swTotal.ElapsedMilliseconds > 200)
+            Log.Warning("[Capture] EnumWindows loop slow: {Ms}ms", swTotal.ElapsedMilliseconds);
     }
 
     /// <summary>光标所在的最上层窗口选区;无则回退到工作区。</summary>
@@ -583,7 +640,6 @@ public partial class CaptureOverlay : Window
 
     private void Window_KeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
-        Log.Information("[Capture] KeyDown: {Key} (focused={HasFocus})", e.Key, IsKeyboardFocusWithin);
         if (e.Key == Key.Escape) { CloseOverlay(); return; }
         if (e.Key == Key.Enter) { CopyAndClose(); return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Z) { _annotation?.Undo(); return; }

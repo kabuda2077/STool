@@ -47,14 +47,42 @@ public static class ScreenCapture
     /// </summary>
     public static Bitmap CaptureRegion(Rectangle bounds)
     {
-        var bitmap = new Bitmap(bounds.Width, bounds.Height, PixelFormat.Format32bppArgb);
+        var screenDc = GetDC(IntPtr.Zero);
+        if (screenDc == IntPtr.Zero)
+            throw new InvalidOperationException("Failed to get screen DC");
 
-        using (var graphics = Graphics.FromImage(bitmap))
+        var memoryDc = IntPtr.Zero;
+        var bitmapHandle = IntPtr.Zero;
+        var oldObject = IntPtr.Zero;
+
+        try
         {
-            graphics.CopyFromScreen(bounds.Left, bounds.Top, 0, 0, bounds.Size, CopyPixelOperation.SourceCopy);
-        }
+            memoryDc = CreateCompatibleDC(screenDc);
+            if (memoryDc == IntPtr.Zero)
+                throw new InvalidOperationException("Failed to create memory DC");
 
-        return bitmap;
+            bitmapHandle = CreateCompatibleBitmap(screenDc, bounds.Width, bounds.Height);
+            if (bitmapHandle == IntPtr.Zero)
+                throw new InvalidOperationException("Failed to create capture bitmap");
+
+            oldObject = SelectObject(memoryDc, bitmapHandle);
+
+            if (!BitBlt(memoryDc, 0, 0, bounds.Width, bounds.Height, screenDc, bounds.Left, bounds.Top, CopyPixelOperation.SourceCopy))
+                throw new InvalidOperationException("Screen capture failed");
+
+            using var captured = Image.FromHbitmap(bitmapHandle);
+            return new Bitmap(captured);
+        }
+        finally
+        {
+            if (oldObject != IntPtr.Zero && memoryDc != IntPtr.Zero)
+                SelectObject(memoryDc, oldObject);
+            if (bitmapHandle != IntPtr.Zero)
+                DeleteObject(bitmapHandle);
+            if (memoryDc != IntPtr.Zero)
+                DeleteDC(memoryDc);
+            ReleaseDC(IntPtr.Zero, screenDc);
+        }
     }
 
     /// <summary>

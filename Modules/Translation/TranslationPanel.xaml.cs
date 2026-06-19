@@ -24,7 +24,9 @@ public partial class TranslationPanel : Window
         _targetHwnd = GetForegroundWindow();   // 在 Show() 之前抓取 = 用户原来的应用
         InitializeComponent();
         _translationManager = translationManager;
+        _provider = _translationManager.GetConfiguredProvider();
         UpdateProviderButtons();
+        Loaded += TranslationPanel_Loaded;
 
         // 回车翻译;Shift+Enter 换行
         txtSource.PreviewKeyDown += (_, e) =>
@@ -37,25 +39,45 @@ public partial class TranslationPanel : Window
         };
     }
 
+    private void TranslationPanel_Loaded(object sender, RoutedEventArgs e)
+    {
+        Dispatcher.BeginInvoke(new Action(() =>
+        {
+            Activate();
+            txtSource.Focus();
+            Keyboard.Focus(txtSource);
+        }), DispatcherPriority.ApplicationIdle);
+    }
+
     private void Provider_Click(object sender, RoutedEventArgs e)
     {
-        _provider = ReferenceEquals(sender, btnProviderTencent)
-            ? TranslationProvider.Tencent
-            : TranslationProvider.Google;
+        _provider = sender switch
+        {
+            var button when ReferenceEquals(button, btnProviderTencent) => TranslationProvider.Tencent,
+            var button when ReferenceEquals(button, btnProviderAi) => TranslationProvider.OpenAI,
+            _ => TranslationProvider.Google
+        };
+        _translationManager.SaveConfiguredProvider(_provider);
         UpdateProviderButtons();
+
+        if (!string.IsNullOrWhiteSpace(txtSource.Text))
+        {
+            _ = TranslateAsync();
+        }
     }
 
     private void UpdateProviderButtons()
     {
         btnProviderGoogle.Tag = _provider == TranslationProvider.Google ? "on" : null;
         btnProviderTencent.Tag = _provider == TranslationProvider.Tencent ? "on" : null;
+        btnProviderAi.Tag = _provider == TranslationProvider.OpenAI ? "on" : null;
     }
 
     private void TxtSource_TextChanged(object sender, TextChangedEventArgs e)
     {
         var hasText = !string.IsNullOrEmpty(txtSource.Text);
         srcWatermark.Visibility = hasText ? Visibility.Collapsed : Visibility.Visible;
-        btnClearSource.Visibility = hasText ? Visibility.Visible : Visibility.Collapsed;
+        sourceActions.Visibility = hasText ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void TxtTarget_TextChanged(object sender, TextChangedEventArgs e)
@@ -113,6 +135,8 @@ public partial class TranslationPanel : Window
     }
 
     private void BtnCopyOnly_Click(object sender, RoutedEventArgs e) => CopyText();
+
+    private void BtnTranslateSource_Click(object sender, RoutedEventArgs e) => _ = TranslateAsync();
 
     private void BtnClearSource_Click(object sender, RoutedEventArgs e)
     {

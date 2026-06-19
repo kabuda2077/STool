@@ -17,7 +17,7 @@
         <Setter Property="core:ModernWindowChrome.Enabled" Value="True"/>
         <Setter Property="shell:WindowChrome.WindowChrome">
             <Setter.Value>
-                <shell:WindowChrome CaptionHeight="43"
+                <shell:WindowChrome CaptionHeight="48"
                                     ResizeBorderThickness="6"
                                     CornerRadius="0"
                                     GlassFrameThickness="0"
@@ -43,47 +43,99 @@
                             <!-- 顶部浮层:标题(左)+ 窗口按钮(右);拖拽由 WindowChrome.CaptionHeight 处理 -->
                             <Grid x:Name="PART_TitleBar"
                                   VerticalAlignment="Top"
-                                  Height="44">
+                                  Height="50">
                                 <TextBlock Text="{TemplateBinding Title}"
+                                           x:Name="PART_TitleText"
                                            FontSize="{StaticResource FontSizeSubtitle}"
                                            FontWeight="{StaticResource FontWeightStrong}"
                                            Foreground="{StaticResource TextPrimaryBrush}"
                                            VerticalAlignment="Center"
-                                           Margin="18,0,140,0"/>
+                                           Margin="18,2,140,0"/>
 
                                 <StackPanel Orientation="Horizontal"
+                                            x:Name="PART_CaptionButtons"
                                             HorizontalAlignment="Right"
-                                            Margin="0,7,8,7"
+                                            Margin="0,11,10,7"
                                             shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                                    <Button x:Name="PART_TopmostButton"
+                                            Style="{StaticResource WindowCaptionButton}"
+                                            ToolTip="置顶窗口"
+                                            Visibility="Collapsed">
+                                        <Viewbox Width="16" Height="16">
+                                            <Canvas Width="24" Height="24">
+                                                <Path x:Name="PART_TopmostIcon"
+                                                      Data="{StaticResource IconPin}"
+                                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                      StrokeThickness="2.2"
+                                                      StrokeStartLineCap="Round"
+                                                      StrokeEndLineCap="Round"
+                                                      StrokeLineJoin="Round"
+                                                      Fill="{StaticResource TransparentBrush}"
+                                                      RenderTransformOrigin="0.5,0.5">
+                                                    <Path.RenderTransform>
+                                                        <RotateTransform Angle="-45"/>
+                                                    </Path.RenderTransform>
+                                                </Path>
+                                            </Canvas>
+                                        </Viewbox>
+                                    </Button>
                                     <Button x:Name="PART_MinimizeButton"
                                             Style="{StaticResource WindowCaptionButton}"
+                                            Margin="2,0,0,0"
                                             ToolTip="最小化">
-                                        <TextBlock Text="&#xE921;"
-                                                   FontFamily="Segoe MDL2 Assets"
-                                                   FontSize="10"/>
+                                        <Viewbox Width="16" Height="16">
+                                            <Canvas Width="24" Height="24">
+                                                <Path Data="{StaticResource IconMinimize}"
+                                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                      StrokeThickness="2.2"
+                                                      StrokeStartLineCap="Round"
+                                                      StrokeEndLineCap="Round"/>
+                                            </Canvas>
+                                        </Viewbox>
                                     </Button>
                                     <Button x:Name="PART_MaximizeButton"
                                             Style="{StaticResource WindowCaptionButton}"
                                             Margin="2,0,0,0"
                                             ToolTip="最大化">
-                                        <TextBlock x:Name="PART_MaximizeGlyph"
-                                                   Text="&#xE922;"
-                                                   FontFamily="Segoe MDL2 Assets"
-                                                   FontSize="10"/>
+                                        <Viewbox Width="16" Height="16">
+                                            <Canvas Width="24" Height="24">
+                                                <Path x:Name="PART_MaximizeIcon"
+                                                      Data="{StaticResource IconMaximize}"
+                                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                      StrokeThickness="2.2"
+                                                      StrokeStartLineCap="Round"
+                                                      StrokeEndLineCap="Round"
+                                                      StrokeLineJoin="Round"/>
+                                            </Canvas>
+                                        </Viewbox>
                                     </Button>
                                     <Button x:Name="PART_CloseButton"
                                             Style="{StaticResource WindowCloseButton}"
                                             Margin="2,0,0,0"
                                             ToolTip="关闭">
-                                        <TextBlock Text="&#xE8BB;"
-                                                   FontFamily="Segoe MDL2 Assets"
-                                                   FontSize="10"/>
+                                        <Viewbox Width="16" Height="16">
+                                            <Canvas Width="24" Height="24">
+                                                <Path Data="{StaticResource IconX}"
+                                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                                      StrokeThickness="2.2"
+                                                      StrokeStartLineCap="Round"
+                                                      StrokeEndLineCap="Round"/>
+                                            </Canvas>
+                                        </Viewbox>
                                     </Button>
                                 </StackPanel>
                             </Grid>
                         </Grid>
                     </Border>
                     <ControlTemplate.Triggers>
+                        <Trigger Property="core:ModernWindowChrome.ShowTopmostButton" Value="True">
+                            <Setter TargetName="PART_TopmostButton" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                        <Trigger Property="core:ModernWindowChrome.TitleBarExtraTopPadding" Value="True">
+                            <Setter TargetName="PART_TitleBar" Property="Height" Value="62"/>
+                            <Setter TargetName="PART_TitleText" Property="Margin" Value="18,4,140,0"/>
+                            <Setter TargetName="PART_CaptionButtons" Property="Margin" Value="0,13,10,11"/>
+                        </Trigger>
                         <!-- 最大化时去掉 1px 外边框(WindowChrome 会自动将最大化尺寸约束到工作区) -->
                         <Trigger Property="WindowState" Value="Maximized">
                             <Setter TargetName="PART_WindowRoot" Property="BorderThickness" Value="0"/>
@@ -142,7 +194,8 @@
                                       FocusVisualStyle="{x:Null}">
                             <ToggleButton.Template>
                                 <ControlTemplate TargetType="ToggleButton">
-                                    <Border x:Name="HeaderBg" Background="{StaticResource TransparentBrush}" CornerRadius="8" Padding="10,10">
+                                    <Border Margin="-10">
+                                        <Border x:Name="HeaderBg" Background="{StaticResource TransparentBrush}" CornerRadius="8" Padding="10,14">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
@@ -169,6 +222,7 @@
                                                 </Path.RenderTransform>
                                             </Path>
                                         </Grid>
+                                    </Border>
                                     </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">

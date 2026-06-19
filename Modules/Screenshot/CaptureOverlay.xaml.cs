@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
@@ -49,22 +50,27 @@ public partial class CaptureOverlay : Window
     private AnnotationCanvas? _annotation;
     private AnnotationTool _currentTool = AnnotationTool.None;
     private Button[] _toolButtons = Array.Empty<Button>();
-
-    // 诊断:从构造结束开始计时,用于把 Show() 内部耗时拆成
-    // [ctor→SourceInitialized](建句柄) 与 [SourceInitialized→Loaded](首帧渲染/合成)两段
-    private readonly System.Diagnostics.Stopwatch _showTimer = new();
+    private readonly Stopwatch? _startupTimer;
+    private long _lastStartupMarkMs;
+    private Rect _mosaicSourceSelection = Rect.Empty;
 
     public CaptureOverlay() : this(false) { }
+
+    public CaptureOverlay(Stopwatch startupTimer) : this(false, startupTimer) { }
 
     /// <summary>
     /// 预热构造:仅触发 InitializeComponent(BAML 解析 + 模板/JIT 一次性成本),
     /// 跳过抓屏与 Loaded 逻辑,实例随即丢弃。用于消除首次截图的冷启动延迟。
     /// </summary>
-    public static CaptureOverlay CreateForWarmUp() => new CaptureOverlay(true);
+    public static CaptureOverlay CreateForWarmUp() => new CaptureOverlay(true, null);
 
-    private CaptureOverlay(bool prewarm)
+    private CaptureOverlay(bool prewarm) : this(prewarm, null) { }
+
+    private CaptureOverlay(bool prewarm, Stopwatch? startupTimer)
     {
+        _startupTimer = startupTimer;
         InitializeComponent();
+        LogStartupStep("InitializeComponent");
 
         if (prewarm)
         {
@@ -72,25 +78,55 @@ public partial class CaptureOverlay : Window
             return;
         }
 
+        Mouse.OverrideCursor = Cursors.Cross;
+        Closed += (_, _) => Mouse.OverrideCursor = null;
+
         // 覆盖整个虚拟屏幕(DIP)
         Left = SystemParameters.VirtualScreenLeft;
         Top = SystemParameters.VirtualScreenTop;
         Width = SystemParameters.VirtualScreenWidth;
         Height = SystemParameters.VirtualScreenHeight;
+        LogStartupStep("Window bounds prepared");
 
         // 冻结屏幕
         _frozen = ScreenCapture.CaptureAllScreens();
-        screenshotImage.Source = ToBitmapSource(_frozen);
+        LogStartupStep($"CaptureAllScreens {_frozen.Width}x{_frozen.Height}");
+        screenshotImage.Source = BitmapInterop.ToBitmapSource(_frozen);
+        LogStartupStep("BitmapInterop.ToBitmapSource");
 
         Loaded += OnLoaded;
-        _showTimer.Restart();   // 问题二观察基准:统计 ctor end → Loaded 的首帧合成耗时
+    }
+
+    private void LogStartupStep(string step)
+    {
+        if (_startupTimer == null)
+            return;
+
+        var elapsedMs = _startupTimer.ElapsedMilliseconds;
+        Log.Information(
+            "[CaptureStartup] {Step} at {ElapsedMs}ms (+{DeltaMs}ms)",
+            step,
+            elapsedMs,
+            elapsedMs - _lastStartupMarkMs);
+        _lastStartupMarkMs = elapsedMs;
+    }
+
+    private void UpdateCursorState()
+    {
+        var cursor = _currentTool != AnnotationTool.None || _confirmed ? Cursors.Arrow : Cursors.Cross;
+
+        Mouse.OverrideCursor = _confirmed || _currentTool != AnnotationTool.None ? null : cursor;
+        Cursor = cursor;
+        overlayCanvas.Cursor = cursor;
     }
 
     /// <summary>句柄创建完成(在 Loaded 之前)。强制夺取前台键盘焦点(修复 Esc/Enter 失效)。</summary>
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
+        LogStartupStep("SourceInitialized");
         ForceForeground();
+        LogStartupStep("ForceForeground");
     }
 
     /// <summary>
@@ -133,18 +169,12 @@ public partial class CaptureOverlay : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
-        // 问题二观察点:SourceInitialized → Loaded 之间是 DWM 首帧合成,偶发卡 ~5s。
-        // 正常很快、不刷日志;仅当超过阈值才告警一条,便于继续观察而不污染日志。
-        var sinceCtor = _showTimer.ElapsedMilliseconds;
-        if (sinceCtor >= FirstFrameWarnMs)
-            Log.Warning("[Capture] slow first-frame composition: {Ms}ms (ctor end → Loaded)", sinceCtor);
-
         var t = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
         _scaleX = t.M11; _scaleY = t.M22;
 
         CreateHandles();
         _annotation = new AnnotationCanvas(annotationCanvas);
-        _toolButtons = new[] { btnRect, btnEllipse, btnArrow, btnPen };
+        _toolButtons = new[] { btnRect, btnEllipse, btnArrow, btnPen, btnMosaic };
 
         // 枚举底层窗口(用于"识别窗口"悬停吸附)
         EnumerateWindows();
@@ -155,11 +185,12 @@ public partial class CaptureOverlay : Window
         selectionBorder.Visibility = Visibility.Visible;
         toolbar.Visibility = Visibility.Collapsed;
         UpdateVisuals();
+        UpdateMosaicSource(force: true);
         Activate();
-    }
+        LogStartupStep($"Loaded complete windows={_windowRects.Count}");
 
-    /// <summary>首帧合成耗时告警阈值(毫秒)。低于此值视为正常,不记日志。</summary>
-    private const long FirstFrameWarnMs = 1500;
+        Dispatcher.BeginInvoke(() => LogStartupStep("First dispatcher frame"));
+    }
 
     /// <summary>默认选区 = 光标所在显示器的工作区(物理像素换算到窗口 DIP 坐标)。</summary>
     private Rect DefaultSelectionRect()
@@ -196,34 +227,22 @@ public partial class CaptureOverlay : Window
     {
         _windowRects.Clear();
         var self = new WindowInteropHelper(this).Handle;
-        var swTotal = System.Diagnostics.Stopwatch.StartNew();
-        var dwmSw = new System.Diagnostics.Stopwatch();
         EnumWindows((hwnd, _) =>
         {
             if (hwnd == self || !IsWindowVisible(hwnd) || IsIconic(hwnd))
                 return true;
-            // 排除被 DWM 隐藏的窗口(后台 UWP、其他虚拟桌面等)
             if (DwmGetWindowAttribute(hwnd, DWMWA_CLOAKED, out int cloaked, sizeof(int)) == 0 && cloaked != 0)
                 return true;
-            // 优先用扩展框架边界(去掉不可见缩放边框),失败回退 GetWindowRect
-            dwmSw.Restart();
             NRECT r;
             if (DwmGetWindowAttribute(hwnd, DWMWA_EXTENDED_FRAME_BOUNDS, out r, Marshal.SizeOf<NRECT>()) != 0)
             {
                 if (!GetWindowRect(hwnd, out r)) return true;
             }
-            dwmSw.Stop();
-            // 单个窗口的 DWM/GetWindowRect 查询慢(>50ms)说明该窗口可能无响应,记录其句柄便于定位
-            if (dwmSw.ElapsedMilliseconds > 50)
-                Log.Warning("[Capture] slow window query: hwnd={Hwnd} took {Ms}ms", hwnd, dwmSw.ElapsedMilliseconds);
             int w = r.Right - r.Left, h = r.Bottom - r.Top;
             if (w < 24 || h < 24) return true;
             _windowRects.Add(new System.Drawing.Rectangle(r.Left, r.Top, w, h));
             return true;
         }, IntPtr.Zero);
-        // 整个枚举循环异常慢(某窗口无响应拖累)时才告警
-        if (swTotal.ElapsedMilliseconds > 200)
-            Log.Warning("[Capture] EnumWindows loop slow: {Ms}ms", swTotal.ElapsedMilliseconds);
     }
 
     /// <summary>光标所在的最上层窗口选区;无则回退到工作区。</summary>
@@ -317,6 +336,8 @@ public partial class CaptureOverlay : Window
 
         // 已确认且点在选区内 → 移动;否则:拖拽=新建选区,仅点击=确认当前(识别到的)选区
         _dragMode = (_confirmed && _selection.Contains(p)) ? DragMode.Move : DragMode.NewSelection;
+        if (_dragMode == DragMode.NewSelection)
+            Mouse.OverrideCursor = Cursors.Cross;
 
         toolbar.Visibility = Visibility.Collapsed;   // 选取过程中隐藏工具条
         overlayCanvas.CaptureMouse();
@@ -382,7 +403,9 @@ public partial class CaptureOverlay : Window
                 _selection = DetectSelectionOrDefault();
             _confirmed = true;
             toolbar.Visibility = Visibility.Visible;
+            UpdateCursorState();
             UpdateVisuals();
+            UpdateMosaicSource(force: true);
             return;
         }
 
@@ -392,7 +415,9 @@ public partial class CaptureOverlay : Window
             _selection = DefaultSelectionRect();
         }
         toolbar.Visibility = Visibility.Visible;   // 选取完成 → 显示工具条
+        UpdateCursorState();
         UpdateVisuals();
+        UpdateMosaicSource(force: true);
     }
 
     private Rect ResizeRect(Rect s, string role, double dx, double dy)
@@ -461,6 +486,47 @@ public partial class CaptureOverlay : Window
         PositionToolbar();
     }
 
+    private void UpdateMosaicSource(bool force = false)
+    {
+        if (_annotation == null || _frozen == null)
+            return;
+
+        if (!force && _mosaicSourceSelection == _selection)
+            return;
+
+        _mosaicSourceSelection = _selection;
+
+        var px = (int)Math.Round(_selection.X * _scaleX);
+        var py = (int)Math.Round(_selection.Y * _scaleY);
+        var pw = Math.Max(1, (int)Math.Round(_selection.Width * _scaleX));
+        var ph = Math.Max(1, (int)Math.Round(_selection.Height * _scaleY));
+        px = Math.Clamp(px, 0, Math.Max(0, _frozen.Width - 1));
+        py = Math.Clamp(py, 0, Math.Max(0, _frozen.Height - 1));
+        pw = Math.Min(pw, _frozen.Width - px);
+        ph = Math.Min(ph, _frozen.Height - py);
+
+        _annotation.MosaicSampler = SampleMosaicPreviewColor;
+    }
+
+    private System.Windows.Media.Color SampleMosaicPreviewColor(Rect rect)
+    {
+        if (_frozen == null)
+            return System.Windows.Media.Color.FromRgb(160, 160, 166);
+
+        var x = (int)Math.Round((_selection.X + rect.X) * _scaleX);
+        var y = (int)Math.Round((_selection.Y + rect.Y) * _scaleY);
+        var width = Math.Max(1, (int)Math.Round(rect.Width * _scaleX));
+        var height = Math.Max(1, (int)Math.Round(rect.Height * _scaleY));
+
+        var region = new System.Drawing.Rectangle(x, y, width, height);
+        region.Intersect(new System.Drawing.Rectangle(0, 0, _frozen.Width, _frozen.Height));
+        if (region.Width <= 0 || region.Height <= 0)
+            return System.Windows.Media.Color.FromRgb(160, 160, 166);
+
+        var color = AverageColor(_frozen, region.X, region.Y, region.Width, region.Height);
+        return System.Windows.Media.Color.FromArgb(color.A, color.R, color.G, color.B);
+    }
+
     private void PositionHandles()
     {
         bool show = _confirmed && _currentTool == AnnotationTool.None;
@@ -513,6 +579,7 @@ public partial class CaptureOverlay : Window
             "Ellipse" => AnnotationTool.Ellipse,
             "Arrow" => AnnotationTool.Arrow,
             "Pen" => AnnotationTool.Pen,
+            "Mosaic" => AnnotationTool.Mosaic,
             _ => AnnotationTool.None,
         };
         // 再次点击当前工具 → 取消(回到选区模式)
@@ -520,7 +587,7 @@ public partial class CaptureOverlay : Window
         if (_annotation != null) _annotation.CurrentTool = _currentTool;
 
         annotationCanvas.IsHitTestVisible = _currentTool != AnnotationTool.None;
-        Cursor = _currentTool != AnnotationTool.None ? Cursors.Arrow : Cursors.Cross;
+        UpdateCursorState();
 
         // 高亮当前工具按钮
         foreach (var b in _toolButtons)
@@ -536,7 +603,8 @@ public partial class CaptureOverlay : Window
             var active = (b == btnRect && _currentTool == AnnotationTool.Rectangle)
                       || (b == btnEllipse && _currentTool == AnnotationTool.Ellipse)
                       || (b == btnArrow && _currentTool == AnnotationTool.Arrow)
-                      || (b == btnPen && _currentTool == AnnotationTool.Pen);
+                      || (b == btnPen && _currentTool == AnnotationTool.Pen)
+                      || (b == btnMosaic && _currentTool == AnnotationTool.Mosaic);
             b.Background = active ? ResourceBrush("PrimarySoftBrush") : ResourceBrush("TransparentBrush");
         }
     }
@@ -661,10 +729,17 @@ public partial class CaptureOverlay : Window
 
         var hasTranslation = translationOverlay.Visibility == Visibility.Visible;
         var hasAnnotations = annotationCanvas.Children.Count > 0;
+        var mosaicAnnotations = annotationCanvas.Children
+            .OfType<MosaicAnnotation>()
+            .Where(m => m.ActualWidth > 0 && m.ActualHeight > 0)
+            .ToList();
 
         // 无标注/译文则直接返回裁剪图
         if (!hasAnnotations && !hasTranslation)
             return crop;
+
+        if (mosaicAnnotations.Count > 0)
+            ApplyMosaicAnnotations(crop, mosaicAnnotations);
 
         // 合成标注层
         var baseSource = ToBitmapSource(crop);
@@ -680,13 +755,88 @@ public partial class CaptureOverlay : Window
             }
             if (hasAnnotations)
             {
-                var vb = new VisualBrush(annotationCanvas) { Stretch = Stretch.Fill };
-                ctx.DrawRectangle(vb, null, new Rect(0, 0, pw, ph));
+                var previousVisibility = mosaicAnnotations
+                    .Select(mosaic => (Mosaic: mosaic, mosaic.Visibility))
+                    .ToList();
+
+                try
+                {
+                    foreach (var mosaic in mosaicAnnotations)
+                        mosaic.Visibility = Visibility.Collapsed;
+
+                    var vb = new VisualBrush(annotationCanvas) { Stretch = Stretch.Fill };
+                    ctx.DrawRectangle(vb, null, new Rect(0, 0, pw, ph));
+                }
+                finally
+                {
+                    foreach (var item in previousVisibility)
+                        item.Mosaic.Visibility = item.Visibility;
+                }
             }
         }
         rtb.Render(visual);
         crop.Dispose();
         return BitmapSourceToBitmap(rtb);
+    }
+
+    private void ApplyMosaicAnnotations(System.Drawing.Bitmap bitmap, IEnumerable<MosaicAnnotation> mosaics)
+    {
+        foreach (var mosaic in mosaics)
+        {
+            var brushSize = Math.Max(10, (int)Math.Round(mosaic.BrushSize * _scaleX));
+            foreach (var point in mosaic.Points)
+            {
+                var centerX = (int)Math.Round(point.X * _scaleX);
+                var centerY = (int)Math.Round(point.Y * _scaleY);
+                ApplyMosaic(bitmap, new System.Drawing.Rectangle(
+                    centerX - brushSize / 2,
+                    centerY - brushSize / 2,
+                    brushSize,
+                    brushSize));
+            }
+        }
+    }
+
+    private static void ApplyMosaic(System.Drawing.Bitmap bitmap, System.Drawing.Rectangle region)
+    {
+        region.Intersect(new System.Drawing.Rectangle(0, 0, bitmap.Width, bitmap.Height));
+        if (region.Width <= 0 || region.Height <= 0)
+            return;
+
+        const int block = 12;
+        using var graphics = System.Drawing.Graphics.FromImage(bitmap);
+        for (var y = region.Top; y < region.Bottom; y += block)
+        {
+            for (var x = region.Left; x < region.Right; x += block)
+            {
+                var w = Math.Min(block, region.Right - x);
+                var h = Math.Min(block, region.Bottom - y);
+                var color = AverageColor(bitmap, x, y, w, h);
+                using var brush = new System.Drawing.SolidBrush(color);
+                graphics.FillRectangle(brush, x, y, w, h);
+            }
+        }
+    }
+
+    private static System.Drawing.Color AverageColor(System.Drawing.Bitmap bitmap, int x, int y, int width, int height)
+    {
+        long a = 0, r = 0, g = 0, b = 0;
+        var count = 0;
+        for (var py = y; py < y + height; py++)
+        {
+            for (var px = x; px < x + width; px++)
+            {
+                var color = bitmap.GetPixel(px, py);
+                a += color.A;
+                r += color.R;
+                g += color.G;
+                b += color.B;
+                count++;
+            }
+        }
+
+        count = Math.Max(1, count);
+        return System.Drawing.Color.FromArgb((int)(a / count), (int)(r / count), (int)(g / count), (int)(b / count));
     }
 
     private (int, int) ToPhysicalSize(double w, double h)

@@ -87,10 +87,18 @@
                 BorderThickness="{TemplateBinding BorderThickness}"
                 CornerRadius="7">
             <Grid>
-                <Path Data="M 0 0 L 4 4 L 8 0 Z"
-                      Fill="{StaticResource TextSecondaryBrush}"
+                <Path Data="{StaticResource IconChevronDown}"
+                      Stroke="{StaticResource TextSecondaryBrush}"
+                      StrokeThickness="2"
+                      StrokeStartLineCap="Round"
+                      StrokeEndLineCap="Round"
+                      StrokeLineJoin="Round"
+                      Fill="{StaticResource TransparentBrush}"
                       HorizontalAlignment="Right"
                       VerticalAlignment="Center"
+                      Width="12"
+                      Height="12"
+                      Stretch="Uniform"
                       Margin="0,0,12,0"/>
             </Grid>
         </Border>
@@ -107,6 +115,7 @@
 
     <Style TargetType="ComboBoxItem">
         <Setter Property="Padding" Value="10,7"/>
+        <Setter Property="Margin" Value="0,2"/>
         <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="Template">
@@ -163,6 +172,19 @@
                                           VerticalAlignment="Center"
                                           HorizontalAlignment="Left"/>
 
+                        <TextBox x:Name="PART_EditableTextBox"
+                                 Style="{x:Null}"
+                                 Background="{StaticResource TransparentBrush}"
+                                 Foreground="{TemplateBinding Foreground}"
+                                 BorderThickness="0"
+                                 Padding="0"
+                                 Margin="8,0,32,0"
+                                 HorizontalAlignment="Stretch"
+                                 VerticalAlignment="Center"
+                                 VerticalContentAlignment="Center"
+                                 IsReadOnly="{TemplateBinding IsReadOnly}"
+                                 Visibility="Hidden"/>
+
                         <Popup x:Name="PART_Popup"
                                AllowsTransparency="True"
                                Focusable="False"
@@ -187,9 +209,25 @@
                             </Border>
                         </Popup>
                     </Grid>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsEditable" Value="True">
+                            <Setter TargetName="ContentSite" Property="Visibility" Value="Hidden"/>
+                            <Setter TargetName="PART_EditableTextBox" Property="Visibility" Value="Visible"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
                 </ControlTemplate>
             </Setter.Value>
         </Setter>
+        <Setter Property="ItemContainerStyle">
+            <Setter.Value>
+                <Style TargetType="ComboBoxItem" BasedOn="{StaticResource {x:Type ComboBoxItem}}"/>
+            </Setter.Value>
+        </Setter>
+        <Style.Triggers>
+            <Trigger Property="IsEditable" Value="True">
+                <Setter Property="IsTextSearchEnabled" Value="False"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="ModernComboBox" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}"/>

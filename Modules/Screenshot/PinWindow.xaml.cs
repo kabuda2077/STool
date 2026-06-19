@@ -17,9 +17,10 @@ public partial class PinWindow : Window
     public PinWindow(Bitmap screenshot, Rect? targetDip)
     {
         InitializeComponent();
+        Loaded += (_, _) => UpdateTopmostButton();
 
         _screenshot = screenshot;
-        screenshotImage.Source = BitmapToImageSource(screenshot);
+        screenshotImage.Source = BitmapInterop.ToBitmapSource(screenshot);
 
         WindowStartupLocation = WindowStartupLocation.Manual;
 
@@ -85,25 +86,26 @@ public partial class PinWindow : Window
         }
     }
 
+    private void BtnTopmost_Click(object sender, RoutedEventArgs e)
+    {
+        Topmost = !Topmost;
+        UpdateTopmostButton();
+    }
+
     private void BtnClose_Click(object sender, RoutedEventArgs e)
     {
         Close();
     }
 
-    private BitmapSource BitmapToImageSource(Bitmap bitmap)
+    private void UpdateTopmostButton()
     {
-        using var memory = new MemoryStream();
-        bitmap.Save(memory, System.Drawing.Imaging.ImageFormat.Png);
-        memory.Position = 0;
+        btnTopmost.ToolTip = Topmost ? "取消置顶" : "置顶窗口";
 
-        var bitmapImage = new BitmapImage();
-        bitmapImage.BeginInit();
-        bitmapImage.StreamSource = memory;
-        bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
-        bitmapImage.EndInit();
-        bitmapImage.Freeze();
-
-        return bitmapImage;
+        if (btnTopmost.Template.FindName("pinIcon", btnTopmost) is System.Windows.Shapes.Path pinIcon)
+        {
+            pinIcon.RenderTransformOrigin = new System.Windows.Point(0.5, 0.5);
+            pinIcon.RenderTransform = new System.Windows.Media.RotateTransform(Topmost ? 0 : -45);
+        }
     }
 
     protected override void OnClosed(EventArgs e)

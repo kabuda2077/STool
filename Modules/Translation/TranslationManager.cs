@@ -20,6 +20,23 @@ public class TranslationManager : IDisposable
         _configManager = configManager;
     }
 
+    public TranslationProvider GetConfiguredProvider()
+    {
+        return _configManager.Get().Translation.Provider;
+    }
+
+    public void SaveConfiguredProvider(TranslationProvider provider)
+    {
+        var config = _configManager.Get();
+        if (config.Translation.Provider == provider)
+        {
+            return;
+        }
+
+        config.Translation.Provider = provider;
+        _configManager.Save(config);
+    }
+
     /// <summary>
     /// 翻译文本(使用配置中的默认提供商)
     /// </summary>

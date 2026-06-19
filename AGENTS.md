@@ -16,8 +16,8 @@
 ```powershell
 dotnet build
 Start-Process .\artifacts\bin\Debug\net9.0-windows10.0.26100.0\STool.exe
-.\build-portable.ps1 -Version "1.0.0"
-Get-Content $env:APPDATA\STool\Logs\log-*.txt
+.\build-portable.ps1 -Version "1.1.0"
+Get-Content .\artifacts\bin\Debug\net9.0-windows10.0.26100.0\Data\Logs\app*.log
 ```
 
 如果构建提示 `STool.exe` 被占用，先关闭运行中的进程:
@@ -124,7 +124,7 @@ FontWeightStrong
 - UI 悬浮态默认使用 `PrimarySoftBrush`，主操作按钮默认使用 `PrimaryBrush`，危险/关闭动作使用 `ErrorBrush`。
 - 设置页三栏内容共用 `SurfaceCard` 和 `NavigationButton`，不要在单个设置页里复制卡片/导航样式。
 - 剪贴板、截图、翻译、OCR 的业务逻辑优先复用各自模块内已有 Manager/Storage/Panel 结构。
-- 不要把临时构建目录、发布目录、`.Codex/` 等本地文件提交到仓库。
+- 不要把临时构建目录、发布目录、`.claude/`、`.codex/` 等本地文件提交到仓库。
 
 ## 功能现状
 
@@ -151,17 +151,25 @@ FontWeightStrong
 ### 设置
 
 - 设置窗口包含通用、OCR、翻译三页。
+- 通用页含开机自启、隐藏托盘图标(`HideTrayIcon`)、三个功能快捷键录入。
+- 隐藏托盘后仍可通过快捷键唤出功能;再次启动会被单实例机制路由到打开设置窗口。
 - API Key/Secret Key 字段支持眼睛按钮显示/隐藏。
 - 保存按钮使用主题深蓝色。
 - 左侧选中项使用浅蓝背景和深蓝端点。
 
 ## 数据位置
 
+便携式存储,全部位于 **exe 同级的 `Data\` 目录**(由 `Core/AppPaths.cs` 定义,基于 `AppContext.BaseDirectory`),不写 `%APPDATA%`。例如 exe 在 `E:\APP\STool\` 时:
+
 ```text
-配置: %APPDATA%\STool\appsettings.json
-剪贴板数据库: %APPDATA%\STool\clipboard.db
-日志: %APPDATA%\STool\Logs\
+配置:           Data\config.json
+剪贴板数据库:   Data\clipboard.db
+剪贴板图片:     Data\ClipboardImages\
+日志:           Data\Logs\app<yyyyMMdd>.log  (Serilog 按天滚动,保留 7 份)
+密钥:           Data\secure.key  (隐藏文件,AES-GCM 主密钥,随应用一起便携)
 ```
+
+密钥用 `Core/SecureStorage.cs` 的 AES-GCM(密文前缀 `v2:`),不是 DPAPI;旧 DPAPI 密文在加载时由 `ConfigManager` 自动迁移重加密。
 
 ## Git 和构建
 

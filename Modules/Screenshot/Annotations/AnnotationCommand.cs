@@ -1,5 +1,5 @@
-using System.Windows.Shapes;
 using System.Windows.Controls;
+using System.Windows;
 
 namespace STool.Modules.Screenshot.Annotations;
 
@@ -17,23 +17,23 @@ public interface IAnnotationCommand
 /// </summary>
 public class AddShapeCommand : IAnnotationCommand
 {
-    private readonly Shape _shape;
+    private readonly UIElement _element;
 
-    public AddShapeCommand(Shape shape)
+    public AddShapeCommand(UIElement element)
     {
-        _shape = shape;
+        _element = element;
     }
 
     public void Execute(Canvas canvas)
     {
-        if (!canvas.Children.Contains(_shape))
+        if (!canvas.Children.Contains(_element))
         {
-            canvas.Children.Add(_shape);
+            canvas.Children.Add(_element);
         }
     }
 
     public void Undo(Canvas canvas)
     {
-        canvas.Children.Remove(_shape);
+        canvas.Children.Remove(_element);
     }
 }

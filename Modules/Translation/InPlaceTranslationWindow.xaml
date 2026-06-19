@@ -53,9 +53,17 @@
                         Style="{StaticResource IconButton}"
                         ToolTip="复制译文"
                         Click="BtnCopy_Click">
-                    <TextBlock Text="&#xE8C8;"
-                               FontFamily="Segoe MDL2 Assets"
-                               FontSize="14"/>
+                    <Viewbox Width="15" Height="15">
+                        <Canvas Width="24" Height="24">
+                            <Path Data="{StaticResource IconCopy}"
+                                  Stroke="{StaticResource TextPrimaryBrush}"
+                                  StrokeThickness="2"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"
+                                  StrokeLineJoin="Round"
+                                  Fill="{StaticResource TransparentBrush}"/>
+                        </Canvas>
+                    </Viewbox>
                 </Button>
 
                 <Button x:Name="btnClose"
@@ -64,9 +72,15 @@
                         ToolTip="关闭 (Esc)"
                         Click="BtnClose_Click"
                         Margin="4,0,0,0">
-                    <TextBlock Text="&#xE8BB;"
-                               FontFamily="Segoe MDL2 Assets"
-                               FontSize="12"/>
+                    <Viewbox Width="14" Height="14">
+                        <Canvas Width="24" Height="24">
+                            <Path Data="{StaticResource IconX}"
+                                  Stroke="{StaticResource ErrorBrush}"
+                                  StrokeThickness="2"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"/>
+                        </Canvas>
+                    </Viewbox>
                 </Button>
             </Grid>
         </Grid>

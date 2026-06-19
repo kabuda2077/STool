@@ -17,6 +17,7 @@ public class HotkeyConfig
     public string Screenshot { get; set; } = "Ctrl+Alt+A";
     public string Translation { get; set; } = "Ctrl+Alt+T";
     public string Clipboard { get; set; } = "Ctrl+Alt+V";
+    public string Settings { get; set; } = "Alt+4";
 }
 
 public class OcrConfig
@@ -33,6 +34,7 @@ public class OcrConfig
 public class TranslationConfig
 {
     public TranslationProvider Provider { get; set; } = TranslationProvider.OpenAI;
+    public TranslationAiPlatform AiPlatform { get; set; } = TranslationAiPlatform.OpenAI;
     public string? TencentSecretIdEncrypted { get; set; }
     public string? TencentSecretKeyEncrypted { get; set; }
     public string? AiApiUrlEncrypted { get; set; }
@@ -64,4 +66,13 @@ public enum TranslationProvider
     Tencent,
     OpenAI,
     Google
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum TranslationAiPlatform
+{
+    OpenAI,
+    GoogleAiStudio,
+    DeepSeek,
+    Custom
 }

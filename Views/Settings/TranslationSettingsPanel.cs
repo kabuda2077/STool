@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using STool.Core;
+using STool.Modules.Translation;
 using STool.Models;
 
 namespace STool.Views.Settings;
@@ -18,9 +19,10 @@ public class TranslationSettingsPanel : StackPanel
     private System.Windows.Controls.PasswordBox _pwdTencentSecretKey = null!;
 
     // AI
+    private System.Windows.Controls.ComboBox _cmbAiPlatform = null!;
     private System.Windows.Controls.TextBox _txtAiApiUrl = null!;
     private System.Windows.Controls.PasswordBox _pwdAiApiKey = null!;
-    private System.Windows.Controls.TextBox _txtAiModel = null!;
+    private System.Windows.Controls.ComboBox _cmbAiModel = null!;
     private StackPanel _activeSection = null!;
 
     public TranslationSettingsPanel(ConfigManager configManager)
@@ -105,16 +107,48 @@ public class TranslationSettingsPanel : StackPanel
         // AI 设置(可折叠)
         var aiSection = CreateCollapsibleSection("AI 翻译设置");
 
+        AddLabel("平台");
+        _cmbAiPlatform = AddComboBox();
+        _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "OpenAI", Tag = TranslationAiPlatform.OpenAI });
+        _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "Google AI Studio", Tag = TranslationAiPlatform.GoogleAiStudio });
+        _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "DeepSeek", Tag = TranslationAiPlatform.DeepSeek });
+        _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "自定义", Tag = TranslationAiPlatform.Custom });
+        _cmbAiPlatform.SelectionChanged += CmbAiPlatform_SelectionChanged;
+
         AddLabel("API URL");
         _txtAiApiUrl = AddTextBox();
-        AddHint("例如：https://api.openai.com/v1/chat/completions");
+        AddHint("OpenAI 兼容 Chat Completions 地址，自定义接口需手动填写。");
 
         AddLabel("API Key");
         _pwdAiApiKey = AddPasswordBox();
 
         AddLabel("模型");
-        _txtAiModel = AddTextBox();
-        AddHint("例如：gpt-4o-mini, claude-3-5-haiku-20241022");
+        _cmbAiModel = AddEditableComboBox();
+        AddHint("可点击获取模型列表，也可以直接手动输入模型名。");
+
+        var aiActions = new StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            Margin = new Thickness(0, 8, 0, 0)
+        };
+        var btnFetchModels = new System.Windows.Controls.Button
+        {
+            Content = "获取模型",
+            Style = (Style)FindResource("SecondaryButton"),
+            Padding = new Thickness(14, 7, 14, 7)
+        };
+        btnFetchModels.Click += BtnFetchModels_Click;
+        var btnTestAi = new System.Windows.Controls.Button
+        {
+            Content = "测试",
+            Style = (Style)FindResource("SecondaryButton"),
+            Padding = new Thickness(14, 7, 14, 7),
+            Margin = new Thickness(8, 0, 0, 0)
+        };
+        btnTestAi.Click += BtnTestAi_Click;
+        aiActions.Children.Add(btnFetchModels);
+        aiActions.Children.Add(btnTestAi);
+        _activeSection.Children.Add(aiActions);
         Children.Add(aiSection);
 
         // 保存按钮
@@ -124,7 +158,7 @@ public class TranslationSettingsPanel : StackPanel
             Style = (Style)FindResource("ModernButton"),
             Padding = new Thickness(18, 8, 18, 8),
             Margin = new Thickness(0, 10, 0, 0),
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Left
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right
         };
         btnSave.Click += BtnSave_Click;
         Children.Add(btnSave);
@@ -189,6 +223,26 @@ public class TranslationSettingsPanel : StackPanel
         };
         _activeSection.Children.Add(textBox);
         return textBox;
+    }
+
+    private System.Windows.Controls.ComboBox AddComboBox()
+    {
+        var comboBox = new System.Windows.Controls.ComboBox
+        {
+            Style = (Style)FindResource("SunkenComboBox"),
+            Height = 32,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
+        };
+        _activeSection.Children.Add(comboBox);
+        return comboBox;
+    }
+
+    private System.Windows.Controls.ComboBox AddEditableComboBox()
+    {
+        var comboBox = AddComboBox();
+        comboBox.IsEditable = true;
+        comboBox.IsTextSearchEnabled = false;
+        return comboBox;
     }
 
     private System.Windows.Controls.PasswordBox AddPasswordBox()
@@ -293,6 +347,79 @@ public class TranslationSettingsPanel : StackPanel
         _activeSection.Children.Add(hint);
     }
 
+    private void CmbAiPlatform_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        var platform = GetSelectedAiPlatform();
+        if (platform == TranslationAiPlatform.Custom)
+        {
+            return;
+        }
+
+        _txtAiApiUrl.Text = AiTranslationService.GetDefaultApiUrl(platform);
+    }
+
+    private async void BtnFetchModels_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var models = await AiTranslationService.FetchModelsAsync(_txtAiApiUrl.Text, _pwdAiApiKey.Password);
+            var currentModel = GetAiModel();
+
+            _cmbAiModel.Items.Clear();
+            foreach (var model in models)
+            {
+                _cmbAiModel.Items.Add(model);
+            }
+
+            if (!string.IsNullOrWhiteSpace(currentModel))
+            {
+                _cmbAiModel.Text = currentModel;
+            }
+            else if (models.Count > 0)
+            {
+                _cmbAiModel.Text = models[0];
+            }
+
+            ToastNotification.Show("模型已获取", $"共 {models.Count} 个模型", ToastNotification.ToastType.Success);
+        }
+        catch (Exception ex)
+        {
+            ToastNotification.Show("获取模型失败", ex.Message, ToastNotification.ToastType.Error);
+        }
+    }
+
+    private async void BtnTestAi_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var result = await AiTranslationService.TestAsync(_txtAiApiUrl.Text, _pwdAiApiKey.Password, GetAiModel());
+            if (result.Success)
+            {
+                ToastNotification.Show("测试成功", result.TranslatedText, ToastNotification.ToastType.Success);
+            }
+            else
+            {
+                ToastNotification.Show("测试失败", result.ErrorMessage ?? "未知错误", ToastNotification.ToastType.Error);
+            }
+        }
+        catch (Exception ex)
+        {
+            ToastNotification.Show("测试失败", ex.Message, ToastNotification.ToastType.Error);
+        }
+    }
+
+    private TranslationAiPlatform GetSelectedAiPlatform()
+    {
+        return (_cmbAiPlatform.SelectedItem as ComboBoxItem)?.Tag is TranslationAiPlatform platform
+            ? platform
+            : TranslationAiPlatform.Custom;
+    }
+
+    private string GetAiModel()
+    {
+        return _cmbAiModel.Text.Trim();
+    }
+
     private void LoadSettings()
     {
         var config = _configManager.Get().Translation;
@@ -338,6 +465,16 @@ public class TranslationSettingsPanel : StackPanel
         }
 
         // AI（解密显示）
+        foreach (ComboBoxItem item in _cmbAiPlatform.Items)
+        {
+            if ((TranslationAiPlatform)item.Tag == config.AiPlatform)
+            {
+                _cmbAiPlatform.SelectedItem = item;
+                break;
+            }
+        }
+        _cmbAiPlatform.SelectedIndex = _cmbAiPlatform.SelectedIndex < 0 ? 0 : _cmbAiPlatform.SelectedIndex;
+
         if (!string.IsNullOrEmpty(config.AiApiUrlEncrypted))
         {
             _txtAiApiUrl.Text = SecureStorage.Decrypt(config.AiApiUrlEncrypted);
@@ -346,7 +483,7 @@ public class TranslationSettingsPanel : StackPanel
         {
             _pwdAiApiKey.Password = SecureStorage.Decrypt(config.AiApiKeyEncrypted);
         }
-        _txtAiModel.Text = config.AiModel ?? "";
+        _cmbAiModel.Text = config.AiModel ?? "";
     }
 
     private void BtnSave_Click(object sender, RoutedEventArgs e)
@@ -370,6 +507,7 @@ public class TranslationSettingsPanel : StackPanel
             }
 
             // AI（加密保存）
+            config.Translation.AiPlatform = GetSelectedAiPlatform();
             if (!string.IsNullOrWhiteSpace(_txtAiApiUrl.Text))
             {
                 config.Translation.AiApiUrlEncrypted = SecureStorage.Encrypt(_txtAiApiUrl.Text);
@@ -378,7 +516,7 @@ public class TranslationSettingsPanel : StackPanel
             {
                 config.Translation.AiApiKeyEncrypted = SecureStorage.Encrypt(_pwdAiApiKey.Password);
             }
-            config.Translation.AiModel = _txtAiModel.Text;
+            config.Translation.AiModel = GetAiModel();
 
             _configManager.Save(config);
 

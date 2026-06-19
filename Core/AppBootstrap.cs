@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Forms;
@@ -140,13 +141,13 @@ public class AppBootstrap : IDisposable
         var config = _configManager.Get();
 
         var menu = new TrayMenuWindow();
-        menu.AddItem("截图", config.Hotkeys.Screenshot, OnScreenshotHotkey, TrayMenuIconKind.Screenshot);
-        menu.AddItem("翻译", config.Hotkeys.Translation, OnTranslationHotkey, TrayMenuIconKind.Translate);
-        menu.AddItem("剪贴板历史", config.Hotkeys.Clipboard, OnClipboardHotkey, TrayMenuIconKind.Clipboard);
+        menu.AddItem("截图", config.Hotkeys.Screenshot, OnScreenshotHotkey);
+        menu.AddItem("翻译", config.Hotkeys.Translation, OnTranslationHotkey);
+        menu.AddItem("剪贴板历史", config.Hotkeys.Clipboard, OnClipboardHotkey);
         menu.AddSeparator();
-        menu.AddItem("设置", string.Empty, ShowSettings, TrayMenuIconKind.Settings);
+        menu.AddItem("设置", config.Hotkeys.Settings, ShowSettings);
         menu.AddSeparator();
-        menu.AddItem("退出 STool", string.Empty, () => OnExit(null, EventArgs.Empty), TrayMenuIconKind.Exit, danger: true);
+        menu.AddItem("退出 STool", string.Empty, () => OnExit(null, EventArgs.Empty), danger: true);
         menu.ShowNearCursor();
     }
 
@@ -170,6 +171,12 @@ public class AppBootstrap : IDisposable
         if (!_hotkeyManager.RegisterHotkey(config.Hotkeys.Clipboard, OnClipboardHotkey))
         {
             Log.Warning($"Failed to register clipboard hotkey: {config.Hotkeys.Clipboard}");
+        }
+
+        // 设置快捷键
+        if (!_hotkeyManager.RegisterHotkey(config.Hotkeys.Settings, ShowSettings))
+        {
+            Log.Warning($"Failed to register settings hotkey: {config.Hotkeys.Settings}");
         }
 
         Log.Information("Hotkeys initialized");
@@ -202,8 +209,29 @@ public class AppBootstrap : IDisposable
     {
         Log.Information("Screenshot hotkey triggered");
 
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher == null)
+        {
+            ShowScreenshotOverlay();
+            return;
+        }
+
+        // Do not create/show the WPF overlay inside the WM_HOTKEY hook itself.
+        // Posting it lets the hotkey message unwind first, so mouse input can flow
+        // normally as soon as the overlay is visible.
+        dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Send, new Action(ShowScreenshotOverlay));
+    }
+
+    private static void ShowScreenshotOverlay()
+    {
+        var startupTimer = Stopwatch.StartNew();
+
         // 一体化取景窗自行处理选区/标注/复制/保存等,无需外部事件
-        new STool.Modules.Screenshot.CaptureOverlay().Show();
+        var overlay = new STool.Modules.Screenshot.CaptureOverlay(startupTimer);
+        Log.Information("[CaptureStartup] Overlay constructed in {ElapsedMs}ms", startupTimer.ElapsedMilliseconds);
+
+        overlay.Show();
+        Log.Information("[CaptureStartup] Show returned in {ElapsedMs}ms", startupTimer.ElapsedMilliseconds);
     }
 
     private void OnTranslationHotkey()
@@ -220,7 +248,7 @@ public class AppBootstrap : IDisposable
         }
 
         var panel = new STool.Modules.Translation.TranslationPanel(translationManager);
-        panel.Show();
+        ShowInForeground(panel);
     }
 
     private void OnClipboardHotkey()
@@ -237,7 +265,7 @@ public class AppBootstrap : IDisposable
         }
 
         var panel = new STool.Modules.Clipboard.ClipboardPanel(clipboardManager);
-        panel.Show();
+        ShowInForeground(panel);
     }
 
     public void ShowSettings()
@@ -245,7 +273,7 @@ public class AppBootstrap : IDisposable
         // 单例:已打开则激活,避免多个设置窗口
         if (_settingsWindow != null)
         {
-            _settingsWindow.Activate();
+            ShowInForeground(_settingsWindow);
             return;
         }
 
@@ -256,7 +284,22 @@ public class AppBootstrap : IDisposable
             // 安全网:关闭后确保全局快捷键按最新配置恢复
             ReloadHotkeys();
         };
-        _settingsWindow.Show();
+        ShowInForeground(_settingsWindow);
+    }
+
+    private static void ShowInForeground(Window window)
+    {
+        if (!window.IsVisible)
+            window.Show();
+
+        if (window.WindowState == WindowState.Minimized)
+            window.WindowState = WindowState.Normal;
+
+        window.Topmost = true;
+        window.Activate();
+        window.Focus();
+        window.Topmost = false;
+        window.Activate();
     }
 
     private void OnExit(object? sender, EventArgs e)

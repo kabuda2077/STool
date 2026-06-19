@@ -31,32 +31,74 @@
                     HorizontalAlignment="Right"
                     Margin="0,4,4,0"
                     Visibility="Collapsed">
-                <Button x:Name="btnClose"
-                        Width="34"
-                        Height="34"
-                        Cursor="Hand"
-                        Background="{StaticResource PinnedCloseBackgroundBrush}"
-                        Foreground="{StaticResource OnPrimaryBrush}"
-                        ToolTip="关闭 (Esc / 双击)"
-                        Click="BtnClose_Click">
-                    <Button.Template>
-                        <ControlTemplate TargetType="Button">
-                            <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="17">
-                                <TextBlock Text="&#xE8BB;"
-                                           FontFamily="Segoe MDL2 Assets"
-                                           FontSize="13"
-                                           Foreground="{TemplateBinding Foreground}"
-                                           HorizontalAlignment="Center"
-                                           VerticalAlignment="Center"/>
-                            </Border>
-                            <ControlTemplate.Triggers>
-                                <Trigger Property="IsMouseOver" Value="True">
-                                    <Setter TargetName="bg" Property="Background" Value="{StaticResource ErrorBrush}"/>
-                                </Trigger>
-                            </ControlTemplate.Triggers>
-                        </ControlTemplate>
-                    </Button.Template>
-                </Button>
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="btnTopmost"
+                            Width="34"
+                            Height="34"
+                            Cursor="Hand"
+                            Background="{StaticResource PinnedCloseBackgroundBrush}"
+                            Foreground="{StaticResource OnPrimaryBrush}"
+                            ToolTip="取消置顶"
+                            Click="BtnTopmost_Click">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="17">
+                                    <Viewbox Width="15" Height="15"
+                                             HorizontalAlignment="Center"
+                                             VerticalAlignment="Center">
+                                        <Canvas Width="24" Height="24">
+                                            <Path x:Name="pinIcon"
+                                                  Data="{StaticResource IconPin}"
+                                                  Stroke="{TemplateBinding Foreground}"
+                                                  StrokeThickness="2"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"
+                                                  StrokeLineJoin="Round"
+                                                  Fill="{StaticResource TransparentBrush}"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="bg" Property="Background" Value="{StaticResource PrimaryBrush}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                    <Button x:Name="btnClose"
+                            Width="34"
+                            Height="34"
+                            Margin="4,0,0,0"
+                            Cursor="Hand"
+                            Background="{StaticResource PinnedCloseBackgroundBrush}"
+                            Foreground="{StaticResource OnPrimaryBrush}"
+                            ToolTip="关闭 (Esc / 双击)"
+                            Click="BtnClose_Click">
+                        <Button.Template>
+                            <ControlTemplate TargetType="Button">
+                                <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="17">
+                                    <Viewbox Width="14" Height="14"
+                                             HorizontalAlignment="Center"
+                                             VerticalAlignment="Center">
+                                        <Canvas Width="24" Height="24">
+                                            <Path Data="{StaticResource IconX}"
+                                                  Stroke="{TemplateBinding Foreground}"
+                                                  StrokeThickness="2"
+                                                  StrokeStartLineCap="Round"
+                                                  StrokeEndLineCap="Round"/>
+                                        </Canvas>
+                                    </Viewbox>
+                                </Border>
+                                <ControlTemplate.Triggers>
+                                    <Trigger Property="IsMouseOver" Value="True">
+                                        <Setter TargetName="bg" Property="Background" Value="{StaticResource ErrorBrush}"/>
+                                    </Trigger>
+                                </ControlTemplate.Triggers>
+                            </ControlTemplate>
+                        </Button.Template>
+                    </Button>
+                </StackPanel>
             </Border>
         </Grid>
     </Border>

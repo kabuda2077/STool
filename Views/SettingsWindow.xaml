@@ -17,7 +17,7 @@
 
         <Border Grid.Column="0"
                 Background="{StaticResource SurfaceBrush}"
-                Padding="10,42,10,12">
+                Padding="10,44,10,12">
             <StackPanel>
                 <Button x:Name="btnGeneralSettings"
                         Click="BtnGeneralSettings_Click"
@@ -41,7 +41,7 @@
         <Border Grid.Column="1"
                 Background="{StaticResource SurfaceAltBrush}">
             <ScrollViewer x:Name="contentScroll"
-                          Margin="0,44,0,0"
+                          Margin="0,46,0,0"
                           VerticalScrollBarVisibility="Auto"
                           Background="{StaticResource TransparentBrush}"
                           FocusVisualStyle="{x:Null}"

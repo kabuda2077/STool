@@ -72,28 +72,36 @@
                 <StackPanel Orientation="Horizontal">
                     <Button x:Name="btnRect" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Rectangle" ToolTip="矩形">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
-                            <Path Data="M5 3 H19 A2 2 0 0 1 21 5 V19 A2 2 0 0 1 19 21 H5 A2 2 0 0 1 3 19 V5 A2 2 0 0 1 5 3 Z"
+                            <Path Data="{StaticResource IconRectangle}"
                                   Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2" StrokeLineJoin="Round"/>
                         </Canvas></Viewbox>
                     </Button>
                     <Button x:Name="btnEllipse" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Ellipse" Margin="2,0,0,0" ToolTip="椭圆">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
-                            <Path Data="M12 2 A10 10 0 1 0 12 22 A10 10 0 1 0 12 2 Z"
+                            <Path Data="{StaticResource IconCircle}"
                                   Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"/>
                         </Canvas></Viewbox>
                     </Button>
                     <Button x:Name="btnArrow" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Arrow" Margin="2,0,0,0" ToolTip="箭头">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
-                            <Path Data="M7 7 H17 V17 M7 17 L17 7"
+                            <Path Data="{StaticResource IconArrowUpRight}"
                                   Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
                         </Canvas></Viewbox>
                     </Button>
                     <Button x:Name="btnPen" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Pen" Margin="2,0,0,0" ToolTip="画笔">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
-                            <Path Data="M4 20 L4 16 L16 4 L20 8 L8 20 Z M14 6 L18 10"
+                            <Path Data="{StaticResource IconPenLine}"
                                   Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                        </Canvas></Viewbox>
+                    </Button>
+                    <Button x:Name="btnMosaic" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Mosaic" Margin="2,0,0,0" ToolTip="马赛克">
+                        <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
+                            <Path Data="{StaticResource IconMosaic}"
+                                  Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
+                                  StrokeLineJoin="Round"
+                                  Fill="{StaticResource TransparentBrush}"/>
                         </Canvas></Viewbox>
                     </Button>
 
@@ -101,14 +109,14 @@
 
                     <Button x:Name="btnUndo" Style="{StaticResource IconButton}" Click="BtnUndo_Click" ToolTip="撤销 (Ctrl+Z)">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
-                            <Path Data="M9 14 L4 9 L9 4 M4 9 H14.5 A5.5 5.5 0 0 1 14.5 20 H11"
+                            <Path Data="{StaticResource IconUndo2}"
                                   Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
                         </Canvas></Viewbox>
                     </Button>
                     <Button x:Name="btnRedo" Style="{StaticResource IconButton}" Click="BtnRedo_Click" Margin="2,0,0,0" ToolTip="重做 (Ctrl+Y)">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
-                            <Path Data="M15 14 L20 9 L15 4 M20 9 H9.5 A5.5 5.5 0 0 0 9.5 20 H13"
+                            <Path Data="{StaticResource IconRedo2}"
                                   Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
                         </Canvas></Viewbox>
@@ -118,28 +126,33 @@
 
                     <Button x:Name="btnSave" Style="{StaticResource IconButton}" Click="BtnSave_Click" ToolTip="保存 (Ctrl+S)">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
-                            <Path Data="M12 15 V3 M7 10 L12 15 L17 10 M5 21 H19"
+                            <Path Data="{StaticResource IconDownload}"
                                   Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
                         </Canvas></Viewbox>
                     </Button>
                     <Button x:Name="btnPin" Style="{StaticResource IconButton}" Click="BtnPin_Click" Margin="2,0,0,0" ToolTip="钉到屏幕">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
-                            <Path Data="M12 3 A4 4 0 1 0 12 11 A4 4 0 1 0 12 3 Z M12 11 V21"
+                            <Path Data="{StaticResource IconPin}"
                                   Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
-                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                  RenderTransformOrigin="0.5,0.5">
+                                <Path.RenderTransform>
+                                    <RotateTransform Angle="-45"/>
+                                </Path.RenderTransform>
+                            </Path>
                         </Canvas></Viewbox>
                     </Button>
                     <Button x:Name="btnOcr" Style="{StaticResource IconButton}" Click="BtnOcr_Click" Margin="2,0,0,0" ToolTip="OCR 识别">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
-                            <Path Data="M3 7 V5 A2 2 0 0 1 5 3 H7 M17 3 H19 A2 2 0 0 1 21 5 V7 M21 17 V19 A2 2 0 0 1 19 21 H17 M7 21 H5 A2 2 0 0 1 3 19 V17 M7 8 H15 M7 12 H17 M7 16 H13"
+                            <Path Data="{StaticResource IconScanText}"
                                   Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
                         </Canvas></Viewbox>
                     </Button>
                     <Button x:Name="btnTranslate" Style="{StaticResource IconButton}" Click="BtnTranslate_Click" Margin="2,0,0,0" ToolTip="翻译">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
-                            <Path Data="M5 8 L11 14 M4 14 L10 8 L12 5 M2 5 H14 M7 2 H8 M22 22 L17 12 L12 22 M14 18 H20"
+                            <Path Data="{StaticResource IconLanguages}"
                                   Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
                         </Canvas></Viewbox>
@@ -149,14 +162,14 @@
 
                     <Button x:Name="btnCancel" Style="{StaticResource DangerIconButton}" Click="BtnCancel_Click" ToolTip="取消 (Esc)">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
-                            <Path Data="M18 6 L6 18 M6 6 L18 18"
+                            <Path Data="{StaticResource IconX}"
                                   Stroke="{StaticResource ErrorBrush}" StrokeThickness="2"
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                         </Canvas></Viewbox>
                     </Button>
                     <Button x:Name="btnConfirm" Style="{StaticResource IconButton}" Click="BtnConfirm_Click" Margin="2,0,0,0" ToolTip="完成 (Enter)">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
-                            <Path Data="M20 6 L9 17 L4 12"
+                            <Path Data="{StaticResource IconCheck}"
                                   Stroke="{StaticResource SuccessBrush}" StrokeThickness="2.2"
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
                         </Canvas></Viewbox>

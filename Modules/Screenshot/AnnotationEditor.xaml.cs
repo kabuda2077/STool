@@ -28,7 +28,7 @@ public partial class AnnotationEditor : Window
         Height = SystemParameters.PrimaryScreenHeight;
 
         // 显示截图
-        screenshotImage.Source = BitmapToImageSource(screenshot);
+        screenshotImage.Source = BitmapInterop.ToBitmapSource(screenshot);
 
         // 初始化标注管理器
         _annotationManager = new AnnotationCanvas(annotationCanvas);
@@ -121,22 +121,6 @@ public partial class AnnotationEditor : Window
 
         // 转换为 Bitmap
         return BitmapSourceToBitmap(renderTarget);
-    }
-
-    private BitmapSource BitmapToImageSource(Bitmap bitmap)
-    {
-        using var memory = new MemoryStream();
-        bitmap.Save(memory, System.Drawing.Imaging.ImageFormat.Png);
-        memory.Position = 0;
-
-        var bitmapImage = new BitmapImage();
-        bitmapImage.BeginInit();
-        bitmapImage.StreamSource = memory;
-        bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
-        bitmapImage.EndInit();
-        bitmapImage.Freeze();
-
-        return bitmapImage;
     }
 
     private Bitmap BitmapSourceToBitmap(BitmapSource bitmapSource)

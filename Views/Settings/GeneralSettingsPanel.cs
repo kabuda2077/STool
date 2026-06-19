@@ -14,6 +14,7 @@ public class GeneralSettingsPanel : StackPanel
     private System.Windows.Controls.TextBox _txtScreenshotHotkey = null!;
     private System.Windows.Controls.TextBox _txtTranslationHotkey = null!;
     private System.Windows.Controls.TextBox _txtClipboardHotkey = null!;
+    private System.Windows.Controls.TextBox _txtSettingsHotkey = null!;
 
     public GeneralSettingsPanel(ConfigManager configManager)
     {
@@ -94,6 +95,9 @@ public class GeneralSettingsPanel : StackPanel
         // 剪贴板快捷键
         AddHotkeyField(hotkeysSection, "剪贴板", ref _txtClipboardHotkey, showHint: false);
 
+        // 设置快捷键
+        AddHotkeyField(hotkeysSection, "设置", ref _txtSettingsHotkey, showHint: false);
+
         Children.Add(WrapSection(hotkeysSection));
 
         // 保存按钮
@@ -103,7 +107,7 @@ public class GeneralSettingsPanel : StackPanel
             Style = (Style)FindResource("ModernButton"),
             Padding = new Thickness(18, 8, 18, 8),
             Margin = new Thickness(0, 10, 0, 0),
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Left
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right
         };
         btnSave.Click += BtnSave_Click;
         Children.Add(btnSave);
@@ -172,6 +176,7 @@ public class GeneralSettingsPanel : StackPanel
         _txtScreenshotHotkey.Text = config.Hotkeys.Screenshot;
         _txtTranslationHotkey.Text = config.Hotkeys.Translation;
         _txtClipboardHotkey.Text = config.Hotkeys.Clipboard;
+        _txtSettingsHotkey.Text = config.Hotkeys.Settings;
     }
 
     private void ChkAutoStart_Changed(object sender, RoutedEventArgs e)
@@ -186,7 +191,8 @@ public class GeneralSettingsPanel : StackPanel
         {
             if (!ValidateHotkey(_txtScreenshotHotkey.Text, "截图快捷键") ||
                 !ValidateHotkey(_txtTranslationHotkey.Text, "翻译快捷键") ||
-                !ValidateHotkey(_txtClipboardHotkey.Text, "剪贴板快捷键"))
+                !ValidateHotkey(_txtClipboardHotkey.Text, "剪贴板快捷键") ||
+                !ValidateHotkey(_txtSettingsHotkey.Text, "设置快捷键"))
             {
                 return;
             }
@@ -195,6 +201,7 @@ public class GeneralSettingsPanel : StackPanel
             config.Hotkeys.Screenshot = _txtScreenshotHotkey.Text.Trim();
             config.Hotkeys.Translation = _txtTranslationHotkey.Text.Trim();
             config.Hotkeys.Clipboard = _txtClipboardHotkey.Text.Trim();
+            config.Hotkeys.Settings = _txtSettingsHotkey.Text.Trim();
             config.HideTrayIcon = _chkHideTrayIcon.IsChecked == true;
 
             _configManager.Save(config);

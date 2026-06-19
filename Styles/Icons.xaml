@@ -1,0 +1,28 @@
+<ResourceDictionary xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <!-- Lucide-style 24px outline icon geometries. Keep icons as local Path data to avoid runtime dependencies. -->
+    <PathGeometry x:Key="IconArrowRight" Figures="M5 12 H19 M12 5 L19 12 L12 19"/>
+    <PathGeometry x:Key="IconArrowUpRight" Figures="M7 7 H17 V17 M7 17 L17 7"/>
+    <PathGeometry x:Key="IconCheck" Figures="M20 6 L9 17 L4 12"/>
+    <PathGeometry x:Key="IconChevronDown" Figures="M6 9 L12 15 L18 9"/>
+    <PathGeometry x:Key="IconCircle" Figures="M12 2 A10 10 0 1 0 12 22 A10 10 0 1 0 12 2 Z"/>
+    <PathGeometry x:Key="IconClipboard" Figures="M16 4 H18 A2 2 0 0 1 20 6 V20 A2 2 0 0 1 18 22 H6 A2 2 0 0 1 4 20 V6 A2 2 0 0 1 6 4 H8 M9 4 A3 3 0 0 1 15 4 M9 10 H15 M9 14 H14"/>
+    <PathGeometry x:Key="IconCopy" Figures="M9 9 H20 A2 2 0 0 1 22 11 V20 A2 2 0 0 1 20 22 H11 A2 2 0 0 1 9 20 V11 A2 2 0 0 1 11 9 Z M5 15 H4 A2 2 0 0 1 2 13 V4 A2 2 0 0 1 4 2 H13 A2 2 0 0 1 15 4 V5"/>
+    <PathGeometry x:Key="IconDownload" Figures="M21 15 V19 A2 2 0 0 1 19 21 H5 A2 2 0 0 1 3 19 V15 M7 10 L12 15 L17 10 M12 15 V3"/>
+    <PathGeometry x:Key="IconLanguages" Figures="M5 8 L11 14 M4 14 L10 8 L12 5 M2 5 H14 M7 2 H8 M22 22 L17 12 L12 22 M14 18 H20"/>
+    <PathGeometry x:Key="IconMaximize" Figures="M7 7 H17 V17 H7 Z"/>
+    <PathGeometry x:Key="IconMinimize" Figures="M5 12 H19"/>
+    <PathGeometry x:Key="IconMosaic" Figures="M4 4 H20 V20 H4 Z M9.3 4 V20 M14.7 4 V20 M4 9.3 H20 M4 14.7 H20"/>
+    <PathGeometry x:Key="IconPenLine" Figures="M12 20 H21 M16.5 3.5 A2.12 2.12 0 0 1 19.5 6.5 L7 19 L3 20 L4 16 Z"/>
+    <PathGeometry x:Key="IconPin" Figures="M12 17 V22 M9 10.76 V7 A2 2 0 0 1 11 5 H13 A2 2 0 0 1 15 7 V10.76 A2 2 0 0 0 15.586 12.174 L17.706 14.294 A1 1 0 0 1 17 16 H7 A1 1 0 0 1 6.293 14.293 L8.413 12.173 A2 2 0 0 0 9 10.76 Z"/>
+    <PathGeometry x:Key="IconRectangle" Figures="M5 3 H19 A2 2 0 0 1 21 5 V19 A2 2 0 0 1 19 21 H5 A2 2 0 0 1 3 19 V5 A2 2 0 0 1 5 3 Z"/>
+    <PathGeometry x:Key="IconRedo2" Figures="M15 14 L20 9 L15 4 M20 9 H9.5 A5.5 5.5 0 0 0 9.5 20 H13"/>
+    <PathGeometry x:Key="IconRestore" Figures="M8 9 H6 V19 H16 V17 M8 15 H18 V5 H8 Z"/>
+    <PathGeometry x:Key="IconScanText" Figures="M3 7 V5 A2 2 0 0 1 5 3 H7 M17 3 H19 A2 2 0 0 1 21 5 V7 M21 17 V19 A2 2 0 0 1 19 21 H17 M7 21 H5 A2 2 0 0 1 3 19 V17 M7 8 H15 M7 12 H17 M7 16 H13"/>
+    <PathGeometry x:Key="IconSearch" Figures="M11 4 A7 7 0 1 0 11 18 A7 7 0 1 0 11 4 Z M16 16 L21 21"/>
+    <PathGeometry x:Key="IconTrash2" Figures="M3 6 H21 M8 6 V4 A2 2 0 0 1 10 2 H14 A2 2 0 0 1 16 4 V6 M19 6 L18 20 A2 2 0 0 1 16 22 H8 A2 2 0 0 1 6 20 L5 6 M10 11 V17 M14 11 V17"/>
+    <PathGeometry x:Key="IconUndo2" Figures="M9 14 L4 9 L9 4 M4 9 H14.5 A5.5 5.5 0 0 1 14.5 20 H11"/>
+    <PathGeometry x:Key="IconX" Figures="M18 6 L6 18 M6 6 L18 18"/>
+
+</ResourceDictionary>

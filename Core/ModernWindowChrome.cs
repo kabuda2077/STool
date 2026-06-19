@@ -13,9 +13,19 @@ namespace STool.Core;
 /// </summary>
 public static class ModernWindowChrome
 {
-    // Segoe MDL2 Assets 字形码位
-    private const int GlyphMaximize = 0xE922;
-    private const int GlyphRestore = 0xE923;
+    public static readonly DependencyProperty ShowTopmostButtonProperty =
+        DependencyProperty.RegisterAttached(
+            "ShowTopmostButton",
+            typeof(bool),
+            typeof(ModernWindowChrome),
+            new PropertyMetadata(false));
+
+    public static readonly DependencyProperty TitleBarExtraTopPaddingProperty =
+        DependencyProperty.RegisterAttached(
+            "TitleBarExtraTopPadding",
+            typeof(bool),
+            typeof(ModernWindowChrome),
+            new PropertyMetadata(false));
 
     public static readonly DependencyProperty EnabledProperty =
         DependencyProperty.RegisterAttached(
@@ -23,6 +33,26 @@ public static class ModernWindowChrome
             typeof(bool),
             typeof(ModernWindowChrome),
             new PropertyMetadata(false, OnEnabledChanged));
+
+    public static void SetShowTopmostButton(DependencyObject element, bool value)
+    {
+        element.SetValue(ShowTopmostButtonProperty, value);
+    }
+
+    public static bool GetShowTopmostButton(DependencyObject element)
+    {
+        return (bool)element.GetValue(ShowTopmostButtonProperty);
+    }
+
+    public static void SetTitleBarExtraTopPadding(DependencyObject element, bool value)
+    {
+        element.SetValue(TitleBarExtraTopPaddingProperty, value);
+    }
+
+    public static bool GetTitleBarExtraTopPadding(DependencyObject element)
+    {
+        return (bool)element.GetValue(TitleBarExtraTopPaddingProperty);
+    }
 
     public static void SetEnabled(DependencyObject element, bool value)
     {
@@ -65,9 +95,11 @@ public static class ModernWindowChrome
         AttachButton(window, "PART_MinimizeButton", (_, _) => window.WindowState = WindowState.Minimized);
         AttachButton(window, "PART_MaximizeButton", (_, _) => ToggleMaximize(window));
         AttachButton(window, "PART_CloseButton", (_, _) => window.Close());
+        AttachButton(window, "PART_TopmostButton", (_, _) => ToggleTopmost(window));
         window.StateChanged -= Window_StateChanged;
         window.StateChanged += Window_StateChanged;
         UpdateMaximizeGlyph(window);
+        UpdateTopmostGlyph(window);
     }
 
     private static void AttachButton(Window window, string name, RoutedEventHandler handler)
@@ -89,6 +121,12 @@ public static class ModernWindowChrome
             : WindowState.Maximized;
     }
 
+    private static void ToggleTopmost(Window window)
+    {
+        window.Topmost = !window.Topmost;
+        UpdateTopmostGlyph(window);
+    }
+
     private static void Window_StateChanged(object? sender, EventArgs e)
     {
         if (sender is Window window)
@@ -101,14 +139,31 @@ public static class ModernWindowChrome
     {
         var isMaximized = window.WindowState == WindowState.Maximized;
 
-        if (window.Template?.FindName("PART_MaximizeGlyph", window) is TextBlock glyph)
+        if (window.Template?.FindName("PART_MaximizeIcon", window) is System.Windows.Shapes.Path icon)
         {
-            glyph.Text = ((char)(isMaximized ? GlyphRestore : GlyphMaximize)).ToString();
+            icon.Data = (System.Windows.Media.Geometry)window.FindResource(
+                isMaximized ? "IconRestore" : "IconMaximize");
         }
 
         if (window.Template?.FindName("PART_MaximizeButton", window) is System.Windows.Controls.Button button)
         {
             button.ToolTip = isMaximized ? "还原" : "最大化";
+        }
+    }
+
+    private static void UpdateTopmostGlyph(Window window)
+    {
+        if (window.Template?.FindName("PART_TopmostIcon", window) is System.Windows.Shapes.Path icon)
+        {
+            icon.RenderTransform = new System.Windows.Media.RotateTransform(window.Topmost ? 0 : -45);
+        }
+
+        if (window.Template?.FindName("PART_TopmostButton", window) is System.Windows.Controls.Button button)
+        {
+            button.ToolTip = window.Topmost ? "取消置顶" : "置顶窗口";
+            button.Foreground = window.Topmost
+                ? (System.Windows.Media.Brush)window.FindResource("PrimaryBrush")
+                : (System.Windows.Media.Brush)window.FindResource("TextPrimaryBrush");
         }
     }
 

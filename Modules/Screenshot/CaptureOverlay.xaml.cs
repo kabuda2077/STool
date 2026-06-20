@@ -53,6 +53,7 @@ public partial class CaptureOverlay : Window
     private readonly Stopwatch? _startupTimer;
     private long _lastStartupMarkMs;
     private Rect _mosaicSourceSelection = Rect.Empty;
+    private IntPtr _selfHwnd;
 
     public CaptureOverlay() : this(false) { }
 
@@ -124,6 +125,7 @@ public partial class CaptureOverlay : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
+        _selfHwnd = new WindowInteropHelper(this).Handle;
         LogStartupStep("SourceInitialized");
         ForceForeground();
         LogStartupStep("ForceForeground");
@@ -169,27 +171,32 @@ public partial class CaptureOverlay : Window
 
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
+        LogStartupStep("Loaded begin");
+
         var t = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
         _scaleX = t.M11; _scaleY = t.M22;
+        LogStartupStep("DPI scale ready");
 
         CreateHandles();
         _annotation = new AnnotationCanvas(annotationCanvas);
         _toolButtons = new[] { btnRect, btnEllipse, btnArrow, btnPen, btnMosaic };
-
-        // 枚举底层窗口(用于"识别窗口"悬停吸附)
-        EnumerateWindows();
-
-        // 初始:识别光标所在窗口(无则工作区);未确认前不显示工具条
-        _selection = DetectSelectionOrDefault();
+        LogStartupStep("Interaction layers ready");
 
         selectionBorder.Visibility = Visibility.Visible;
         toolbar.Visibility = Visibility.Collapsed;
+
+        // 初始选区先用当前显示器工作区，避免窗口枚举拖住首帧和鼠标输入。
+        _selection = DefaultSelectionRect();
         UpdateVisuals();
         UpdateMosaicSource(force: true);
         Activate();
-        LogStartupStep($"Loaded complete windows={_windowRects.Count}");
+        LogStartupStep("Loaded interactive");
 
-        Dispatcher.BeginInvoke(() => LogStartupStep("First dispatcher frame"));
+        Dispatcher.BeginInvoke(() =>
+        {
+            LogStartupStep("First dispatcher frame");
+            StartWindowDetection();
+        });
     }
 
     /// <summary>默认选区 = 光标所在显示器的工作区(物理像素换算到窗口 DIP 坐标)。</summary>
@@ -223,10 +230,9 @@ public partial class CaptureOverlay : Window
     private const int DWMWA_CLOAKED = 14;
 
     /// <summary>枚举覆盖层之下所有可见顶层窗口的物理矩形(EnumWindows 返回 Z 序,顶层在前)。</summary>
-    private void EnumerateWindows()
+    private static List<System.Drawing.Rectangle> EnumerateWindows(IntPtr self)
     {
-        _windowRects.Clear();
-        var self = new WindowInteropHelper(this).Handle;
+        var rects = new List<System.Drawing.Rectangle>();
         EnumWindows((hwnd, _) =>
         {
             if (hwnd == self || !IsWindowVisible(hwnd) || IsIconic(hwnd))
@@ -240,9 +246,41 @@ public partial class CaptureOverlay : Window
             }
             int w = r.Right - r.Left, h = r.Bottom - r.Top;
             if (w < 24 || h < 24) return true;
-            _windowRects.Add(new System.Drawing.Rectangle(r.Left, r.Top, w, h));
+            rects.Add(new System.Drawing.Rectangle(r.Left, r.Top, w, h));
             return true;
         }, IntPtr.Zero);
+        return rects;
+    }
+
+    private async void StartWindowDetection()
+    {
+        var sw = Stopwatch.StartNew();
+        try
+        {
+            var self = _selfHwnd;
+            var rects = await System.Threading.Tasks.Task.Run(() => EnumerateWindows(self));
+            if (_closing)
+                return;
+
+            _windowRects.Clear();
+            _windowRects.AddRange(rects);
+
+            Log.Information(
+                "[CaptureStartup] Window enumeration completed windows={WindowCount} in {ElapsedMs}ms",
+                _windowRects.Count,
+                sw.ElapsedMilliseconds);
+
+            if (!_confirmed && _dragMode == DragMode.None)
+            {
+                _selection = DetectSelectionOrDefault();
+                UpdateVisuals();
+                UpdateMosaicSource(force: true);
+            }
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "[Capture] Window detection failed");
+        }
     }
 
     /// <summary>光标所在的最上层窗口选区;无则回退到工作区。</summary>

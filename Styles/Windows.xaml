@@ -133,8 +133,8 @@
                         </Trigger>
                         <Trigger Property="core:ModernWindowChrome.TitleBarExtraTopPadding" Value="True">
                             <Setter TargetName="PART_TitleBar" Property="Height" Value="62"/>
-                            <Setter TargetName="PART_TitleText" Property="Margin" Value="18,4,140,0"/>
-                            <Setter TargetName="PART_CaptionButtons" Property="Margin" Value="0,13,10,11"/>
+                            <Setter TargetName="PART_TitleText" Property="Margin" Value="18,2,140,0"/>
+                            <Setter TargetName="PART_CaptionButtons" Property="Margin" Value="0,11,10,13"/>
                         </Trigger>
                         <!-- 最大化时去掉 1px 外边框(WindowChrome 会自动将最大化尺寸约束到工作区) -->
                         <Trigger Property="WindowState" Value="Maximized">

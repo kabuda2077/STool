@@ -37,6 +37,47 @@ public class TranslationManager : IDisposable
         _configManager.Save(config);
     }
 
+    public string GetConfiguredTargetLanguage()
+    {
+        return _configManager.Get().Translation.TargetLanguage;
+    }
+
+    public string GetConfiguredTranslationMode()
+    {
+        return _configManager.Get().Translation.TranslationMode;
+    }
+
+    public void SaveConfiguredTranslationMode(string mode)
+    {
+        var config = _configManager.Get();
+        var targetLanguage = ResolveTargetLanguage(string.Empty, mode);
+        if (config.Translation.TranslationMode == mode &&
+            config.Translation.SourceLanguage == "auto" &&
+            config.Translation.TargetLanguage == targetLanguage)
+        {
+            return;
+        }
+
+        config.Translation.TranslationMode = mode;
+        config.Translation.SourceLanguage = "auto";
+        config.Translation.TargetLanguage = targetLanguage;
+        _configManager.Save(config);
+    }
+
+    public void SaveConfiguredLanguages(string sourceLanguage, string targetLanguage)
+    {
+        var config = _configManager.Get();
+        if (config.Translation.SourceLanguage == sourceLanguage &&
+            config.Translation.TargetLanguage == targetLanguage)
+        {
+            return;
+        }
+
+        config.Translation.SourceLanguage = sourceLanguage;
+        config.Translation.TargetLanguage = targetLanguage;
+        _configManager.Save(config);
+    }
+
     /// <summary>
     /// 翻译文本(使用配置中的默认提供商)
     /// </summary>
@@ -55,7 +96,7 @@ public class TranslationManager : IDisposable
 
         // 使用配置的默认语言
         sourceLanguage ??= config.SourceLanguage;
-        targetLanguage ??= config.TargetLanguage;
+        targetLanguage ??= ResolveTargetLanguage(text, config.TranslationMode);
 
         var service = GetOrCreateService(provider, config);
 
@@ -83,6 +124,70 @@ public class TranslationManager : IDisposable
         }
 
         return result;
+    }
+
+    public static string ResolveTargetLanguage(string text, string? mode)
+    {
+        return mode switch
+        {
+            "auto-en" => "en",
+            "auto-ja" => "ja",
+            "auto-ko" => "ko",
+            "zh-en" => ResolveChineseEnglishTarget(text),
+            "en" or "ja" or "ko" or "zh" => mode,
+            _ => "zh"
+        };
+    }
+
+    private static string ResolveChineseEnglishTarget(string text)
+    {
+        var chinese = 0;
+        var latin = 0;
+        var japanese = 0;
+        var korean = 0;
+
+        foreach (var ch in text)
+        {
+            if (IsChinese(ch))
+            {
+                chinese++;
+            }
+            else if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z'))
+            {
+                latin++;
+            }
+            else if ((ch >= '\u3040' && ch <= '\u30ff') || (ch >= '\u31f0' && ch <= '\u31ff'))
+            {
+                japanese++;
+            }
+            else if (ch >= '\uac00' && ch <= '\ud7af')
+            {
+                korean++;
+            }
+        }
+
+        if (chinese > 0)
+        {
+            return chinese >= latin ? "en" : "zh";
+        }
+
+        if (latin > 0)
+        {
+            return "zh";
+        }
+
+        if (japanese > 0 || korean > 0)
+        {
+            return "zh";
+        }
+
+        return "zh";
+    }
+
+    private static bool IsChinese(char ch)
+    {
+        return (ch >= '\u4e00' && ch <= '\u9fff')
+            || (ch >= '\u3400' && ch <= '\u4dbf');
     }
 
     private ITranslationService? CreateTencentService(TranslationConfig config)

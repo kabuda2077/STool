@@ -127,6 +127,53 @@
             <Setter Property="Padding" Value="7,2"/>
             <Setter Property="HorizontalAlignment" Value="Right"/>
         </Style>
+
+        <Style x:Key="FavoriteButton" TargetType="Button">
+            <Setter Property="Width" Value="22"/>
+            <Setter Property="Height" Value="22"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,6,0,0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border x:Name="root"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="7">
+                            <ContentPresenter HorizontalAlignment="Center"
+                                              VerticalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="root" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="on">
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ImageInfoBadge" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="7,2"/>
+            <Setter Property="Margin" Value="0,6,6,0"/>
+        </Style>
+
+        <Style x:Key="ImageLargeBadge" TargetType="Border">
+            <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="7,2"/>
+            <Setter Property="Margin" Value="0,6,6,0"/>
+        </Style>
     </Window.Resources>
 
     <Grid Margin="0,58,0,0">
@@ -354,6 +401,7 @@
                             <Border.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="{Binding FavoriteTooltip}" Click="MenuFavorite_Click"/>
+                                    <MenuItem Header="另存为" Click="MenuSaveAs_Click" Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}"/>
                                     <MenuItem Header="删除" Click="MenuDelete_Click"/>
                                 </ContextMenu>
                             </Border.ContextMenu>
@@ -364,14 +412,22 @@
                                 </Grid.ColumnDefinitions>
 
                                 <!-- 内容 + 时间 -->
-                                <StackPanel Margin="0,0,12,0">
-                                    <Image Source="{Binding ImageSource}"
-                                           MaxHeight="120"
-                                           HorizontalAlignment="Left"
-                                           Stretch="Uniform"
-                                           RenderOptions.BitmapScalingMode="HighQuality"
-                                           Loaded="ThumbImage_Loaded"
-                                           Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}"/>
+                                <StackPanel Margin="0,2,12,0"
+                                            VerticalAlignment="Center">
+                                    <Border Width="{Binding ThumbnailBoxWidth}"
+                                            Height="{Binding ThumbnailBoxHeight}"
+                                            Background="{StaticResource SurfaceAltBrush}"
+                                            CornerRadius="6"
+                                            ClipToBounds="True"
+                                            HorizontalAlignment="Left"
+                                            Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}"
+                                            MouseLeftButtonDown="ThumbPreview_MouseLeftButtonDown"
+                                            ToolTip="预览图片">
+                                        <Image Source="{Binding ImageSource}"
+                                               Stretch="UniformToFill"
+                                               RenderOptions.BitmapScalingMode="HighQuality"
+                                               Loaded="ThumbImage_Loaded"/>
+                                    </Border>
                                     <TextBlock Text="{Binding DisplayText}"
                                                TextWrapping="Wrap"
                                                Foreground="{StaticResource TextPrimaryBrush}"
@@ -387,19 +443,46 @@
                                                ToolTip="{Binding FullTimestamp}"/>
                                 </StackPanel>
 
-                                <!-- 来源 + 尺寸 + 悬停操作 -->
-                                <StackPanel Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Right">
+                                <!-- 来源 + 收藏/尺寸 -->
+                                <StackPanel Grid.Column="1"
+                                            VerticalAlignment="Center"
+                                            HorizontalAlignment="Right">
+                                    <StackPanel Orientation="Horizontal"
+                                                HorizontalAlignment="Right"
+                                                Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}">
+                                        <Border Style="{StaticResource ImageLargeBadge}"
+                                                Visibility="{Binding IsLargeImage, Converter={StaticResource BoolToVis}}">
+                                            <TextBlock Text="大图"
+                                                       FontSize="{StaticResource FontSizeMicro}"
+                                                       Foreground="{StaticResource PrimaryBrush}"
+                                                       FontWeight="{StaticResource FontWeightStrong}"/>
+                                        </Border>
+                                        <Border Style="{StaticResource ImageInfoBadge}"
+                                                Margin="0,6,0,0">
+                                            <TextBlock Text="{Binding ImageInfoText}"
+                                                       FontSize="{StaticResource FontSizeMicro}"
+                                                       Foreground="{StaticResource TextSecondaryBrush}"/>
+                                        </Border>
+                                    </StackPanel>
                                     <Border Style="{StaticResource SourceBadge}"
+                                            VerticalAlignment="Center"
+                                            Margin="0,6,0,0"
                                             Visibility="{Binding HasSource, Converter={StaticResource BoolToVis}}">
                                         <TextBlock Text="{Binding SourceApp}"
                                                    FontSize="{StaticResource FontSizeMicro}"
                                                    Foreground="{StaticResource TextSecondaryBrush}"/>
                                     </Border>
-                                    <TextBlock Text="{Binding SizeText}"
-                                               FontSize="{StaticResource FontSizeMicro}"
-                                               Foreground="{StaticResource TextSecondaryBrush}"
-                                               HorizontalAlignment="Right"
-                                               Margin="0,6,0,0"/>
+                                    <Button Style="{StaticResource FavoriteButton}"
+                                            Tag="{Binding FavoriteState}"
+                                            ToolTip="{Binding FavoriteTooltip}"
+                                            Click="FavoriteButton_Click"
+                                            HorizontalAlignment="Right">
+                                        <TextBlock Text="{Binding FavoriteGlyph}"
+                                                   FontSize="13"
+                                                   LineHeight="13"
+                                                   VerticalAlignment="Center"
+                                                   HorizontalAlignment="Center"/>
+                                    </Button>
                                 </StackPanel>
                             </Grid>
                         </Border>
@@ -450,6 +533,66 @@
                     </ControlTemplate>
                 </Button.Template>
             </Button>
+        </Grid>
+
+        <Grid x:Name="imagePreviewOverlay"
+              Grid.RowSpan="2"
+              Background="{StaticResource OverlayBrush}"
+              Visibility="Collapsed"
+              MouseLeftButtonDown="ImagePreviewOverlay_MouseLeftButtonDown">
+            <Border Width="560"
+                    MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}}"
+                    MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}"
+                    Background="{StaticResource SurfaceBrush}"
+                    CornerRadius="8"
+                    Padding="10"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    MouseLeftButtonDown="ImagePreviewCard_MouseLeftButtonDown">
+                <Border.Effect>
+                    <StaticResource ResourceKey="MenuShadow"/>
+                </Border.Effect>
+                <Grid>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="*"/>
+                    </Grid.RowDefinitions>
+
+                    <Grid Margin="0,0,0,8">
+                        <TextBlock x:Name="imagePreviewTitle"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   FontSize="{StaticResource FontSizeBody}"
+                                   FontWeight="{StaticResource FontWeightStrong}"
+                                   VerticalAlignment="Center"/>
+                        <Button Width="28"
+                                Height="28"
+                                HorizontalAlignment="Right"
+                                Style="{StaticResource IconButton}"
+                                ToolTip="关闭预览"
+                                Click="ClosePreview_Click">
+                            <Viewbox Width="13" Height="13">
+                                <Canvas Width="24" Height="24">
+                                    <Path Data="{StaticResource IconX}"
+                                          Stroke="{StaticResource TextSecondaryBrush}"
+                                          StrokeThickness="2"
+                                          StrokeStartLineCap="Round"
+                                          StrokeEndLineCap="Round"/>
+                                </Canvas>
+                            </Viewbox>
+                        </Button>
+                    </Grid>
+
+                    <Border Grid.Row="1"
+                            Background="{StaticResource SurfaceAltBrush}"
+                            CornerRadius="6"
+                            ClipToBounds="True">
+                        <Image x:Name="imagePreview"
+                               MaxHeight="420"
+                               Stretch="Uniform"
+                               RenderOptions.BitmapScalingMode="HighQuality"/>
+                    </Border>
+                </Grid>
+            </Border>
         </Grid>
     </Grid>
 </Window>

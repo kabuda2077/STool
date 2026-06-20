@@ -8,6 +8,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
@@ -19,10 +20,24 @@ public partial class ClipboardPanel : Window
 {
     private enum Tab { All, Text, Image, File, Favorite }
 
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
+
+    private const byte VK_CONTROL = 0x11;
+    private const byte VK_V = 0x56;
+    private const uint KEYEVENTF_KEYUP = 0x0002;
+
     private readonly ClipboardManager _manager;
     private List<ClipboardItem> _allRaw = new();
     private Tab _tab = Tab.All;
     private string _searchText = string.Empty;
+    private readonly IntPtr _targetHwnd;
 
     // D: ViewModel 按 Id 缓存,切分类/搜索时复用,避免重复造 VM 与重复解码
     private readonly Dictionary<string, ClipboardItemViewModel> _vmCache = new();
@@ -32,10 +47,12 @@ public partial class ClipboardPanel : Window
 
     // B: 缩略图后台解码并发限流(最多 3 个同时解码)
     private static readonly SemaphoreSlim ThumbThrottle = new(3);
+    private const long LargeImageBytes = 2 * 1024 * 1024;
 
     public ClipboardPanel(ClipboardManager manager)
     {
         _manager = manager;
+        _targetHwnd = GetForegroundWindow();
         InitializeComponent();
 
         _searchDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
@@ -153,12 +170,9 @@ public partial class ClipboardPanel : Window
         btnClearAll.ToolTip = GetClearActionText();
     }
 
-    // 双击复制(恢复到剪贴板),不弹出通知
+    // 单击复制不关闭;双击复制、关闭面板并尝试粘贴到原前台文本框
     private void Item_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (e.ClickCount != 2)
-            return;
-
         if (sender is Border border && border.Tag is string id)
         {
             var item = _allRaw.FirstOrDefault(i => i.Id == id);
@@ -167,10 +181,34 @@ public partial class ClipboardPanel : Window
                 try
                 {
                     _manager.RestoreToClipboard(item);
-                    Close();
+                    if (e.ClickCount >= 2)
+                    {
+                        Close();
+                        PasteToTarget();
+                    }
+                    else
+                    {
+                        ToastNotification.Show("已复制");
+                    }
                 }
-                catch { /* 忽略恢复失败 */ }
+                catch
+                {
+                    ToastNotification.Show("复制失败", type: ToastNotification.ToastType.Error);
+                }
             }
+        }
+    }
+
+    private void FavoriteButton_Click(object sender, RoutedEventArgs e)
+    {
+        e.Handled = true;
+
+        if (sender is FrameworkElement fe && fe.DataContext is ClipboardItemViewModel vm)
+        {
+            _manager.ToggleFavorite(vm.Id);
+            _vmCache.Remove(vm.Id);
+            LoadRecent();
+            ToastNotification.Show(vm.IsFavorite ? "已取消收藏" : "已收藏");
         }
     }
 
@@ -197,6 +235,40 @@ public partial class ClipboardPanel : Window
         }
     }
 
+    private void MenuSaveAs_Click(object sender, RoutedEventArgs e)
+    {
+        var id = IdFromMenu(sender);
+        var item = id == null ? null : _allRaw.FirstOrDefault(i => i.Id == id);
+        if (item?.Type != ClipboardItemType.Image || string.IsNullOrEmpty(item.ImagePath) || !File.Exists(item.ImagePath))
+        {
+            ToastNotification.Show("图片不存在", type: ToastNotification.ToastType.Error);
+            return;
+        }
+
+        var dialog = new Microsoft.Win32.SaveFileDialog
+        {
+            Title = "另存为图片",
+            FileName = Path.GetFileName(item.ImagePath),
+            Filter = "PNG 图片 (*.png)|*.png|所有文件 (*.*)|*.*",
+            DefaultExt = ".png",
+            AddExtension = true,
+            OverwritePrompt = true
+        };
+
+        if (dialog.ShowDialog(this) != true)
+            return;
+
+        try
+        {
+            File.Copy(item.ImagePath, dialog.FileName, true);
+            ToastNotification.Show("已保存");
+        }
+        catch
+        {
+            ToastNotification.Show("保存失败", type: ToastNotification.ToastType.Error);
+        }
+    }
+
     private static string? IdFromMenu(object sender)
     {
         if (sender is MenuItem mi && mi.Parent is ContextMenu cm && cm.PlacementTarget is FrameworkElement fe && fe.Tag is string id)
@@ -207,11 +279,17 @@ public partial class ClipboardPanel : Window
     // 悬浮垃圾桶:按当前分类清空;只有"全部"页清空所有记录
     private void BtnClearAll_Click(object sender, RoutedEventArgs e)
     {
+        if (_tab == Tab.Favorite)
+        {
+            ToastNotification.Show("收藏只能右键删除", type: ToastNotification.ToastType.Info);
+            return;
+        }
+
         var action = GetClearActionText();
         var confirmed = ConfirmDialog.Show(
             this,
             action,
-            $"确定{action}吗？此操作不可恢复。",
+            $"确定{action}吗？收藏条目会保留，只能右键删除。",
             "清空",
             "取消");
 
@@ -228,15 +306,13 @@ public partial class ClipboardPanel : Window
                 case Tab.File:
                     _manager.ClearByType(ClipboardItemType.File);
                     break;
-                case Tab.Favorite:
-                    _manager.ClearFavorites();
-                    break;
                 default:
                     _manager.ClearAll();
                     break;
             }
 
             LoadRecent();
+            ToastNotification.Show("已清理");
         }
     }
 
@@ -250,6 +326,32 @@ public partial class ClipboardPanel : Window
             Tab.Favorite => "清空收藏",
             _ => "清空全部"
         };
+    }
+
+    private void PasteToTarget()
+    {
+        if (_targetHwnd == IntPtr.Zero)
+            return;
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        {
+            try
+            {
+                var panelHwnd = new WindowInteropHelper(this).Handle;
+                if (_targetHwnd == panelHwnd)
+                    return;
+
+                SetForegroundWindow(_targetHwnd);
+                keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero);
+                keybd_event(VK_V, 0, 0, UIntPtr.Zero);
+                keybd_event(VK_V, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+                keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+            }
+            catch
+            {
+                // 已经复制到剪贴板,粘贴失败不再打断用户
+            }
+        }));
     }
 
     // D: 命中缓存直接复用;否则新建(不在此处解码图片,解码留给可见时的 ThumbImage_Loaded)
@@ -273,6 +375,7 @@ public partial class ClipboardPanel : Window
             IsFavorite = item.IsFavorite,
             FavoriteGlyph = item.IsFavorite ? "★" : "☆",
             FavoriteTooltip = item.IsFavorite ? "取消收藏" : "收藏",
+            FavoriteState = item.IsFavorite ? "on" : null,
             SourceApp = item.SourceApp ?? string.Empty
         };
 
@@ -280,8 +383,32 @@ public partial class ClipboardPanel : Window
         {
             vm.IsImage = true;
             vm.ImagePath = item.ImagePath;            // B: 仅记录路径,延迟到可见时解码
+            vm.DisplayText = Path.GetFileName(item.ImagePath);
             var (w, h) = ReadPngSize(item.ImagePath!);
-            vm.SizeText = w > 0 ? $"{w} × {h}" : "图片";
+            var fileSize = new FileInfo(item.ImagePath).Length;
+            vm.ImageInfoText = FormatImageInfo(w, h, fileSize);
+            vm.SizeText = vm.ImageInfoText;
+            vm.IsLargeImage = fileSize >= LargeImageBytes || Math.Max(w, h) >= 3000;
+
+            var thumbWidth = 150d;
+            var thumbHeight = 96d;
+            if (w > 0 && h > 0)
+            {
+                var ratio = (double)w / h;
+                if (ratio >= 1)
+                {
+                    thumbWidth = Math.Min(180, Math.Max(118, 96 * ratio));
+                    thumbHeight = 96;
+                }
+                else
+                {
+                    thumbWidth = 96;
+                    thumbHeight = Math.Min(130, Math.Max(92, 96 / ratio));
+                }
+            }
+
+            vm.ThumbnailBoxWidth = thumbWidth;
+            vm.ThumbnailBoxHeight = thumbHeight;
         }
         else if (item.Type == ClipboardItemType.File)
         {
@@ -293,7 +420,7 @@ public partial class ClipboardPanel : Window
         {
             vm.IsText = true;
             vm.DisplayText = item.GetDisplayText(200);
-            vm.SizeText = $"{item.TextContent?.Length ?? 0} 字符";
+            vm.SizeText = "文本";
         }
 
         return vm;
@@ -332,11 +459,14 @@ public partial class ClipboardPanel : Window
     {
         try
         {
+            var thumbPath = GetThumbnailPath(path);
+            EnsureThumbnail(path, thumbPath);
+
             var bmp = new BitmapImage();
             bmp.BeginInit();
             bmp.CacheOption = BitmapCacheOption.OnLoad;   // 立即加载,不锁文件
-            bmp.DecodePixelHeight = 240;                  // 缩略图,降低内存
-            bmp.UriSource = new Uri(path);
+            bmp.DecodePixelHeight = 220;                  // 缩略图,降低内存
+            bmp.UriSource = new Uri(File.Exists(thumbPath) ? thumbPath : path);
             bmp.EndInit();
             bmp.Freeze();                                 // 跨线程:冻结后可在 UI 线程使用
             return bmp;
@@ -345,6 +475,116 @@ public partial class ClipboardPanel : Window
         {
             return null;
         }
+    }
+
+    private static void EnsureThumbnail(string sourcePath, string thumbPath)
+    {
+        try
+        {
+            var sourceInfo = new FileInfo(sourcePath);
+            var thumbInfo = new FileInfo(thumbPath);
+            if (thumbInfo.Exists && thumbInfo.LastWriteTimeUtc >= sourceInfo.LastWriteTimeUtc)
+                return;
+
+            Directory.CreateDirectory(AppPaths.ClipboardThumbnailsDirectory);
+
+            var source = new BitmapImage();
+            source.BeginInit();
+            source.CacheOption = BitmapCacheOption.OnLoad;
+            source.DecodePixelHeight = 240;
+            source.UriSource = new Uri(sourcePath);
+            source.EndInit();
+            source.Freeze();
+
+            var encoder = new PngBitmapEncoder();
+            encoder.Frames.Add(BitmapFrame.Create(source));
+            using var stream = new FileStream(thumbPath, FileMode.Create, FileAccess.Write, FileShare.None);
+            encoder.Save(stream);
+            File.SetLastWriteTimeUtc(thumbPath, sourceInfo.LastWriteTimeUtc);
+        }
+        catch
+        {
+            // 缩略图缓存失败时回退到源图加载,不影响主流程
+        }
+    }
+
+    private static string GetThumbnailPath(string imagePath)
+    {
+        var fileName = Path.GetFileNameWithoutExtension(imagePath);
+        return Path.Combine(AppPaths.ClipboardThumbnailsDirectory, fileName + ".thumb.png");
+    }
+
+    private static string FormatImageInfo(int width, int height, long bytes)
+    {
+        var dimensions = width > 0 && height > 0 ? $"{width} × {height}" : "图片";
+        return $"{dimensions} · {FormatBytes(bytes)}";
+    }
+
+    private static string FormatBytes(long bytes)
+    {
+        if (bytes >= 1024 * 1024)
+            return $"{bytes / 1024d / 1024d:0.#} MB";
+        if (bytes >= 1024)
+            return $"{bytes / 1024d:0.#} KB";
+        return $"{bytes} B";
+    }
+
+    private void ThumbPreview_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+        if (sender is FrameworkElement fe && fe.DataContext is ClipboardItemViewModel vm)
+        {
+            ShowImagePreview(vm);
+        }
+    }
+
+    private void ShowImagePreview(ClipboardItemViewModel vm)
+    {
+        if (string.IsNullOrEmpty(vm.ImagePath) || !File.Exists(vm.ImagePath))
+        {
+            ToastNotification.Show("图片不存在", type: ToastNotification.ToastType.Error);
+            return;
+        }
+
+        try
+        {
+            var bmp = new BitmapImage();
+            bmp.BeginInit();
+            bmp.CacheOption = BitmapCacheOption.OnLoad;
+            bmp.DecodePixelWidth = 1200;
+            bmp.UriSource = new Uri(vm.ImagePath);
+            bmp.EndInit();
+            bmp.Freeze();
+
+            imagePreview.Source = bmp;
+            imagePreviewTitle.Text = vm.ImageInfoText;
+            imagePreviewOverlay.Visibility = Visibility.Visible;
+        }
+        catch
+        {
+            ToastNotification.Show("预览失败", type: ToastNotification.ToastType.Error);
+        }
+    }
+
+    private void ClosePreview_Click(object sender, RoutedEventArgs e)
+    {
+        HideImagePreview();
+    }
+
+    private void ImagePreviewOverlay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        HideImagePreview();
+    }
+
+    private void ImagePreviewCard_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        e.Handled = true;
+    }
+
+    private void HideImagePreview()
+    {
+        imagePreview.Source = null;
+        imagePreviewOverlay.Visibility = Visibility.Collapsed;
     }
 
     /// <summary>从 PNG 文件头读取原始尺寸(剪贴板图片均存为 PNG),避免整图解码。</summary>
@@ -401,9 +641,14 @@ public class ClipboardItemViewModel : INotifyPropertyChanged
     public string SourceApp { get; set; } = string.Empty;
     public bool HasSource => !string.IsNullOrEmpty(SourceApp);
     public string SizeText { get; set; } = string.Empty;
+    public string ImageInfoText { get; set; } = string.Empty;
+    public bool IsLargeImage { get; set; }
+    public double ThumbnailBoxWidth { get; set; } = 150;
+    public double ThumbnailBoxHeight { get; set; } = 96;
     public bool IsFavorite { get; set; }
     public string FavoriteGlyph { get; set; } = "☆";
     public string FavoriteTooltip { get; set; } = "收藏";
+    public string? FavoriteState { get; set; }
 
     public event PropertyChangedEventHandler? PropertyChanged;
 }

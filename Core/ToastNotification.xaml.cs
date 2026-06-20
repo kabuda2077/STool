@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Threading;
@@ -26,10 +27,22 @@ namespace STool.Core
 
         private void ToastNotification_Loaded(object sender, RoutedEventArgs e)
         {
-            // 定位到屏幕右下角。Border 外留 20px 给阴影、期望卡片距边缘 20px,二者抵消。
+            var owner = System.Windows.Application.Current.Windows
+                .OfType<Window>()
+                .Where(w => w.IsVisible && !ReferenceEquals(w, this))
+                .OrderByDescending(w => w.IsActive)
+                .FirstOrDefault();
+
+            if (owner != null)
+            {
+                Left = owner.Left + (owner.ActualWidth - ActualWidth) / 2;
+                Top = owner.Top + owner.ActualHeight - ActualHeight - 44;
+                return;
+            }
+
             var workArea = SystemParameters.WorkArea;
-            Left = workArea.Right - ActualWidth;
-            Top = workArea.Bottom - ActualHeight;
+            Left = workArea.Left + (workArea.Width - ActualWidth) / 2;
+            Top = workArea.Bottom - ActualHeight - 44;
         }
 
         public static void Show(string title, string message = "", ToastType type = ToastType.Success, int duration = DEFAULT_DURATION)
@@ -50,19 +63,19 @@ namespace STool.Core
                 {
                     case ToastType.Success:
                         toast.iconText.Text = ""; // CheckMark
-                        toast.iconBorder.Background = (System.Windows.Media.Brush)System.Windows.Application.Current.FindResource("SuccessBrush");
+                        toast.iconText.Foreground = (System.Windows.Media.Brush)System.Windows.Application.Current.FindResource("SuccessBrush");
                         break;
                     case ToastType.Info:
                         toast.iconText.Text = ""; // Info
-                        toast.iconBorder.Background = (System.Windows.Media.Brush)System.Windows.Application.Current.FindResource("PrimaryBrush");
+                        toast.iconText.Foreground = (System.Windows.Media.Brush)System.Windows.Application.Current.FindResource("PrimaryBrush");
                         break;
                     case ToastType.Warning:
                         toast.iconText.Text = ""; // Warning
-                        toast.iconBorder.Background = (System.Windows.Media.Brush)System.Windows.Application.Current.FindResource("PrimaryBrush");
+                        toast.iconText.Foreground = (System.Windows.Media.Brush)System.Windows.Application.Current.FindResource("PrimaryBrush");
                         break;
                     case ToastType.Error:
                         toast.iconText.Text = ""; // Error
-                        toast.iconBorder.Background = (System.Windows.Media.Brush)System.Windows.Application.Current.FindResource("ErrorBrush");
+                        toast.iconText.Foreground = (System.Windows.Media.Brush)System.Windows.Application.Current.FindResource("ErrorBrush");
                         break;
                 }
 

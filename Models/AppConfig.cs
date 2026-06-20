@@ -40,6 +40,7 @@ public class TranslationConfig
     public string? AiApiUrlEncrypted { get; set; }
     public string? AiApiKeyEncrypted { get; set; }
     public string? AiModel { get; set; } = "gpt-4o-mini";
+    public string TranslationMode { get; set; } = "zh-en";
     public string SourceLanguage { get; set; } = "auto";
     public string TargetLanguage { get; set; } = "zh";
 }

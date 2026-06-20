@@ -40,6 +40,7 @@ public partial class CaptureOverlay : Window
     private Point _dragStart;
     private Rect _selectionAtStart;
     private bool _closing;
+    private bool _handlesReady;
     private bool _confirmed;                    // 是否已确认选区(确认后才出工具条 + 手柄)
     private bool _dragMoved;                    // 本次按下后是否明显移动(区分点击与拖拽)
     private readonly List<System.Drawing.Rectangle> _windowRects = new();   // 底层窗口物理矩形(Z 序,顶层在前)
@@ -121,47 +122,33 @@ public partial class CaptureOverlay : Window
         overlayCanvas.Cursor = cursor;
     }
 
-    /// <summary>句柄创建完成(在 Loaded 之前)。强制夺取前台键盘焦点(修复 Esc/Enter 失效)。</summary>
+    /// <summary>句柄创建完成(在 Loaded 之前)。这里只缓存句柄,避免显示首帧前抢输入队列。</summary>
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
         _selfHwnd = new WindowInteropHelper(this).Handle;
         LogStartupStep("SourceInitialized");
-        ForceForeground();
-        LogStartupStep("ForceForeground");
     }
 
     /// <summary>
-    /// 后台进程(托盘+全局热键)弹出的窗口默认抢不到前台,导致 Esc/Enter 被原前台应用
-    /// (如 always-on-top 的 dashboard)吃掉。这里用 AttachThreadInput 绕过前台锁定,
-    /// 把前台窗口线程的输入队列临时附加到本线程,从而成功 SetForegroundWindow + 取键盘焦点。
+    /// 轻量请求前台焦点。不要 AttachThreadInput 到前台进程;某些窗口状态下会偶发拖住
+    /// 截图窗口第一帧/输入队列数秒,鼠标表现为长时间忙碌光标。
     /// </summary>
     private void ForceForeground()
     {
         try
         {
-            var hwnd = new WindowInteropHelper(this).Handle;
+            var hwnd = _selfHwnd != IntPtr.Zero ? _selfHwnd : new WindowInteropHelper(this).Handle;
             if (hwnd == IntPtr.Zero) return;
-
-            var foreHwnd = GetForegroundWindow();
-            uint foreThread = foreHwnd != IntPtr.Zero ? GetWindowThreadProcessId(foreHwnd, IntPtr.Zero) : 0;
-            uint thisThread = GetCurrentThreadId();
-
-            bool attached = false;
-            if (foreThread != 0 && foreThread != thisThread)
-                attached = AttachThreadInput(foreThread, thisThread, true);
 
             SetForegroundWindow(hwnd);
             Activate();
             Focus();
             Keyboard.Focus(this);
 
-            if (attached)
-                AttachThreadInput(foreThread, thisThread, false);
-
-            // 仅在未夺到键盘焦点时告警(Esc/Enter 会失效),正常成功不刷日志
+            // 仅在未夺到键盘焦点时告警(Esc/Enter 可能失效),正常成功不刷日志
             if (!IsKeyboardFocusWithin)
-                Log.Warning("[Capture] ForceForeground did not gain keyboard focus (attached={Attached})", attached);
+                Log.Warning("[Capture] ForceForeground did not gain keyboard focus");
         }
         catch (Exception ex)
         {
@@ -192,11 +179,11 @@ public partial class CaptureOverlay : Window
         Activate();
         LogStartupStep("Loaded interactive");
 
-        Dispatcher.BeginInvoke(() =>
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
         {
-            LogStartupStep("First dispatcher frame");
+            LogStartupStep("Post-interactive dispatcher frame");
             StartWindowDetection();
-        });
+        }));
     }
 
     /// <summary>默认选区 = 光标所在显示器的工作区(物理像素换算到窗口 DIP 坐标)。</summary>
@@ -220,11 +207,7 @@ public partial class CaptureOverlay : Window
     [DllImport("dwmapi.dll")] private static extern int DwmGetWindowAttribute(IntPtr h, int attr, out int v, int size);
 
     // 强制夺取前台焦点(绕过 Windows 前台锁定:把目标前台线程的输入队列临时附加到本线程)
-    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
-    [DllImport("user32.dll")] private static extern uint GetWindowThreadProcessId(IntPtr hWnd, IntPtr pid);
-    [DllImport("user32.dll")] private static extern bool AttachThreadInput(uint idAttach, uint idAttachTo, bool fAttach);
-    [DllImport("kernel32.dll")] private static extern uint GetCurrentThreadId();
     [StructLayout(LayoutKind.Sequential)] private struct NRECT { public int Left, Top, Right, Bottom; }
     private const int DWMWA_EXTENDED_FRAME_BOUNDS = 9;
     private const int DWMWA_CLOAKED = 14;
@@ -328,6 +311,7 @@ public partial class CaptureOverlay : Window
             overlayCanvas.Children.Add(h);
             Panel.SetZIndex(h, 50);
         }
+        _handlesReady = true;
         Panel.SetZIndex(toolbar, 100);
     }
 
@@ -355,6 +339,7 @@ public partial class CaptureOverlay : Window
     protected override void OnMouseLeftButtonDown(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonDown(e);
+        if (_closing || !IsLoaded) return;
         if (_currentTool != AnnotationTool.None) return;        // 标注模式交给 annotationCanvas
         if (IsOverToolbar(e)) return;
 
@@ -365,8 +350,9 @@ public partial class CaptureOverlay : Window
         _selectionAtStart = _selection;
         _dragMoved = false;
 
-        // 双击选区内 = 复制并完成
-        if (e.ClickCount == 2 && _selection.Contains(p))
+        // 双击已确认选区内 = 复制并完成。未确认时禁止直接复制默认选区,
+        // 避免截图窗口首帧偶发延迟时,排队的点击被识别成双击后直接退出。
+        if (_confirmed && e.ClickCount == 2 && _selection.Contains(p))
         {
             CopyAndClose();
             return;
@@ -384,6 +370,7 @@ public partial class CaptureOverlay : Window
     protected override void OnMouseMove(System.Windows.Input.MouseEventArgs e)
     {
         base.OnMouseMove(e);
+        if (_closing || !IsLoaded) return;
 
         // 悬停识别窗口(未确认、且未按下拖拽时)
         if (!_confirmed && _dragMode == DragMode.None)
@@ -430,6 +417,7 @@ public partial class CaptureOverlay : Window
     protected override void OnMouseLeftButtonUp(MouseButtonEventArgs e)
     {
         base.OnMouseLeftButtonUp(e);
+        if (_closing || !IsLoaded) return;
         if (_dragMode == DragMode.None) return;
         _dragMode = DragMode.None;
         overlayCanvas.ReleaseMouseCapture();
@@ -480,6 +468,9 @@ public partial class CaptureOverlay : Window
 
     private void UpdateVisuals()
     {
+        if (_closing || !IsLoaded)
+            return;
+
         // 边框
         Canvas.SetLeft(selectionBorder, _selection.X);
         Canvas.SetTop(selectionBorder, _selection.Y);
@@ -568,6 +559,9 @@ public partial class CaptureOverlay : Window
     private void PositionHandles()
     {
         bool show = _confirmed && _currentTool == AnnotationTool.None;
+        if (!_handlesReady)
+            return;
+
         double x = _selection.X, y = _selection.Y, w = _selection.Width, h = _selection.Height;
         var pts = new (double, double)[]
         {
@@ -577,6 +571,9 @@ public partial class CaptureOverlay : Window
         };
         for (int i = 0; i < 8; i++)
         {
+            if (_handles[i] == null)
+                continue;
+
             _handles[i].Visibility = show ? Visibility.Visible : Visibility.Collapsed;
             Canvas.SetLeft(_handles[i], pts[i].Item1 - 5);
             Canvas.SetTop(_handles[i], pts[i].Item2 - 5);

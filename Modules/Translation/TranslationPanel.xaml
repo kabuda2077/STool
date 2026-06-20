@@ -323,38 +323,18 @@
                 </StackPanel>
             </Border>
 
-            <!-- 语言选择:源 → 目标 -->
+            <!-- 翻译策略 -->
             <Border Grid.Column="2"
                     Background="{StaticResource SurfaceBrush}"
                     CornerRadius="8"
                     Padding="3">
-                <StackPanel Orientation="Horizontal">
-                    <ComboBox x:Name="cmbSource" Style="{StaticResource TranslationLanguageComboBox}" Width="90" Height="32" SelectedIndex="0">
-                        <ComboBoxItem Content="自动检测" Tag="auto"/>
-                        <ComboBoxItem Content="中文" Tag="zh"/>
-                        <ComboBoxItem Content="英文" Tag="en"/>
-                        <ComboBoxItem Content="日文" Tag="ja"/>
-                        <ComboBoxItem Content="韩文" Tag="ko"/>
-                    </ComboBox>
-                    <Viewbox Width="16" Height="16"
-                             Margin="5,0"
-                             VerticalAlignment="Center">
-                        <Canvas Width="24" Height="24">
-                            <Path Data="{StaticResource IconArrowRight}"
-                                  Stroke="{StaticResource TextSecondaryBrush}"
-                                  StrokeThickness="2"
-                                  StrokeStartLineCap="Round"
-                                  StrokeEndLineCap="Round"
-                                  StrokeLineJoin="Round"/>
-                        </Canvas>
-                    </Viewbox>
-                    <ComboBox x:Name="cmbTarget" Style="{StaticResource TranslationLanguageComboBox}" Width="78" Height="32" SelectedIndex="1">
-                        <ComboBoxItem Content="中文" Tag="zh"/>
-                        <ComboBoxItem Content="英文" Tag="en"/>
-                        <ComboBoxItem Content="日文" Tag="ja"/>
-                        <ComboBoxItem Content="韩文" Tag="ko"/>
-                    </ComboBox>
-                </StackPanel>
+                <ComboBox x:Name="cmbMode" Style="{StaticResource TranslationLanguageComboBox}" Width="108" Height="32" SelectedIndex="0" SelectionChanged="CmbMode_SelectionChanged">
+                    <ComboBoxItem Content="中文 ⇄ 英文" Tag="zh-en"/>
+                    <ComboBoxItem Content="自动 → 中文" Tag="auto-zh"/>
+                    <ComboBoxItem Content="自动 → 英文" Tag="auto-en"/>
+                    <ComboBoxItem Content="自动 → 日文" Tag="auto-ja"/>
+                    <ComboBoxItem Content="自动 → 韩文" Tag="auto-ko"/>
+                </ComboBox>
             </Border>
         </Grid>
 

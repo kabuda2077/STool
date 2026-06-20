@@ -230,9 +230,9 @@ public class ClipboardStorage : IDisposable
 
     public void ClearAll()
     {
-        var imagePaths = GetImagePaths("", null);
+        var imagePaths = GetImagePaths("WHERE is_favorite = 0", null);
 
-        using (var command = new SqliteCommand("DELETE FROM clipboard_items", _connection))
+        using (var command = new SqliteCommand("DELETE FROM clipboard_items WHERE is_favorite = 0", _connection))
         {
             command.ExecuteNonQuery();
         }
@@ -242,12 +242,12 @@ public class ClipboardStorage : IDisposable
 
     public void ClearByType(ClipboardItemType type)
     {
-        var imagePaths = GetImagePaths("WHERE type = @type", command =>
+        var imagePaths = GetImagePaths("WHERE type = @type AND is_favorite = 0", command =>
         {
             command.Parameters.AddWithValue("@type", (int)type);
         });
 
-        using (var command = new SqliteCommand("DELETE FROM clipboard_items WHERE type = @type", _connection))
+        using (var command = new SqliteCommand("DELETE FROM clipboard_items WHERE type = @type AND is_favorite = 0", _connection))
         {
             command.Parameters.AddWithValue("@type", (int)type);
             command.ExecuteNonQuery();
@@ -334,11 +334,23 @@ public class ClipboardStorage : IDisposable
                 {
                     File.Delete(path);
                 }
+
+                var thumbPath = GetThumbnailPath(path);
+                if (File.Exists(thumbPath))
+                {
+                    File.Delete(thumbPath);
+                }
             }
             catch (Exception ex)
             {
                 Log.Warning(ex, $"Failed to delete clipboard image: {path}");
             }
         }
+    }
+
+    private static string GetThumbnailPath(string imagePath)
+    {
+        var fileName = Path.GetFileNameWithoutExtension(imagePath);
+        return Path.Combine(AppPaths.ClipboardThumbnailsDirectory, fileName + ".thumb.png");
     }
 }

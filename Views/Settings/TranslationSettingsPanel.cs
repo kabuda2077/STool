@@ -11,8 +11,7 @@ public class TranslationSettingsPanel : StackPanel
 {
     private readonly ConfigManager _configManager;
     private System.Windows.Controls.ComboBox _cmbProvider = null!;
-    private System.Windows.Controls.ComboBox _cmbSourceLanguage = null!;
-    private System.Windows.Controls.ComboBox _cmbTargetLanguage = null!;
+    private System.Windows.Controls.ComboBox _cmbTranslationMode = null!;
 
     // 腾讯云
     private System.Windows.Controls.TextBox _txtTencentSecretId = null!;
@@ -61,37 +60,23 @@ public class TranslationSettingsPanel : StackPanel
         _activeSection.Children.Add(_cmbProvider);
         Children.Add(WrapSection(_activeSection));
 
-        // 默认语言
-        _activeSection = CreateSection("默认语言");
+        // 默认策略
+        _activeSection = CreateSection("默认策略");
 
-        AddLabel("源语言");
-        _cmbSourceLanguage = new System.Windows.Controls.ComboBox
+        AddLabel("翻译策略");
+        _cmbTranslationMode = new System.Windows.Controls.ComboBox
         {
             Style = (Style)FindResource("SunkenComboBox"),
             Height = 32,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
             Margin = new Thickness(0, 3, 0, 7)
         };
-        _cmbSourceLanguage.Items.Add(new ComboBoxItem { Content = "自动检测", Tag = "auto" });
-        _cmbSourceLanguage.Items.Add(new ComboBoxItem { Content = "中文", Tag = "zh" });
-        _cmbSourceLanguage.Items.Add(new ComboBoxItem { Content = "英文", Tag = "en" });
-        _cmbSourceLanguage.Items.Add(new ComboBoxItem { Content = "日文", Tag = "ja" });
-        _cmbSourceLanguage.Items.Add(new ComboBoxItem { Content = "韩文", Tag = "ko" });
-        _activeSection.Children.Add(_cmbSourceLanguage);
-
-        AddLabel("目标语言");
-        _cmbTargetLanguage = new System.Windows.Controls.ComboBox
-        {
-            Style = (Style)FindResource("SunkenComboBox"),
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Margin = new Thickness(0, 3, 0, 7)
-        };
-        _cmbTargetLanguage.Items.Add(new ComboBoxItem { Content = "中文", Tag = "zh" });
-        _cmbTargetLanguage.Items.Add(new ComboBoxItem { Content = "英文", Tag = "en" });
-        _cmbTargetLanguage.Items.Add(new ComboBoxItem { Content = "日文", Tag = "ja" });
-        _cmbTargetLanguage.Items.Add(new ComboBoxItem { Content = "韩文", Tag = "ko" });
-        _activeSection.Children.Add(_cmbTargetLanguage);
+        _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "中 ⇄ 英", Tag = "zh-en" });
+        _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "自动 → 中文", Tag = "auto-zh" });
+        _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "自动 → 英文", Tag = "auto-en" });
+        _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "自动 → 日文", Tag = "auto-ja" });
+        _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "自动 → 韩文", Tag = "auto-ko" });
+        _activeSection.Children.Add(_cmbTranslationMode);
         Children.Add(WrapSection(_activeSection));
 
         // 腾讯云设置
@@ -434,25 +419,16 @@ public class TranslationSettingsPanel : StackPanel
             }
         }
 
-        // 源语言
-        foreach (ComboBoxItem item in _cmbSourceLanguage.Items)
+        // 翻译策略
+        foreach (ComboBoxItem item in _cmbTranslationMode.Items)
         {
-            if ((string)item.Tag == config.SourceLanguage)
+            if ((string)item.Tag == config.TranslationMode)
             {
-                _cmbSourceLanguage.SelectedItem = item;
+                _cmbTranslationMode.SelectedItem = item;
                 break;
             }
         }
-
-        // 目标语言
-        foreach (ComboBoxItem item in _cmbTargetLanguage.Items)
-        {
-            if ((string)item.Tag == config.TargetLanguage)
-            {
-                _cmbTargetLanguage.SelectedItem = item;
-                break;
-            }
-        }
+        _cmbTranslationMode.SelectedIndex = _cmbTranslationMode.SelectedIndex < 0 ? 0 : _cmbTranslationMode.SelectedIndex;
 
         // 腾讯云（解密显示）
         if (!string.IsNullOrEmpty(config.TencentSecretIdEncrypted))
@@ -493,8 +469,9 @@ public class TranslationSettingsPanel : StackPanel
             var config = _configManager.Get();
 
             config.Translation.Provider = (TranslationProvider)(_cmbProvider.SelectedItem as ComboBoxItem)!.Tag;
-            config.Translation.SourceLanguage = (string)(_cmbSourceLanguage.SelectedItem as ComboBoxItem)!.Tag;
-            config.Translation.TargetLanguage = (string)(_cmbTargetLanguage.SelectedItem as ComboBoxItem)!.Tag;
+            config.Translation.TranslationMode = (string)(_cmbTranslationMode.SelectedItem as ComboBoxItem)!.Tag;
+            config.Translation.SourceLanguage = "auto";
+            config.Translation.TargetLanguage = TranslationManager.ResolveTargetLanguage(string.Empty, config.Translation.TranslationMode);
 
             // 腾讯云（加密保存）
             if (!string.IsNullOrWhiteSpace(_txtTencentSecretId.Text))

@@ -17,14 +17,16 @@ public partial class TranslationPanel : Window
     private readonly TranslationManager _translationManager;
     private TranslationProvider _provider = TranslationProvider.Google;
     private bool _busy;
+    private bool _initializingLanguages = true;
     private readonly IntPtr _targetHwnd;   // 打开面板前的前台窗口("复制并输入"时切回它粘贴)
 
     public TranslationPanel(TranslationManager translationManager)
     {
         _targetHwnd = GetForegroundWindow();   // 在 Show() 之前抓取 = 用户原来的应用
-        InitializeComponent();
         _translationManager = translationManager;
+        InitializeComponent();
         _provider = _translationManager.GetConfiguredProvider();
+        LoadTranslationMode();
         UpdateProviderButtons();
         Loaded += TranslationPanel_Loaded;
 
@@ -73,6 +75,40 @@ public partial class TranslationPanel : Window
         btnProviderAi.Tag = _provider == TranslationProvider.OpenAI ? "on" : null;
     }
 
+    private void LoadTranslationMode()
+    {
+        _initializingLanguages = true;
+        SelectTranslationMode(_translationManager.GetConfiguredTranslationMode());
+        _initializingLanguages = false;
+    }
+
+    private void SelectTranslationMode(string mode)
+    {
+        foreach (ComboBoxItem item in cmbMode.Items)
+        {
+            if ((item.Tag?.ToString() ?? string.Empty).Equals(mode, StringComparison.OrdinalIgnoreCase))
+            {
+                cmbMode.SelectedItem = item;
+                return;
+            }
+        }
+
+        cmbMode.SelectedIndex = 0;
+    }
+
+    private void CmbMode_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_initializingLanguages)
+            return;
+
+        _translationManager.SaveConfiguredTranslationMode(GetTranslationMode());
+
+        if (!string.IsNullOrWhiteSpace(txtSource.Text))
+        {
+            _ = TranslateAsync();
+        }
+    }
+
     private void TxtSource_TextChanged(object sender, TextChangedEventArgs e)
     {
         var hasText = !string.IsNullOrEmpty(txtSource.Text);
@@ -97,8 +133,8 @@ public partial class TranslationPanel : Window
             _busy = true;
             txtTarget.Text = "翻译中…";
 
-            var sourceLang = (cmbSource.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "auto";
-            var targetLang = (cmbTarget.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "en";
+            var sourceLang = "auto";
+            var targetLang = TranslationManager.ResolveTargetLanguage(sourceText, GetTranslationMode());
 
             var result = await _translationManager.TranslateAsync(sourceText, sourceLang, targetLang, _provider);
 
@@ -116,6 +152,11 @@ public partial class TranslationPanel : Window
             _busy = false;
             tgtWatermark.Visibility = string.IsNullOrEmpty(txtTarget.Text) ? Visibility.Visible : Visibility.Collapsed;
         }
+    }
+
+    private string GetTranslationMode()
+    {
+        return (cmbMode.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "zh-en";
     }
 
     /// <summary>复制译文到剪贴板;无结果或翻译中返回 false。</summary>

@@ -219,7 +219,7 @@ public class AppBootstrap : IDisposable
         // Do not create/show the WPF overlay inside the WM_HOTKEY hook itself.
         // Posting it lets the hotkey message unwind first, so mouse input can flow
         // normally as soon as the overlay is visible.
-        dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Send, new Action(ShowScreenshotOverlay));
+        dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, new Action(ShowScreenshotOverlay));
     }
 
     private static void ShowScreenshotOverlay()

@@ -10,7 +10,8 @@
         Height="560"
         MinWidth="560"
         MinHeight="440"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        PreviewKeyDown="Window_PreviewKeyDown">
 
     <Window.Resources>
         <Style x:Key="TranslationPane" TargetType="Border">
@@ -54,7 +55,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="b"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="7">
+                                CornerRadius="{StaticResource CornerRadiusMedium}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
                         </Border>
@@ -87,7 +88,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="b"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="7"
+                                CornerRadius="{StaticResource CornerRadiusMedium}"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </Border>
@@ -110,7 +111,7 @@
             <Border x:Name="Root"
                     Background="{TemplateBinding Background}"
                     BorderThickness="0"
-                    CornerRadius="7">
+                    CornerRadius="{StaticResource CornerRadiusMedium}">
                 <Grid>
                     <Path Data="{StaticResource IconChevronDown}"
                           Stroke="{StaticResource TextSecondaryBrush}"
@@ -223,7 +224,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="b"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="7"
+                                CornerRadius="{StaticResource CornerRadiusMedium}"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </Border>
@@ -350,12 +351,19 @@
                          VerticalScrollBarVisibility="Auto"
                          TextChanged="TxtTarget_TextChanged"/>
                 <TextBlock x:Name="tgtWatermark"
-                           Text="翻译结果"
-                           FontSize="{StaticResource FontSizeBody}"
-                           Foreground="{StaticResource TextSecondaryBrush}"
-                           IsHitTestVisible="False"
-                           VerticalAlignment="Top"
-                           Margin="0"/>
+                            Text="翻译结果"
+                            FontSize="{StaticResource FontSizeBody}"
+                            Foreground="{StaticResource TextSecondaryBrush}"
+                            IsHitTestVisible="False"
+                            VerticalAlignment="Top"
+                            Margin="0"/>
+
+                <!-- Loading indicator -->
+                <Border x:Name="loadingIndicator"
+                        Style="{StaticResource LoadingSpinner}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Visibility="Collapsed"/>
 
                 <!-- 浮动操作条:贴结果区底部;两层结构(空白层投阴影 + 内容层无特效)防 HiDPI 文字锯齿 -->
                 <Grid x:Name="actionBar"

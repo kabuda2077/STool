@@ -24,4 +24,9 @@
     <FontWeight x:Key="FontWeightNormal">Normal</FontWeight>
     <FontWeight x:Key="FontWeightStrong">SemiBold</FontWeight>
 
+    <!-- ===== Corner Radius ===== -->
+    <CornerRadius x:Key="CornerRadiusSmall">4</CornerRadius>
+    <CornerRadius x:Key="CornerRadiusMedium">8</CornerRadius>
+    <CornerRadius x:Key="CornerRadiusLarge">12</CornerRadius>
+
 </ResourceDictionary>

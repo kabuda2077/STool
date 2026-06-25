@@ -79,33 +79,33 @@
                     <Button x:Name="btnRect" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Rectangle" ToolTip="矩形">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
                             <Path Data="{StaticResource IconRectangle}"
-                                  Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2" StrokeLineJoin="Round"/>
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2" StrokeLineJoin="Round"/>
                         </Canvas></Viewbox>
                     </Button>
                     <Button x:Name="btnEllipse" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Ellipse" Margin="2,0,0,0" ToolTip="椭圆">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
                             <Path Data="{StaticResource IconCircle}"
-                                  Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"/>
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2"/>
                         </Canvas></Viewbox>
                     </Button>
                     <Button x:Name="btnArrow" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Arrow" Margin="2,0,0,0" ToolTip="箭头">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
                             <Path Data="{StaticResource IconArrowUpRight}"
-                                  Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2"
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
                         </Canvas></Viewbox>
                     </Button>
                     <Button x:Name="btnPen" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Pen" Margin="2,0,0,0" ToolTip="画笔">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
                             <Path Data="{StaticResource IconPenLine}"
-                                  Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2"
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
                         </Canvas></Viewbox>
                     </Button>
                     <Button x:Name="btnMosaic" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Mosaic" Margin="2,0,0,0" ToolTip="马赛克">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
                             <Path Data="{StaticResource IconMosaic}"
-                                  Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2"
                                   StrokeLineJoin="Round"
                                   Fill="{StaticResource TransparentBrush}"/>
                         </Canvas></Viewbox>
@@ -173,10 +173,10 @@
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                         </Canvas></Viewbox>
                     </Button>
-                    <Button x:Name="btnConfirm" Style="{StaticResource IconButton}" Click="BtnConfirm_Click" Margin="2,0,0,0" ToolTip="完成 (Enter)">
+                    <Button x:Name="btnConfirm" Style="{StaticResource IconButton}" Click="BtnConfirm_Click" Margin="2,0,0,0" ToolTip="完成 (Enter)" Foreground="{StaticResource SuccessBrush}">
                         <Viewbox Width="18" Height="18"><Canvas Width="24" Height="24">
                             <Path Data="{StaticResource IconCheck}"
-                                  Stroke="{StaticResource SuccessBrush}" StrokeThickness="2.2"
+                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2.2"
                                   StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
                         </Canvas></Viewbox>
                     </Button>

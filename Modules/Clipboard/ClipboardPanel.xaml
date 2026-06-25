@@ -27,7 +27,7 @@
                         <Border Background="{StaticResource TransparentBrush}"
                                 Padding="10">
                             <Border Background="{StaticResource SurfaceBrush}"
-                                    CornerRadius="8"
+                                    CornerRadius="{StaticResource CornerRadiusMedium}"
                                     Padding="5">
                                 <Border.Effect>
                                     <StaticResource ResourceKey="MenuShadow"/>
@@ -87,7 +87,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="root"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="7"
+                                CornerRadius="{StaticResource CornerRadiusMedium}"
                                 Padding="{TemplateBinding Padding}">
                             <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
                         </Border>
@@ -109,7 +109,7 @@
         <!-- 列表行:白色行块浮于画布,间隙分隔,无线条;悬停用稍深灰和背景区分 -->
         <Style x:Key="ClipRow" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-            <Setter Property="CornerRadius" Value="8"/>
+            <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusMedium}"/>
             <Setter Property="Padding" Value="16,14"/>
             <Setter Property="Margin" Value="0,4"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -123,7 +123,7 @@
         <!-- 来源应用徽章:中性色块药丸 -->
         <Style x:Key="SourceBadge" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
-            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusSmall}"/>
             <Setter Property="Padding" Value="7,2"/>
             <Setter Property="HorizontalAlignment" Value="Right"/>
         </Style>
@@ -143,7 +143,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="root"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="7">
+                                CornerRadius="{StaticResource CornerRadiusMedium}">
                             <ContentPresenter HorizontalAlignment="Center"
                                               VerticalAlignment="Center"/>
                         </Border>
@@ -163,14 +163,14 @@
 
         <Style x:Key="ImageInfoBadge" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
-            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusSmall}"/>
             <Setter Property="Padding" Value="7,2"/>
             <Setter Property="Margin" Value="0,6,6,0"/>
         </Style>
 
         <Style x:Key="ImageLargeBadge" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
-            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusSmall}"/>
             <Setter Property="Padding" Value="7,2"/>
             <Setter Property="Margin" Value="0,6,6,0"/>
         </Style>
@@ -189,7 +189,7 @@
             </Grid.ColumnDefinitions>
 
             <Border Background="{StaticResource SurfaceBrush}"
-                    CornerRadius="8"
+                    CornerRadius="{StaticResource CornerRadiusMedium}"
                     Padding="4"
                     HorizontalAlignment="Left">
                 <StackPanel Orientation="Horizontal">
@@ -206,7 +206,7 @@
                     Height="40"
                     Background="{StaticResource SurfaceBrush}"
                     BorderThickness="0"
-                    CornerRadius="8"
+                    CornerRadius="{StaticResource CornerRadiusMedium}"
                     Padding="13,0"
                     HorizontalAlignment="Right">
                 <Grid>
@@ -544,7 +544,7 @@
                     MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}}"
                     MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}"
                     Background="{StaticResource SurfaceBrush}"
-                    CornerRadius="8"
+                    CornerRadius="{StaticResource CornerRadiusMedium}"
                     Padding="10"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"

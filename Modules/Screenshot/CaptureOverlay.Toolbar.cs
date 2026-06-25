@@ -79,6 +79,7 @@ public partial class CaptureOverlay
                       || (b == btnPen && _currentTool == AnnotationTool.Pen)
                       || (b == btnMosaic && _currentTool == AnnotationTool.Mosaic);
             b.Background = active ? ResourceBrush("PrimarySoftBrush") : ResourceBrush("TransparentBrush");
+            b.Foreground = active ? ResourceBrush("PrimaryBrush") : ResourceBrush("TextPrimaryBrush");
         }
     }
 

@@ -131,7 +131,8 @@ public partial class TranslationPanel : Window
         try
         {
             _busy = true;
-            txtTarget.Text = "翻译中…";
+            txtTarget.Text = string.Empty;
+            loadingIndicator.Visibility = Visibility.Visible;
 
             var sourceLang = "auto";
             var targetLang = TranslationManager.ResolveTargetLanguage(sourceText, GetTranslationMode());
@@ -150,6 +151,7 @@ public partial class TranslationPanel : Window
         finally
         {
             _busy = false;
+            loadingIndicator.Visibility = Visibility.Collapsed;
             tgtWatermark.Visibility = string.IsNullOrEmpty(txtTarget.Text) ? Visibility.Visible : Visibility.Collapsed;
         }
     }
@@ -211,5 +213,43 @@ public partial class TranslationPanel : Window
             Close();
         };
         timer.Start();
+    }
+
+    private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        // Ctrl+Enter: 翻译
+        if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            _ = TranslateAsync();
+        }
+        // Ctrl+Shift+C: 复制结果并隐藏
+        else if (e.Key == Key.C && (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            e.Handled = true;
+            CopyText();
+            Close();
+        }
+        // Ctrl+L: 循环切换语言/翻译模式
+        else if (e.Key == Key.L && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            CycleLanguageMode();
+        }
+        // Escape: 关闭
+        else if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            Close();
+        }
+    }
+
+    private void CycleLanguageMode()
+    {
+        if (cmbMode.Items.Count > 0)
+        {
+            int nextIndex = (cmbMode.SelectedIndex + 1) % cmbMode.Items.Count;
+            cmbMode.SelectedIndex = nextIndex;
+        }
     }
 }

@@ -1,4 +1,9 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 using STool.Core;
@@ -47,6 +52,11 @@ public class TranslationManager : IDisposable
         return _configManager.Get().Translation.TranslationMode;
     }
 
+    public ScreenshotTranslationMode GetConfiguredScreenshotMode()
+    {
+        return _configManager.Get().Translation.ScreenshotMode;
+    }
+
     public void SaveConfiguredTranslationMode(string mode)
     {
         var config = _configManager.Get();
@@ -81,16 +91,72 @@ public class TranslationManager : IDisposable
     /// <summary>
     /// 翻译文本(使用配置中的默认提供商)
     /// </summary>
-    public Task<TranslationResult> TranslateAsync(string text, string? sourceLanguage = null, string? targetLanguage = null)
+    public Task<TranslationResult> TranslateAsync(string text, string? sourceLanguage = null, string? targetLanguage = null, CancellationToken cancellationToken = default)
     {
         var provider = _configManager.Get().Translation.Provider;
-        return TranslateAsync(text, sourceLanguage, targetLanguage, provider);
+        return TranslateAsync(text, sourceLanguage, targetLanguage, provider, cancellationToken);
+    }
+
+    public async Task<BlockTranslationResult> TranslateBlocksAsync(IReadOnlyList<string> blocks, string? sourceLanguage = null, string? targetLanguage = null, CancellationToken cancellationToken = default)
+    {
+        var normalized = blocks
+            .Select(block => block?.Trim() ?? string.Empty)
+            .Where(block => !string.IsNullOrWhiteSpace(block))
+            .ToArray();
+
+        if (normalized.Length == 0)
+        {
+            return new BlockTranslationResult
+            {
+                Success = false,
+                ErrorMessage = "没有可翻译的文本块"
+            };
+        }
+
+        var config = _configManager.Get().Translation;
+        sourceLanguage ??= config.SourceLanguage;
+        targetLanguage ??= ResolveTargetLanguage(string.Join("\n", normalized), config.TranslationMode);
+
+        var packedText = PackBlocks(normalized, config.Provider);
+        var result = await TranslateAsync(packedText, sourceLanguage, targetLanguage, config.Provider, cancellationToken);
+        if (!result.Success)
+        {
+            return new BlockTranslationResult
+            {
+                Success = false,
+                ErrorMessage = result.ErrorMessage
+            };
+        }
+
+        var translatedBlocks = TryUnpackBlocks(result.TranslatedText, normalized.Length);
+        if (translatedBlocks == null)
+        {
+            Log.Warning(
+                "[ScreenshotTranslate] Block translation count mismatch expected={Expected} rawLength={RawLength}",
+                normalized.Length,
+                result.TranslatedText.Length);
+
+            return new BlockTranslationResult
+            {
+                Success = false,
+                ErrorMessage = "分块翻译结果数量不匹配"
+            };
+        }
+
+        return new BlockTranslationResult
+        {
+            Success = true,
+            SourceLanguage = result.SourceLanguage,
+            TargetLanguage = result.TargetLanguage,
+            Provider = result.Provider,
+            TranslatedBlocks = translatedBlocks
+        };
     }
 
     /// <summary>
     /// 翻译文本(指定提供商,供翻译面板的提供商切换使用)
     /// </summary>
-    public async Task<TranslationResult> TranslateAsync(string text, string? sourceLanguage, string? targetLanguage, TranslationProvider provider)
+    public async Task<TranslationResult> TranslateAsync(string text, string? sourceLanguage, string? targetLanguage, TranslationProvider provider, CancellationToken cancellationToken = default)
     {
         var config = _configManager.Get().Translation;
 
@@ -112,7 +178,7 @@ public class TranslationManager : IDisposable
         }
 
         Log.Information($"Translating with provider: {provider}");
-        var result = await service.TranslateAsync(text, sourceLanguage, targetLanguage);
+        var result = await service.TranslateAsync(text, sourceLanguage, targetLanguage, cancellationToken);
 
         if (result.Success)
         {
@@ -190,6 +256,65 @@ public class TranslationManager : IDisposable
             || (ch >= '\u3400' && ch <= '\u4dbf');
     }
 
+    internal static string PackBlocks(IReadOnlyList<string> blocks, TranslationProvider provider)
+    {
+        var sb = new StringBuilder();
+        if (provider == TranslationProvider.OpenAI)
+        {
+            sb.AppendLine("Translate each marked item. Keep every <<<STOOL_###>>> marker exactly once and in the same order. Return only the translated marked items, one item per line.");
+        }
+
+        for (var i = 0; i < blocks.Count; i++)
+        {
+            sb.Append("<<<STOOL_");
+            sb.Append((i + 1).ToString("D3"));
+            sb.Append(">>> ");
+            sb.AppendLine(blocks[i]);
+        }
+
+        return sb.ToString();
+    }
+
+    internal static IReadOnlyList<string>? TryUnpackBlocks(string text, int expectedCount)
+    {
+        var markerPattern = @"(?:\[\[STOOL-(\d{3})\]\]|<<<STOOL_(\d{3})>>>)";
+        var matches = Regex.Matches(text, markerPattern, RegexOptions.Singleline);
+
+        if (matches.Count != expectedCount)
+        {
+            var looseLines = text
+                .Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
+                .Select(line => line.Trim())
+                .Where(line => !string.IsNullOrWhiteSpace(line))
+                .ToArray();
+
+            return looseLines.Length == expectedCount ? looseLines : null;
+        }
+
+        var results = new string[expectedCount];
+        for (var i = 0; i < matches.Count; i++)
+        {
+            var match = matches[i];
+            var numberText = match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value;
+            if (!int.TryParse(numberText, out var number))
+                return null;
+
+            var index = number - 1;
+            if (index < 0 || index >= expectedCount || results[index] != null)
+                return null;
+
+            var start = match.Index + match.Length;
+            var end = i + 1 < matches.Count ? matches[i + 1].Index : text.Length;
+            var value = text[start..end].Trim();
+            if (string.IsNullOrWhiteSpace(value))
+                return null;
+
+            results[index] = value;
+        }
+
+        return results.Any(string.IsNullOrWhiteSpace) ? null : results;
+    }
+
     private ITranslationService? CreateTencentService(TranslationConfig config)
     {
         if (string.IsNullOrEmpty(config.TencentSecretIdEncrypted) ||
@@ -218,6 +343,24 @@ public class TranslationManager : IDisposable
             config.AiApiKeyEncrypted,
             config.AiModel
         );
+    }
+
+    public ScreenContentSelector? TryCreateContentSelector()
+    {
+        var config = _configManager.Get().Translation;
+        if (string.IsNullOrEmpty(config.AiApiUrlEncrypted) ||
+            string.IsNullOrEmpty(config.AiApiKeyEncrypted) ||
+            string.IsNullOrEmpty(config.AiModel))
+        {
+            return null;
+        }
+
+        var selector = new ScreenContentSelector(
+            config.AiApiUrlEncrypted,
+            config.AiApiKeyEncrypted,
+            config.AiModel);
+
+        return selector.IsAvailable() ? selector : null;
     }
 
     private ITranslationService? GetOrCreateService(TranslationProvider provider, TranslationConfig config)
@@ -256,4 +399,19 @@ public class TranslationManager : IDisposable
     {
         _service?.Dispose();
     }
+}
+
+public class BlockTranslationResult
+{
+    public bool Success { get; set; }
+
+    public string SourceLanguage { get; set; } = string.Empty;
+
+    public string TargetLanguage { get; set; } = string.Empty;
+
+    public string Provider { get; set; } = string.Empty;
+
+    public IReadOnlyList<string> TranslatedBlocks { get; set; } = Array.Empty<string>();
+
+    public string? ErrorMessage { get; set; }
 }

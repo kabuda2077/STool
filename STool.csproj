@@ -3,9 +3,9 @@
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows10.0.26100.0</TargetFramework>
-    <Version>1.2.2</Version>
-    <AssemblyVersion>1.2.2.0</AssemblyVersion>
-    <FileVersion>1.2.2.0</FileVersion>
+    <Version>1.3.0</Version>
+    <AssemblyVersion>1.3.0.0</AssemblyVersion>
+    <FileVersion>1.3.0.0</FileVersion>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
@@ -13,6 +13,7 @@
     <ApplicationIcon>Resources\STool.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <UseWindowsForms>true</UseWindowsForms>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,6 +26,13 @@
 
   <ItemGroup>
     <Resource Include="Resources\STool.ico" />
+  </ItemGroup>
+
+  <!-- 测试项目位于 Tests/ 子目录,排除以免被主项目的默认通配符重复编译 -->
+  <ItemGroup>
+    <Compile Remove="Tests\**\*.cs" />
+    <Page Remove="Tests\**\*.xaml" />
+    <None Remove="Tests\**\*" />
   </ItemGroup>
 
 </Project>

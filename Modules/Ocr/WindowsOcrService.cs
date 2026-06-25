@@ -2,7 +2,9 @@ using System;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
+using Serilog;
 using Windows.Globalization;
 using Windows.Graphics.Imaging;
 using Windows.Media.Ocr;
@@ -33,8 +35,9 @@ public class WindowsOcrService : IOcrService
                 _ocrEngine = OcrEngine.TryCreateFromUserProfileLanguages();
             }
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning(ex, "Failed to initialize Windows OCR engine");
             _ocrEngine = null;
         }
     }
@@ -44,7 +47,7 @@ public class WindowsOcrService : IOcrService
         return _ocrEngine != null;
     }
 
-    public async Task<OcrResult> RecognizeAsync(Bitmap image)
+    public async Task<OcrResult> RecognizeAsync(Bitmap image, CancellationToken cancellationToken = default)
     {
         if (_ocrEngine == null)
         {
@@ -58,20 +61,22 @@ public class WindowsOcrService : IOcrService
 
         try
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             // 转换 Bitmap 到 SoftwareBitmap
             using var memoryStream = new MemoryStream();
             image.Save(memoryStream, System.Drawing.Imaging.ImageFormat.Bmp);
             memoryStream.Position = 0;
 
             var randomAccessStream = new InMemoryRandomAccessStream();
-            await memoryStream.CopyToAsync(randomAccessStream.AsStreamForWrite());
+            await memoryStream.CopyToAsync(randomAccessStream.AsStreamForWrite(), cancellationToken);
             randomAccessStream.Seek(0);
 
-            var decoder = await BitmapDecoder.CreateAsync(randomAccessStream);
-            var softwareBitmap = await decoder.GetSoftwareBitmapAsync();
+            var decoder = await BitmapDecoder.CreateAsync(randomAccessStream).AsTask(cancellationToken);
+            var softwareBitmap = await decoder.GetSoftwareBitmapAsync().AsTask(cancellationToken);
 
             // 执行 OCR
-            var ocrResult = await _ocrEngine.RecognizeAsync(softwareBitmap);
+            var ocrResult = await _ocrEngine.RecognizeAsync(softwareBitmap).AsTask(cancellationToken);
 
             // 转换结果
             var result = new OcrResult

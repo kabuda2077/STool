@@ -2,6 +2,7 @@ using System;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace STool.Modules.Translation;
@@ -23,7 +24,7 @@ public class GoogleTranslationService : ITranslationService
 
     public bool IsAvailable() => true;
 
-    public async Task<TranslationResult> TranslateAsync(string text, string sourceLanguage, string targetLanguage)
+    public async Task<TranslationResult> TranslateAsync(string text, string sourceLanguage, string targetLanguage, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -31,7 +32,7 @@ public class GoogleTranslationService : ITranslationService
             var tl = MapLanguageCode(targetLanguage);
             var url = $"https://translate.googleapis.com/translate_a/single?client=gtx&sl={sl}&tl={tl}&dt=t&q={Uri.EscapeDataString(text)}";
 
-            var json = await _http.GetStringAsync(url);
+            var json = await _http.GetStringAsync(url, cancellationToken);
             using var doc = JsonDocument.Parse(json);
             var root = doc.RootElement;
 

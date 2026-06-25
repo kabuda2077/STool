@@ -23,6 +23,12 @@
             <!-- 标注层:覆盖选区,工具激活时才可命中绘制(需 Background 才能接收鼠标) -->
             <Canvas x:Name="annotationCanvas" Background="{StaticResource TransparentBrush}" IsHitTestVisible="False" ClipToBounds="True"/>
 
+            <!-- 分块原位翻译层:优先按 OCR 坐标局部替换文字,失败时回退到下方整块翻译层 -->
+            <Canvas x:Name="translationBlockCanvas"
+                    Visibility="Collapsed"
+                    ClipToBounds="True"
+                    IsHitTestVisible="False"/>
+
             <!-- 原位翻译层:覆盖选区内容,模拟微信截图的"原文替换为译文"效果 -->
             <Border x:Name="translationOverlay"
                     Background="{StaticResource SurfaceBrush}"

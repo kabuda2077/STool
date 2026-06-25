@@ -14,9 +14,10 @@ dotnet build && dotnet run
 
 ## 功能
 
-- **截图** (Alt+1) - 框选截图
-- **翻译** (Alt+2) - 谷歌/腾讯翻译
+- **截图** (Alt+1) - 框选截图，支持原位翻译
+- **翻译** (Alt+2) - 选中文本后按快捷键翻译
 - **剪贴板历史** (Alt+3) - 自动保存复制记录
+- **设置** (Alt+4) - 打开设置面板
 
 ## 技术栈
 
@@ -35,6 +36,9 @@ Styles/         设计系统
 
 ## 配置与数据
 
-- 配置: `%APPDATA%\STool\appsettings.json`
-- 数据库: `%APPDATA%\STool\clipboard.db`
-- 日志: `%APPDATA%\STool\Logs\`
+便携版数据存储在程序目录的 `Data\` 文件夹：
+
+- 配置: `Data\config.json`
+- 数据库: `Data\clipboard.db`
+- 日志: `Data\Logs\`
+- 加密密钥: `Data\secure.key`

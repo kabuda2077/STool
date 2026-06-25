@@ -4,6 +4,7 @@ using System.Linq;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using STool.Core;
 using STool.Models;
@@ -29,7 +30,7 @@ public class AiTranslationService : ITranslationService
         _apiUrl = SecureStorage.Decrypt(apiUrlEncrypted);
         _apiKey = SecureStorage.Decrypt(apiKeyEncrypted);
         _model = model;
-        _httpClient = new HttpClient();
+        _httpClient = HttpDefaults.CreateClient();
     }
 
     public bool IsAvailable()
@@ -60,7 +61,7 @@ public class AiTranslationService : ITranslationService
             throw new InvalidOperationException("请先填写 API Key");
         }
 
-        using var httpClient = new HttpClient();
+        var httpClient = HttpDefaults.Shared;
         using var request = new HttpRequestMessage(HttpMethod.Get, BuildModelsUrl(apiUrl.Trim()));
         request.Headers.Add("Authorization", $"Bearer {apiKey.Trim()}");
 
@@ -131,7 +132,7 @@ public class AiTranslationService : ITranslationService
         return builder.Uri.ToString();
     }
 
-    public async Task<TranslationResult> TranslateAsync(string text, string sourceLanguage, string targetLanguage)
+    public async Task<TranslationResult> TranslateAsync(string text, string sourceLanguage, string targetLanguage, CancellationToken cancellationToken = default)
     {
         if (!IsAvailable())
         {
@@ -175,8 +176,8 @@ public class AiTranslationService : ITranslationService
             };
             request.Headers.Add("Authorization", $"Bearer {_apiKey}");
 
-            var response = await _httpClient.SendAsync(request);
-            var responseJson = await response.Content.ReadAsStringAsync();
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {

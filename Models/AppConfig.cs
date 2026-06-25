@@ -14,9 +14,9 @@ public class AppConfig
 
 public class HotkeyConfig
 {
-    public string Screenshot { get; set; } = "Ctrl+Alt+A";
-    public string Translation { get; set; } = "Ctrl+Alt+T";
-    public string Clipboard { get; set; } = "Ctrl+Alt+V";
+    public string Screenshot { get; set; } = "Alt+1";
+    public string Translation { get; set; } = "Alt+2";
+    public string Clipboard { get; set; } = "Alt+3";
     public string Settings { get; set; } = "Alt+4";
 }
 
@@ -35,6 +35,7 @@ public class TranslationConfig
 {
     public TranslationProvider Provider { get; set; } = TranslationProvider.OpenAI;
     public TranslationAiPlatform AiPlatform { get; set; } = TranslationAiPlatform.OpenAI;
+    public ScreenshotTranslationMode ScreenshotMode { get; set; } = ScreenshotTranslationMode.Fast;
     public string? TencentSecretIdEncrypted { get; set; }
     public string? TencentSecretKeyEncrypted { get; set; }
     public string? AiApiUrlEncrypted { get; set; }
@@ -76,4 +77,11 @@ public enum TranslationAiPlatform
     GoogleAiStudio,
     DeepSeek,
     Custom
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum ScreenshotTranslationMode
+{
+    Fast,
+    Smart
 }

@@ -4,6 +4,7 @@ using System.IO;
 using System.Net.Http;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using STool.Core;
 
@@ -24,7 +25,7 @@ public class AiVisionOcrService : IOcrService
         _apiUrl = SecureStorage.Decrypt(apiUrlEncrypted);
         _apiKey = SecureStorage.Decrypt(apiKeyEncrypted);
         _model = model;
-        _httpClient = new HttpClient();
+        _httpClient = HttpDefaults.CreateClient();
     }
 
     public bool IsAvailable()
@@ -32,7 +33,7 @@ public class AiVisionOcrService : IOcrService
         return !string.IsNullOrEmpty(_apiUrl) && !string.IsNullOrEmpty(_apiKey);
     }
 
-    public async Task<OcrResult> RecognizeAsync(Bitmap image)
+    public async Task<OcrResult> RecognizeAsync(Bitmap image, CancellationToken cancellationToken = default)
     {
         if (!IsAvailable())
         {
@@ -89,8 +90,8 @@ public class AiVisionOcrService : IOcrService
             };
             request.Headers.Add("Authorization", $"Bearer {_apiKey}");
 
-            var response = await _httpClient.SendAsync(request);
-            var responseJson = await response.Content.ReadAsStringAsync();
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {

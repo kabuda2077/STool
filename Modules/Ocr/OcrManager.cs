@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
 using STool.Core;
@@ -25,7 +26,7 @@ public class OcrManager : IDisposable
     /// <summary>
     /// 识别图片中的文字（自动降级）
     /// </summary>
-    public async Task<OcrResult> RecognizeAsync(Bitmap image)
+    public async Task<OcrResult> RecognizeAsync(Bitmap image, CancellationToken cancellationToken = default)
     {
         var config = _configManager.Get().Ocr;
 
@@ -35,7 +36,7 @@ public class OcrManager : IDisposable
         if (primaryService != null && primaryService.IsAvailable())
         {
             Log.Information($"Trying OCR with provider: {config.Provider}");
-            var result = await primaryService.RecognizeAsync(image);
+            var result = await primaryService.RecognizeAsync(image, cancellationToken);
 
             if (result.Success)
             {
@@ -55,7 +56,7 @@ public class OcrManager : IDisposable
 
             if (localService.IsAvailable())
             {
-                var result = await localService.RecognizeAsync(image);
+                var result = await localService.RecognizeAsync(image, cancellationToken);
 
                 if (result.Success)
                 {

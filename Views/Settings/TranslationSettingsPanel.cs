@@ -12,6 +12,7 @@ public class TranslationSettingsPanel : StackPanel
     private readonly ConfigManager _configManager;
     private System.Windows.Controls.ComboBox _cmbProvider = null!;
     private System.Windows.Controls.ComboBox _cmbTranslationMode = null!;
+    private System.Windows.Controls.ComboBox _cmbScreenshotMode = null!;
 
     // 腾讯云
     private System.Windows.Controls.TextBox _txtTencentSecretId = null!;
@@ -77,6 +78,19 @@ public class TranslationSettingsPanel : StackPanel
         _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "自动 → 日文", Tag = "auto-ja" });
         _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "自动 → 韩文", Tag = "auto-ko" });
         _activeSection.Children.Add(_cmbTranslationMode);
+
+        AddLabel("截图翻译模式");
+        _cmbScreenshotMode = new System.Windows.Controls.ComboBox
+        {
+            Style = (Style)FindResource("SunkenComboBox"),
+            Height = 32,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
+            Margin = new Thickness(0, 3, 0, 7)
+        };
+        _cmbScreenshotMode.Items.Add(new ComboBoxItem { Content = "快速：规则筛选 + 当前翻译引擎", Tag = ScreenshotTranslationMode.Fast });
+        _cmbScreenshotMode.Items.Add(new ComboBoxItem { Content = "智能：AI 选择并翻译正文", Tag = ScreenshotTranslationMode.Smart });
+        _activeSection.Children.Add(_cmbScreenshotMode);
+        AddHint("智能模式会额外使用 AI 翻译配置，失败时自动回退快速模式。");
         Children.Add(WrapSection(_activeSection));
 
         // 腾讯云设置
@@ -430,6 +444,16 @@ public class TranslationSettingsPanel : StackPanel
         }
         _cmbTranslationMode.SelectedIndex = _cmbTranslationMode.SelectedIndex < 0 ? 0 : _cmbTranslationMode.SelectedIndex;
 
+        foreach (ComboBoxItem item in _cmbScreenshotMode.Items)
+        {
+            if ((ScreenshotTranslationMode)item.Tag == config.ScreenshotMode)
+            {
+                _cmbScreenshotMode.SelectedItem = item;
+                break;
+            }
+        }
+        _cmbScreenshotMode.SelectedIndex = _cmbScreenshotMode.SelectedIndex < 0 ? 0 : _cmbScreenshotMode.SelectedIndex;
+
         // 腾讯云（解密显示）
         if (!string.IsNullOrEmpty(config.TencentSecretIdEncrypted))
         {
@@ -470,6 +494,7 @@ public class TranslationSettingsPanel : StackPanel
 
             config.Translation.Provider = (TranslationProvider)(_cmbProvider.SelectedItem as ComboBoxItem)!.Tag;
             config.Translation.TranslationMode = (string)(_cmbTranslationMode.SelectedItem as ComboBoxItem)!.Tag;
+            config.Translation.ScreenshotMode = (ScreenshotTranslationMode)(_cmbScreenshotMode.SelectedItem as ComboBoxItem)!.Tag;
             config.Translation.SourceLanguage = "auto";
             config.Translation.TargetLanguage = TranslationManager.ResolveTargetLanguage(string.Empty, config.Translation.TranslationMode);
 

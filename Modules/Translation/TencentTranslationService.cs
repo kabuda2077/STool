@@ -3,6 +3,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using STool.Core;
 
@@ -25,7 +26,7 @@ public class TencentTranslationService : ITranslationService
     {
         _secretId = SecureStorage.Decrypt(secretIdEncrypted);
         _secretKey = SecureStorage.Decrypt(secretKeyEncrypted);
-        _httpClient = new HttpClient();
+        _httpClient = HttpDefaults.CreateClient();
     }
 
     public bool IsAvailable()
@@ -33,7 +34,7 @@ public class TencentTranslationService : ITranslationService
         return !string.IsNullOrEmpty(_secretId) && !string.IsNullOrEmpty(_secretKey);
     }
 
-    public async Task<TranslationResult> TranslateAsync(string text, string sourceLanguage, string targetLanguage)
+    public async Task<TranslationResult> TranslateAsync(string text, string sourceLanguage, string targetLanguage, CancellationToken cancellationToken = default)
     {
         if (!IsAvailable())
         {
@@ -84,8 +85,8 @@ public class TencentTranslationService : ITranslationService
             request.Headers.TryAddWithoutValidation("X-TC-Timestamp", timestamp.ToString());
             request.Headers.TryAddWithoutValidation("X-TC-Region", "ap-guangzhou");
 
-            var response = await _httpClient.SendAsync(request);
-            var responseJson = await response.Content.ReadAsStringAsync();
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
 
             // 解析响应
             var jsonDoc = JsonDocument.Parse(responseJson);

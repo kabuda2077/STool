@@ -2,6 +2,7 @@ using System;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
+using Serilog;
 using STool.Core;
 
 namespace STool.Views.Settings;
@@ -234,8 +235,9 @@ public class GeneralSettingsPanel : StackPanel
             using var key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", false);
             return key?.GetValue("STool") != null;
         }
-        catch
+        catch (Exception ex)
         {
+            Log.Warning(ex, "Failed to read auto-start registry value");
             return false;
         }
     }

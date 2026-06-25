@@ -5,6 +5,7 @@ using System.Net.Http;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using STool.Core;
 
@@ -27,7 +28,7 @@ public class TencentOcrService : IOcrService
     {
         _secretId = SecureStorage.Decrypt(secretIdEncrypted);
         _secretKey = SecureStorage.Decrypt(secretKeyEncrypted);
-        _httpClient = new HttpClient();
+        _httpClient = HttpDefaults.CreateClient();
     }
 
     public bool IsAvailable()
@@ -35,7 +36,7 @@ public class TencentOcrService : IOcrService
         return !string.IsNullOrEmpty(_secretId) && !string.IsNullOrEmpty(_secretKey);
     }
 
-    public async Task<OcrResult> RecognizeAsync(Bitmap image)
+    public async Task<OcrResult> RecognizeAsync(Bitmap image, CancellationToken cancellationToken = default)
     {
         if (!IsAvailable())
         {
@@ -88,8 +89,8 @@ public class TencentOcrService : IOcrService
             request.Headers.TryAddWithoutValidation("X-TC-Timestamp", timestamp.ToString());
             request.Headers.TryAddWithoutValidation("X-TC-Region", "ap-guangzhou");
 
-            var response = await _httpClient.SendAsync(request);
-            var responseJson = await response.Content.ReadAsStringAsync();
+            var response = await _httpClient.SendAsync(request, cancellationToken);
+            var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
 
             // 解析响应
             var jsonDoc = JsonDocument.Parse(responseJson);
@@ -128,7 +129,8 @@ public class TencentOcrService : IOcrService
                         result.TextBlocks.Add(new OcrTextBlock
                         {
                             Text = text,
-                            Confidence = confidence
+                            Confidence = confidence,
+                            BoundingBox = TryReadBoundingBox(detection)
                         });
                     }
 
@@ -169,6 +171,92 @@ public class TencentOcrService : IOcrService
         var signature = HmacSha256Hex(secretSigning, Encoding.UTF8.GetBytes(stringToSign));
 
         return $"TC3-HMAC-SHA256 Credential={_secretId}/{credentialScope}, SignedHeaders=content-type;host, Signature={signature}";
+    }
+
+    private static System.Drawing.Rectangle TryReadBoundingBox(JsonElement detection)
+    {
+        if (detection.TryGetProperty("Polygon", out var polygon) &&
+            TryReadPolygonBounds(polygon, out var polygonBounds))
+        {
+            return polygonBounds;
+        }
+
+        if (detection.TryGetProperty("ItemPolygon", out var itemPolygon))
+        {
+            if (TryReadPolygonBounds(itemPolygon, out var itemPolygonBounds))
+                return itemPolygonBounds;
+
+            if (TryReadRectBounds(itemPolygon, out var rectBounds))
+                return rectBounds;
+        }
+
+        return System.Drawing.Rectangle.Empty;
+    }
+
+    private static bool TryReadPolygonBounds(JsonElement element, out System.Drawing.Rectangle bounds)
+    {
+        bounds = System.Drawing.Rectangle.Empty;
+        if (element.ValueKind != JsonValueKind.Array)
+            return false;
+
+        var minX = int.MaxValue;
+        var minY = int.MaxValue;
+        var maxX = int.MinValue;
+        var maxY = int.MinValue;
+        var count = 0;
+
+        foreach (var point in element.EnumerateArray())
+        {
+            if (!TryReadInt(point, "X", out var x) || !TryReadInt(point, "Y", out var y))
+                continue;
+
+            minX = Math.Min(minX, x);
+            minY = Math.Min(minY, y);
+            maxX = Math.Max(maxX, x);
+            maxY = Math.Max(maxY, y);
+            count++;
+        }
+
+        if (count == 0 || maxX <= minX || maxY <= minY)
+            return false;
+
+        bounds = new System.Drawing.Rectangle(minX, minY, maxX - minX, maxY - minY);
+        return true;
+    }
+
+    private static bool TryReadRectBounds(JsonElement element, out System.Drawing.Rectangle bounds)
+    {
+        bounds = System.Drawing.Rectangle.Empty;
+        if (element.ValueKind != JsonValueKind.Object)
+            return false;
+
+        if (!TryReadInt(element, "X", out var x) ||
+            !TryReadInt(element, "Y", out var y) ||
+            !TryReadInt(element, "Width", out var width) ||
+            !TryReadInt(element, "Height", out var height) ||
+            width <= 0 ||
+            height <= 0)
+        {
+            return false;
+        }
+
+        bounds = new System.Drawing.Rectangle(x, y, width, height);
+        return true;
+    }
+
+    private static bool TryReadInt(JsonElement element, string propertyName, out int value)
+    {
+        value = 0;
+        if (!element.TryGetProperty(propertyName, out var property))
+            return false;
+
+        if (property.ValueKind == JsonValueKind.Number && property.TryGetInt32(out value))
+            return true;
+
+        if (property.ValueKind == JsonValueKind.String && int.TryParse(property.GetString(), out value))
+            return true;
+
+        return false;
     }
 
     private static string Sha256Hex(string data)

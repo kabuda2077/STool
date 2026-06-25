@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using System.Threading.Tasks;
 
 namespace STool.Modules.Translation;
@@ -14,7 +15,8 @@ public interface ITranslationService : IDisposable
     /// <param name="text">要翻译的文本</param>
     /// <param name="sourceLanguage">源语言（auto 表示自动检测）</param>
     /// <param name="targetLanguage">目标语言</param>
-    Task<TranslationResult> TranslateAsync(string text, string sourceLanguage, string targetLanguage);
+    /// <param name="cancellationToken">取消令牌</param>
+    Task<TranslationResult> TranslateAsync(string text, string sourceLanguage, string targetLanguage, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 服务是否可用

@@ -19,6 +19,7 @@ public partial class OcrResultWindow : Window
         {
             System.Windows.Clipboard.SetText(txtResult.Text);
             ToastNotification.Show("已复制到剪贴板", type: ToastNotification.ToastType.Success);
+            Close();
         }
         catch (Exception ex)
         {

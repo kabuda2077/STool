@@ -73,39 +73,7 @@
             </Setter>
         </Style>
 
-        <!-- 提供商切换按钮:选中态用 Tag="on" 触发 -->
-        <Style x:Key="ProviderToggle" TargetType="Button">
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="Padding" Value="14,0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="b"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="{StaticResource CornerRadiusMedium}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="b" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-                            </Trigger>
-                            <Trigger Property="Tag" Value="on">
-                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
-                                <Setter Property="FontWeight" Value="SemiBold"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+
 
         <ControlTemplate x:Key="TranslationLanguageComboToggleTemplate" TargetType="ToggleButton">
             <Border x:Name="Root"
@@ -318,9 +286,9 @@
                     CornerRadius="8"
                     Padding="4">
                 <StackPanel Orientation="Horizontal">
-                    <Button x:Name="btnProviderGoogle" Style="{StaticResource ProviderToggle}" Click="Provider_Click" Tag="on" Content="谷歌翻译"/>
-                    <Button x:Name="btnProviderTencent" Style="{StaticResource ProviderToggle}" Click="Provider_Click" Content="腾讯翻译"/>
-                    <Button x:Name="btnProviderAi" Style="{StaticResource ProviderToggle}" Click="Provider_Click" Content="AI 翻译"/>
+                    <Button x:Name="btnProviderGoogle" Style="{StaticResource CapsuleTabButton}" Click="Provider_Click" Tag="on" Content="谷歌翻译"/>
+                    <Button x:Name="btnProviderTencent" Style="{StaticResource CapsuleTabButton}" Click="Provider_Click" Content="腾讯翻译"/>
+                    <Button x:Name="btnProviderAi" Style="{StaticResource CapsuleTabButton}" Click="Provider_Click" Content="AI 翻译"/>
                 </StackPanel>
             </Border>
 

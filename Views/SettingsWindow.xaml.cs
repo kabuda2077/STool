@@ -80,4 +80,6 @@ public partial class SettingsWindow : Window
         contentPanel.Children.Add(panel);
         contentScroll.ScrollToTop();
     }
+
+
 }

@@ -72,39 +72,7 @@
             </Setter>
         </Style>
 
-        <!-- 顶部分类:白底分段切换;选中态蓝字加粗,与翻译引擎切换一致 -->
-        <Style x:Key="TabButton" TargetType="Button">
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FontSize" Value="13"/>
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="Padding" Value="16,0"/>
-            <Setter Property="Margin" Value="0,0,6,0"/>
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
-            <Setter Property="FocusVisualStyle" Value="{x:Null}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="root"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="{StaticResource CornerRadiusMedium}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="root" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
-                            </Trigger>
-                            <Trigger Property="Tag" Value="on">
-                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
-                                <Setter Property="FontWeight" Value="SemiBold"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
+
 
         <!-- 列表行:白色行块浮于画布,间隙分隔,无线条;悬停用稍深灰和背景区分 -->
         <Style x:Key="ClipRow" TargetType="Border">
@@ -113,10 +81,37 @@
             <Setter Property="Padding" Value="16,14"/>
             <Setter Property="Margin" Value="0,4"/>
             <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Opacity" Value="0"/>
+            <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
+            <Setter Property="RenderTransform">
+                <Setter.Value>
+                    <TranslateTransform Y="-10"/>
+                </Setter.Value>
+            </Setter>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
                 </Trigger>
+                <EventTrigger RoutedEvent="Loaded">
+                    <BeginStoryboard>
+                        <Storyboard>
+                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
+                                             To="1"
+                                             Duration="0:0:0.25">
+                                <DoubleAnimation.EasingFunction>
+                                    <CubicEase EasingMode="EaseOut"/>
+                                </DoubleAnimation.EasingFunction>
+                            </DoubleAnimation>
+                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
+                                             To="0"
+                                             Duration="0:0:0.25">
+                                <DoubleAnimation.EasingFunction>
+                                    <CubicEase EasingMode="EaseOut"/>
+                                </DoubleAnimation.EasingFunction>
+                            </DoubleAnimation>
+                        </Storyboard>
+                    </BeginStoryboard>
+                </EventTrigger>
             </Style.Triggers>
         </Style>
 
@@ -193,22 +188,56 @@
                     Padding="4"
                     HorizontalAlignment="Left">
                 <StackPanel Orientation="Horizontal">
-                    <Button x:Name="tabAll" Style="{StaticResource TabButton}" Tag="on" Content="全部" Click="Tab_Click"/>
-                    <Button x:Name="tabText" Style="{StaticResource TabButton}" Content="文本" Click="Tab_Click"/>
-                    <Button x:Name="tabImage" Style="{StaticResource TabButton}" Content="图像" Click="Tab_Click"/>
-                    <Button x:Name="tabFile" Style="{StaticResource TabButton}" Content="文件" Click="Tab_Click"/>
-                    <Button x:Name="tabFavorite" Style="{StaticResource TabButton}" Content="收藏" Click="Tab_Click"/>
+                    <Button x:Name="tabAll" Style="{StaticResource CapsuleTabButton}" Tag="on" Content="全部" Click="Tab_Click"/>
+                    <Button x:Name="tabText" Style="{StaticResource CapsuleTabButton}" Content="文本" Click="Tab_Click"/>
+                    <Button x:Name="tabImage" Style="{StaticResource CapsuleTabButton}" Content="图像" Click="Tab_Click"/>
+                    <Button x:Name="tabFile" Style="{StaticResource CapsuleTabButton}" Content="文件" Click="Tab_Click"/>
+                    <Button x:Name="tabFavorite" Style="{StaticResource CapsuleTabButton}" Content="收藏" Click="Tab_Click"/>
                 </StackPanel>
             </Border>
 
             <Border Grid.Column="1"
-                    Width="218"
                     Height="40"
                     Background="{StaticResource SurfaceBrush}"
                     BorderThickness="0"
                     CornerRadius="{StaticResource CornerRadiusMedium}"
                     Padding="13,0"
                     HorizontalAlignment="Right">
+                <Border.Style>
+                    <Style TargetType="Border">
+                        <Setter Property="Width" Value="218"/>
+                        <Style.Triggers>
+                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                                <Trigger.EnterActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="Width"
+                                                             To="300"
+                                                             Duration="0:0:0.2">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <CubicEase EasingMode="EaseOut"/>
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.EnterActions>
+                                <Trigger.ExitActions>
+                                    <BeginStoryboard>
+                                        <Storyboard>
+                                            <DoubleAnimation Storyboard.TargetProperty="Width"
+                                                             To="218"
+                                                             Duration="0:0:0.15">
+                                                <DoubleAnimation.EasingFunction>
+                                                    <CubicEase EasingMode="EaseIn"/>
+                                                </DoubleAnimation.EasingFunction>
+                                            </DoubleAnimation>
+                                        </Storyboard>
+                                    </BeginStoryboard>
+                                </Trigger.ExitActions>
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </Border.Style>
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>

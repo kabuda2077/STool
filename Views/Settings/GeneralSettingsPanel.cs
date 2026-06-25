@@ -36,24 +36,25 @@ public class GeneralSettingsPanel : StackPanel
         };
         Children.Add(title);
 
-        var startupSection = CreateSection();
-        startupSection.Children.Add(new TextBlock
+        // 启动选项
+        var launchSection = CreateSection();
+        launchSection.Children.Add(new TextBlock
         {
             Text = "启动",
             Style = (Style)FindResource("SettingsGroupTitle")
         });
 
-        // 开机自启
         _chkAutoStart = new System.Windows.Controls.CheckBox
         {
             Content = "开机自动启动",
-            Margin = new Thickness(0)
+            Style = (Style)FindResource("ModernCheckBox")
         };
-        _chkAutoStart.Checked += ChkAutoStart_Changed;
-        _chkAutoStart.Unchecked += ChkAutoStart_Changed;
-        startupSection.Children.Add(_chkAutoStart);
-        Children.Add(WrapSection(startupSection));
+        _chkAutoStart.Click += ChkAutoStart_Changed;
+        launchSection.Children.Add(_chkAutoStart);
 
+        Children.Add(WrapSection(launchSection));
+
+        // 托盘选项
         var traySection = CreateSection();
         traySection.Children.Add(new TextBlock
         {
@@ -64,28 +65,25 @@ public class GeneralSettingsPanel : StackPanel
         _chkHideTrayIcon = new System.Windows.Controls.CheckBox
         {
             Content = "隐藏托盘图标",
-            Margin = new Thickness(0)
+            Style = (Style)FindResource("ModernCheckBox")
         };
         traySection.Children.Add(_chkHideTrayIcon);
-
-        var trayHint = new TextBlock
+        traySection.Children.Add(new TextBlock
         {
             Text = "隐藏后仍可通过快捷键打开功能面板，重新显示可在本窗口取消勾选。",
             Style = (Style)FindResource("HintText"),
-            Margin = new Thickness(0, 6, 0, 0)
-        };
-        traySection.Children.Add(trayHint);
+            Margin = new Thickness(0, 3, 0, 0)
+        });
+
         Children.Add(WrapSection(traySection));
 
-        var hotkeysSection = CreateSection();
-
         // 快捷键设置
-        var hotkeySection = new TextBlock
+        var hotkeysSection = CreateSection();
+        hotkeysSection.Children.Add(new TextBlock
         {
             Text = "快捷键设置",
             Style = (Style)FindResource("SettingsGroupTitle")
-        };
-        hotkeysSection.Children.Add(hotkeySection);
+        });
 
         // 截图快捷键
         AddHotkeyField(hotkeysSection, "截图", ref _txtScreenshotHotkey, showHint: true);
@@ -187,6 +185,11 @@ public class GeneralSettingsPanel : StackPanel
     }
 
     private void BtnSave_Click(object sender, RoutedEventArgs e)
+    {
+        SaveSettings();
+    }
+
+    public void SaveSettings()
     {
         try
         {

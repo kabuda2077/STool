@@ -313,6 +313,11 @@ public class OcrSettingsPanel : StackPanel
 
     private void BtnSave_Click(object sender, RoutedEventArgs e)
     {
+        SaveSettings();
+    }
+
+    public void SaveSettings()
+    {
         try
         {
             var config = _configManager.Get();

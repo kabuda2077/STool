@@ -109,16 +109,14 @@ public class TranslationSettingsPanel : StackPanel
         aiContent.Children.Add(SettingsLayout.CreateInlineField("平台", _cmbAiPlatform));
 
         _txtAiApiUrl = SettingsLayout.CreateTextBox();
-        aiContent.Children.Add(SettingsLayout.CreateInlineField("API URL", _txtAiApiUrl));
-        aiContent.Children.Add(SettingsLayout.CreateHint("OpenAI 兼容 Chat Completions 地址，自定义接口需手动填写。", inline: true));
+        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("API URL", _txtAiApiUrl, "OpenAI 兼容 Chat Completions 地址，自定义接口需手动填写。"));
 
         var (aiPwdHost, aiPwd) = SettingsLayout.CreatePasswordField();
         _pwdAiApiKey = aiPwd;
         aiContent.Children.Add(SettingsLayout.CreateInlineField("API Key", aiPwdHost));
 
         _cmbAiModel = SettingsLayout.CreateEditableComboBox();
-        aiContent.Children.Add(SettingsLayout.CreateInlineField("模型", _cmbAiModel));
-        aiContent.Children.Add(SettingsLayout.CreateHint("可点击获取模型列表，也可以直接手动输入模型名。", inline: true));
+        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", _cmbAiModel, "可点击获取模型列表，也可以直接手动输入模型名。"));
 
         var aiActions = new StackPanel
         {

@@ -80,16 +80,14 @@ public class OcrSettingsPanel : StackPanel
         aiContent.Children.Add(SettingsLayout.CreateInlineField("平台", _cmbAiPlatform));
 
         _txtAiApiUrl = SettingsLayout.CreateTextBox();
-        aiContent.Children.Add(SettingsLayout.CreateInlineField("API URL", _txtAiApiUrl));
-        aiContent.Children.Add(SettingsLayout.CreateHint("OpenAI 兼容 Chat Completions 地址，自定义接口需手动填写。", inline: true));
+        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("API URL", _txtAiApiUrl, "OpenAI 兼容 Chat Completions 地址，自定义接口需手动填写。"));
 
         var (aiPwdHost, aiPwd) = SettingsLayout.CreatePasswordField();
         _pwdAiApiKey = aiPwd;
         aiContent.Children.Add(SettingsLayout.CreateInlineField("API Key", aiPwdHost));
 
         _txtAiModel = SettingsLayout.CreateTextBox();
-        aiContent.Children.Add(SettingsLayout.CreateInlineField("模型", _txtAiModel));
-        aiContent.Children.Add(SettingsLayout.CreateHint("例如：gpt-4o-mini, gemini-1.5-flash", inline: true));
+        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", _txtAiModel, "例如：gpt-4o-mini, gemini-1.5-flash"));
 
         Children.Add(aiCard);
 

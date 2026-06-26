@@ -57,6 +57,20 @@ internal static class SettingsLayout
         return grid;
     }
 
+    /// <summary>创建 Label(左) + [Input + Hint](右) 同行布局，使提示紧贴输入框并对其对齐。</summary>
+    public static Grid CreateInlineFieldWithHint(string label, FrameworkElement input, string hint,
+        double labelWidth = InlineLabelWidth)
+    {
+        var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Vertical };
+        panel.Children.Add(input);
+
+        var hintBlock = CreateHint(hint, inline: false);
+        hintBlock.Margin = new Thickness(0, 2, 0, 0);
+        panel.Children.Add(hintBlock);
+
+        return CreateInlineField(label, panel, labelWidth);
+    }
+
     /// <summary>创建标准 TextBox。</summary>
     public static System.Windows.Controls.TextBox CreateTextBox()
     {

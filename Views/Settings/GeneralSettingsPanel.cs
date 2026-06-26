@@ -63,10 +63,6 @@ public class GeneralSettingsPanel : StackPanel
             Text = "快捷键设置",
             Style = (Style)FindResource("SettingsGroupTitle")
         });
-        var hotkeyHint = SettingsLayout.CreateHint("点击输入框后，直接按下快捷键组合（如 Ctrl+Alt+A）");
-        hotkeyHint.Margin = new Thickness(0, 0, 0, SettingsLayout.SpacingSM);
-        hotkeysSection.Children.Add(hotkeyHint);
-
         var hotkeyGrid = new Grid();
         hotkeyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(SettingsLayout.HotkeyLabelWidth) });
         hotkeyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -77,6 +73,11 @@ public class GeneralSettingsPanel : StackPanel
         _txtSettingsHotkey = AddHotkeyRow(hotkeyGrid, 3, "设置");
 
         hotkeysSection.Children.Add(hotkeyGrid);
+
+        var hotkeyHint = SettingsLayout.CreateHint("点击输入框后，直接按下快捷键组合（如 Ctrl+Alt+A）");
+        hotkeyHint.Margin = new Thickness(0, SettingsLayout.SpacingSM, 0, 0);
+        hotkeysSection.Children.Add(hotkeyHint);
+
         Children.Add(WrapSection(hotkeysSection));
 
         // ── 保存按钮 ──

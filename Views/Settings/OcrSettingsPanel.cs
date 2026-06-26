@@ -17,6 +17,7 @@ public class OcrSettingsPanel : StackPanel
     private System.Windows.Controls.PasswordBox _pwdTencentSecretKey = null!;
 
     // AI Vision
+    private System.Windows.Controls.ComboBox _cmbAiPlatform = null!;
     private System.Windows.Controls.TextBox _txtAiApiUrl = null!;
     private System.Windows.Controls.PasswordBox _pwdAiApiKey = null!;
     private System.Windows.Controls.TextBox _txtAiModel = null!;
@@ -76,9 +77,16 @@ public class OcrSettingsPanel : StackPanel
         // ── AI Vision 设置(可折叠,行内布局) ──
         var (aiContent, aiCard) = CreateCollapsibleSection("AI Vision 设置");
 
+        _cmbAiPlatform = SettingsLayout.CreateComboBox();
+        _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "OpenAI", Tag = OcrAiPlatform.OpenAI });
+        _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "Google AI Studio", Tag = OcrAiPlatform.GoogleAiStudio });
+        _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "自定义", Tag = OcrAiPlatform.Custom });
+        _cmbAiPlatform.SelectionChanged += CmbAiPlatform_SelectionChanged;
+        aiContent.Children.Add(SettingsLayout.CreateInlineField("平台", _cmbAiPlatform));
+
         _txtAiApiUrl = SettingsLayout.CreateTextBox();
         aiContent.Children.Add(SettingsLayout.CreateInlineField("API URL", _txtAiApiUrl));
-        aiContent.Children.Add(SettingsLayout.CreateHint("例如：https://api.openai.com/v1/chat/completions", inline: true));
+        aiContent.Children.Add(SettingsLayout.CreateHint("OpenAI 兼容 Chat Completions 地址，自定义接口需手动填写。", inline: true));
 
         var (aiPwdHost, aiPwd) = SettingsLayout.CreatePasswordField();
         _pwdAiApiKey = aiPwd;
@@ -86,7 +94,7 @@ public class OcrSettingsPanel : StackPanel
 
         _txtAiModel = SettingsLayout.CreateTextBox();
         aiContent.Children.Add(SettingsLayout.CreateInlineField("模型", _txtAiModel));
-        aiContent.Children.Add(SettingsLayout.CreateHint("例如：gpt-4o, claude-3-5-sonnet-20241022", inline: true));
+        aiContent.Children.Add(SettingsLayout.CreateHint("例如：gpt-4o-mini, gemini-1.5-flash", inline: true));
 
         Children.Add(aiCard);
 
@@ -162,6 +170,16 @@ public class OcrSettingsPanel : StackPanel
         }
 
         // AI Vision（解密显示）
+        foreach (ComboBoxItem item in _cmbAiPlatform.Items)
+        {
+            if ((OcrAiPlatform)item.Tag == config.AiPlatform)
+            {
+                _cmbAiPlatform.SelectedItem = item;
+                break;
+            }
+        }
+        _cmbAiPlatform.SelectedIndex = _cmbAiPlatform.SelectedIndex < 0 ? 0 : _cmbAiPlatform.SelectedIndex;
+
         if (!string.IsNullOrEmpty(config.AiApiUrlEncrypted))
         {
             _txtAiApiUrl.Text = SecureStorage.Decrypt(config.AiApiUrlEncrypted);
@@ -198,6 +216,7 @@ public class OcrSettingsPanel : StackPanel
             }
 
             // AI Vision（加密保存）
+            config.Ocr.AiPlatform = GetSelectedAiPlatform();
             if (!string.IsNullOrWhiteSpace(_txtAiApiUrl.Text))
             {
                 config.Ocr.AiApiUrlEncrypted = SecureStorage.Encrypt(_txtAiApiUrl.Text);
@@ -216,5 +235,35 @@ public class OcrSettingsPanel : StackPanel
         {
             ToastNotification.Show("保存失败", ex.Message, ToastNotification.ToastType.Error);
         }
+    }
+
+    private void CmbAiPlatform_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        var platform = GetSelectedAiPlatform();
+        if (platform == OcrAiPlatform.Custom)
+        {
+            return;
+        }
+
+        _txtAiApiUrl.Text = platform switch
+        {
+            OcrAiPlatform.OpenAI => "https://api.openai.com/v1/chat/completions",
+            OcrAiPlatform.GoogleAiStudio => "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+            _ => string.Empty
+        };
+
+        _txtAiModel.Text = platform switch
+        {
+            OcrAiPlatform.OpenAI => "gpt-4o-mini",
+            OcrAiPlatform.GoogleAiStudio => "gemini-1.5-flash",
+            _ => string.Empty
+        };
+    }
+
+    private OcrAiPlatform GetSelectedAiPlatform()
+    {
+        return (_cmbAiPlatform.SelectedItem as ComboBoxItem)?.Tag is OcrAiPlatform platform
+            ? platform
+            : OcrAiPlatform.Custom;
     }
 }

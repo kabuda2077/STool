@@ -23,11 +23,12 @@ public class HotkeyConfig
 public class OcrConfig
 {
     public OcrProvider Provider { get; set; } = OcrProvider.WindowsLocal;
+    public OcrAiPlatform AiPlatform { get; set; } = OcrAiPlatform.OpenAI;
     public string? TencentSecretIdEncrypted { get; set; }
     public string? TencentSecretKeyEncrypted { get; set; }
     public string? AiApiUrlEncrypted { get; set; }
     public string? AiApiKeyEncrypted { get; set; }
-    public string? AiModel { get; set; } = "gpt-4o";
+    public string? AiModel { get; set; } = "gpt-4o-mini";
     public bool FallbackToLocal { get; set; } = true;
 }
 
@@ -76,6 +77,14 @@ public enum TranslationAiPlatform
     OpenAI,
     GoogleAiStudio,
     DeepSeek,
+    Custom
+}
+
+[JsonConverter(typeof(JsonStringEnumConverter))]
+public enum OcrAiPlatform
+{
+    OpenAI,
+    GoogleAiStudio,
     Custom
 }
 

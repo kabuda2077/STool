@@ -130,7 +130,7 @@ internal static class SettingsLayout
 
         var iconBlock = new TextBlock
         {
-            Text = "\uE890",
+            Text = "\uE72E",
             FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"),
             FontSize = 14,
             Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush")
@@ -175,7 +175,7 @@ internal static class SettingsLayout
                 pwd.Visibility = Visibility.Collapsed;
                 txt.Visibility = Visibility.Visible;
                 btn.ToolTip = "隐藏密钥";
-                iconBlock.Text = "\uED1A";
+                iconBlock.Text = "\uE785";
                 txt.Focus();
                 txt.CaretIndex = txt.Text.Length;
             }
@@ -185,7 +185,7 @@ internal static class SettingsLayout
                 txt.Visibility = Visibility.Collapsed;
                 pwd.Visibility = Visibility.Visible;
                 btn.ToolTip = "显示密钥";
-                iconBlock.Text = "\uE890";
+                iconBlock.Text = "\uE72E";
                 pwd.Focus();
             }
         };

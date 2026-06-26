@@ -23,7 +23,6 @@ public class TranslationSettingsPanel : StackPanel
     private System.Windows.Controls.TextBox _txtAiApiUrl = null!;
     private System.Windows.Controls.PasswordBox _pwdAiApiKey = null!;
     private System.Windows.Controls.ComboBox _cmbAiModel = null!;
-    private StackPanel _activeSection = null!;
 
     public TranslationSettingsPanel(ConfigManager configManager)
     {
@@ -36,99 +35,100 @@ public class TranslationSettingsPanel : StackPanel
     {
         Margin = new Thickness(0);
 
-        // 标题
-        var title = new TextBlock
+        // ── 服务商 ──
+        var providerSection = new StackPanel();
+        providerSection.Children.Add(new TextBlock
         {
-            Text = "翻译设置",
-            Style = (Style)FindResource("SettingsPageTitle")
-        };
-        Children.Add(title);
-
-        _activeSection = CreateSection("服务商");
-
-        // 提供商选择
-        AddLabel("翻译提供商");
-        _cmbProvider = new System.Windows.Controls.ComboBox
+            Text = "服务商",
+            Style = (Style)FindResource("SettingsGroupTitle")
+        });
+        providerSection.Children.Add(new TextBlock
         {
-            Style = (Style)FindResource("SunkenComboBox"),
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Margin = new Thickness(0, 3, 0, 7)
-        };
+            Text = "翻译提供商",
+            Style = (Style)FindResource("FieldLabel")
+        });
+        _cmbProvider = SettingsLayout.CreateComboBox();
+        _cmbProvider.Margin = SettingsLayout.FieldSpacing;
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "谷歌翻译", Tag = TranslationProvider.Google });
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "腾讯云翻译", Tag = TranslationProvider.Tencent });
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "AI 翻译 (OpenAI/Claude)", Tag = TranslationProvider.OpenAI });
-        _activeSection.Children.Add(_cmbProvider);
-        Children.Add(WrapSection(_activeSection));
+        providerSection.Children.Add(_cmbProvider);
+        Children.Add(WrapSection(providerSection));
 
-        // 默认策略
-        _activeSection = CreateSection("默认策略");
-
-        AddLabel("翻译策略");
-        _cmbTranslationMode = new System.Windows.Controls.ComboBox
+        // ── 默认策略 ──
+        var strategySection = new StackPanel();
+        strategySection.Children.Add(new TextBlock
         {
-            Style = (Style)FindResource("SunkenComboBox"),
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Margin = new Thickness(0, 3, 0, 7)
-        };
+            Text = "默认策略",
+            Style = (Style)FindResource("SettingsGroupTitle")
+        });
+
+        strategySection.Children.Add(new TextBlock
+        {
+            Text = "翻译策略",
+            Style = (Style)FindResource("FieldLabel")
+        });
+        _cmbTranslationMode = SettingsLayout.CreateComboBox();
+        _cmbTranslationMode.Margin = SettingsLayout.FieldSpacing;
         _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "中 ⇄ 英", Tag = "zh-en" });
         _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "自动 → 中文", Tag = "auto-zh" });
         _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "自动 → 英文", Tag = "auto-en" });
         _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "自动 → 日文", Tag = "auto-ja" });
         _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "自动 → 韩文", Tag = "auto-ko" });
-        _activeSection.Children.Add(_cmbTranslationMode);
+        strategySection.Children.Add(_cmbTranslationMode);
 
-        AddLabel("截图翻译模式");
-        _cmbScreenshotMode = new System.Windows.Controls.ComboBox
+        strategySection.Children.Add(new TextBlock
         {
-            Style = (Style)FindResource("SunkenComboBox"),
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Margin = new Thickness(0, 3, 0, 7)
-        };
+            Text = "截图翻译模式",
+            Style = (Style)FindResource("FieldLabel")
+        });
+        _cmbScreenshotMode = SettingsLayout.CreateComboBox();
+        _cmbScreenshotMode.Margin = SettingsLayout.FieldSpacing;
         _cmbScreenshotMode.Items.Add(new ComboBoxItem { Content = "快速：规则筛选 + 当前翻译引擎", Tag = ScreenshotTranslationMode.Fast });
         _cmbScreenshotMode.Items.Add(new ComboBoxItem { Content = "智能：AI 选择并翻译正文", Tag = ScreenshotTranslationMode.Smart });
-        _activeSection.Children.Add(_cmbScreenshotMode);
-        AddHint("智能模式会额外使用 AI 翻译配置，失败时自动回退快速模式。");
-        Children.Add(WrapSection(_activeSection));
+        strategySection.Children.Add(_cmbScreenshotMode);
+        strategySection.Children.Add(SettingsLayout.CreateHint("智能模式会额外使用 AI 翻译配置，失败时自动回退快速模式。"));
+        Children.Add(WrapSection(strategySection));
 
-        // 腾讯云设置
-        var tencentSection = CreateCollapsibleSection("腾讯云设置");
+        // ── 腾讯云设置(可折叠,行内布局) ──
+        var (tencentContent, tencentCard) = CreateCollapsibleSection("腾讯云设置");
 
-        AddLabel("Secret ID");
-        _txtTencentSecretId = AddTextBox();
+        _txtTencentSecretId = SettingsLayout.CreateTextBox();
+        tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret ID", _txtTencentSecretId));
 
-        AddLabel("Secret Key");
-        _pwdTencentSecretKey = AddPasswordBox();
-        Children.Add(tencentSection);
+        var (tencentPwdHost, tencentPwd) = SettingsLayout.CreatePasswordField();
+        _pwdTencentSecretKey = tencentPwd;
+        tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret Key", tencentPwdHost));
 
-        // AI 设置(可折叠)
-        var aiSection = CreateCollapsibleSection("AI 翻译设置");
+        Children.Add(tencentCard);
 
-        AddLabel("平台");
-        _cmbAiPlatform = AddComboBox();
+        // ── AI 翻译设置(可折叠,行内布局) ──
+        var (aiContent, aiCard) = CreateCollapsibleSection("AI 翻译设置");
+
+        _cmbAiPlatform = SettingsLayout.CreateComboBox();
         _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "OpenAI", Tag = TranslationAiPlatform.OpenAI });
         _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "Google AI Studio", Tag = TranslationAiPlatform.GoogleAiStudio });
         _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "DeepSeek", Tag = TranslationAiPlatform.DeepSeek });
         _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "自定义", Tag = TranslationAiPlatform.Custom });
         _cmbAiPlatform.SelectionChanged += CmbAiPlatform_SelectionChanged;
+        aiContent.Children.Add(SettingsLayout.CreateInlineField("平台", _cmbAiPlatform));
 
-        AddLabel("API URL");
-        _txtAiApiUrl = AddTextBox();
-        AddHint("OpenAI 兼容 Chat Completions 地址，自定义接口需手动填写。");
+        _txtAiApiUrl = SettingsLayout.CreateTextBox();
+        aiContent.Children.Add(SettingsLayout.CreateInlineField("API URL", _txtAiApiUrl));
+        aiContent.Children.Add(SettingsLayout.CreateHint("OpenAI 兼容 Chat Completions 地址，自定义接口需手动填写。", inline: true));
 
-        AddLabel("API Key");
-        _pwdAiApiKey = AddPasswordBox();
+        var (aiPwdHost, aiPwd) = SettingsLayout.CreatePasswordField();
+        _pwdAiApiKey = aiPwd;
+        aiContent.Children.Add(SettingsLayout.CreateInlineField("API Key", aiPwdHost));
 
-        AddLabel("模型");
-        _cmbAiModel = AddEditableComboBox();
-        AddHint("可点击获取模型列表，也可以直接手动输入模型名。");
+        _cmbAiModel = SettingsLayout.CreateEditableComboBox();
+        aiContent.Children.Add(SettingsLayout.CreateInlineField("模型", _cmbAiModel));
+        aiContent.Children.Add(SettingsLayout.CreateHint("可点击获取模型列表，也可以直接手动输入模型名。", inline: true));
 
         var aiActions = new StackPanel
         {
             Orientation = System.Windows.Controls.Orientation.Horizontal,
-            Margin = new Thickness(0, 8, 0, 0)
+            Margin = new Thickness(SettingsLayout.InlineLabelWidth, SettingsLayout.SpacingSM, 0, 0)
         };
         var btnFetchModels = new System.Windows.Controls.Button
         {
@@ -142,36 +142,26 @@ public class TranslationSettingsPanel : StackPanel
             Content = "测试",
             Style = (Style)FindResource("SecondaryButton"),
             Padding = new Thickness(14, 7, 14, 7),
-            Margin = new Thickness(8, 0, 0, 0)
+            Margin = new Thickness(SettingsLayout.SpacingSM, 0, 0, 0)
         };
         btnTestAi.Click += BtnTestAi_Click;
         aiActions.Children.Add(btnFetchModels);
         aiActions.Children.Add(btnTestAi);
-        _activeSection.Children.Add(aiActions);
-        Children.Add(aiSection);
+        aiContent.Children.Add(aiActions);
 
-        // 保存按钮
+        Children.Add(aiCard);
+
+        // ── 保存按钮 ──
         var btnSave = new System.Windows.Controls.Button
         {
             Content = "保存设置",
             Style = (Style)FindResource("ModernButton"),
             Padding = new Thickness(18, 8, 18, 8),
-            Margin = new Thickness(0, 10, 0, 0),
+            Margin = SettingsLayout.SaveButtonMargin,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Right
         };
         btnSave.Click += BtnSave_Click;
         Children.Add(btnSave);
-    }
-
-    private StackPanel CreateSection(string title)
-    {
-        var section = new StackPanel();
-        section.Children.Add(new TextBlock
-        {
-            Text = title,
-            Style = (Style)FindResource("SettingsGroupTitle")
-        });
-        return section;
     }
 
     private Border WrapSection(StackPanel section)
@@ -183,11 +173,9 @@ public class TranslationSettingsPanel : StackPanel
         };
     }
 
-    /// <summary>创建可折叠分组(默认收起),后续 Add* 写入其内容区;整组包成阴影卡片。</summary>
-    private Border CreateCollapsibleSection(string title)
+    private (StackPanel content, Border card) CreateCollapsibleSection(string title)
     {
         var content = new StackPanel();
-        _activeSection = content;
         var exp = new Expander
         {
             Style = (Style)FindResource("SettingsExpander"),
@@ -195,155 +183,12 @@ public class TranslationSettingsPanel : StackPanel
             Content = content,
             IsExpanded = false
         };
-        return new Border
+        var card = new Border
         {
             Style = (Style)FindResource("SurfaceCard"),
             Child = exp
         };
-    }
-
-    private void AddLabel(string text)
-    {
-        var label = new TextBlock
-        {
-            Text = text,
-            Margin = new Thickness(0, 7, 0, 4)
-        };
-        _activeSection.Children.Add(label);
-    }
-
-    private System.Windows.Controls.TextBox AddTextBox()
-    {
-        var textBox = new System.Windows.Controls.TextBox
-        {
-            Style = (Style)FindResource("SunkenTextBox"),
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
-        };
-        _activeSection.Children.Add(textBox);
-        return textBox;
-    }
-
-    private System.Windows.Controls.ComboBox AddComboBox()
-    {
-        var comboBox = new System.Windows.Controls.ComboBox
-        {
-            Style = (Style)FindResource("SunkenComboBox"),
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
-        };
-        _activeSection.Children.Add(comboBox);
-        return comboBox;
-    }
-
-    private System.Windows.Controls.ComboBox AddEditableComboBox()
-    {
-        var comboBox = AddComboBox();
-        comboBox.IsEditable = true;
-        comboBox.IsTextSearchEnabled = false;
-        return comboBox;
-    }
-
-    private System.Windows.Controls.PasswordBox AddPasswordBox()
-    {
-        var inputHost = new Grid
-        {
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
-        };
-
-        var passwordBox = new System.Windows.Controls.PasswordBox
-        {
-            Style = (Style)FindResource("SunkenPasswordBox"),
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Padding = new Thickness(5, 3, 38, 3)
-        };
-
-        var textBox = new System.Windows.Controls.TextBox
-        {
-            Style = (Style)FindResource("SunkenTextBox"),
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Padding = new Thickness(5, 3, 38, 3),
-            Visibility = Visibility.Collapsed
-        };
-
-        var revealButton = new System.Windows.Controls.Button
-        {
-            Style = (Style)FindResource("IconButton"),
-            Width = 32,
-            Height = 32,
-            Padding = new Thickness(0),
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = "显示密钥",
-            Content = new TextBlock
-            {
-                Text = "\uE890",
-                FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"),
-                FontSize = 14,
-                Foreground = (System.Windows.Media.Brush)FindResource("TextSecondaryBrush")
-            }
-        };
-
-        var isRevealed = false;
-        var isSyncing = false;
-
-        passwordBox.PasswordChanged += (_, _) =>
-        {
-            if (isSyncing || isRevealed) return;
-            isSyncing = true;
-            textBox.Text = passwordBox.Password;
-            isSyncing = false;
-        };
-
-        textBox.TextChanged += (_, _) =>
-        {
-            if (isSyncing || !isRevealed) return;
-            isSyncing = true;
-            passwordBox.Password = textBox.Text;
-            isSyncing = false;
-        };
-
-        revealButton.Click += (_, _) =>
-        {
-            isRevealed = !isRevealed;
-            if (isRevealed)
-            {
-                textBox.Text = passwordBox.Password;
-                passwordBox.Visibility = Visibility.Collapsed;
-                textBox.Visibility = Visibility.Visible;
-                revealButton.ToolTip = "隐藏密钥";
-                textBox.Focus();
-                textBox.CaretIndex = textBox.Text.Length;
-            }
-            else
-            {
-                passwordBox.Password = textBox.Text;
-                textBox.Visibility = Visibility.Collapsed;
-                passwordBox.Visibility = Visibility.Visible;
-                revealButton.ToolTip = "显示密钥";
-                passwordBox.Focus();
-            }
-        };
-
-        inputHost.Children.Add(passwordBox);
-        inputHost.Children.Add(textBox);
-        inputHost.Children.Add(revealButton);
-        _activeSection.Children.Add(inputHost);
-        return passwordBox;
-    }
-
-    private void AddHint(string text)
-    {
-        var hint = new TextBlock
-        {
-            Text = text,
-            Style = (Style)FindResource("HintText"),
-            Margin = new Thickness(0, 3, 0, 0)
-        };
-        _activeSection.Children.Add(hint);
+        return (content, card);
     }
 
     private void CmbAiPlatform_SelectionChanged(object sender, SelectionChangedEventArgs e)

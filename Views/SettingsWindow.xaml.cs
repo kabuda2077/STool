@@ -61,16 +61,19 @@ public partial class SettingsWindow : Window
 
     private void ShowGeneralSettings()
     {
+        Title = "通用设置";
         ShowPanel(new GeneralSettingsPanel(_configManager));
     }
 
     private void ShowOcrSettings()
     {
+        Title = "OCR 设置";
         ShowPanel(new OcrSettingsPanel(_configManager));
     }
 
     private void ShowTranslationSettings()
     {
+        Title = "翻译设置";
         ShowPanel(new TranslationSettingsPanel(_configManager));
     }
 

@@ -179,6 +179,14 @@
         <Setter Property="Margin" Value="0,0,0,8"/>
     </Style>
 
+    <!-- 表单字段标签:Caption 字号,次要色,用于输入框/下拉框前的字段名 -->
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}"/>
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightStrong}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="Margin" Value="0,7,0,4"/>
+    </Style>
+
     <!-- 可折叠分组:标题行点击展开/收起,右侧 chevron 旋转 -->
     <Style x:Key="SettingsExpander" TargetType="Expander">
         <Setter Property="Template">
@@ -201,7 +209,7 @@
                                                 <ColumnDefinition Width="*"/>
                                                 <ColumnDefinition Width="Auto"/>
                                             </Grid.ColumnDefinitions>
-                                            <ContentPresenter TextElement.FontSize="{StaticResource FontSizeSubtitle}"
+                                            <ContentPresenter TextElement.FontSize="{StaticResource FontSizeBody}"
                                                               TextElement.FontWeight="{StaticResource FontWeightStrong}"
                                                               TextElement.Foreground="{StaticResource TextPrimaryBrush}"
                                                               VerticalAlignment="Center"/>
@@ -239,20 +247,20 @@
                                 </ControlTemplate>
                             </ToggleButton.Template>
                         </ToggleButton>
-                        <ContentPresenter x:Name="ExpandSite" Visibility="Collapsed" Margin="0,8,0,0">
-                            <ContentPresenter.LayoutTransform>
+                        <!-- 折叠态用 ScaleY=0 收起布局高度; Margin 放在内部 ContentPresenter 上,
+                             让外层 Border 的 LayoutTransform 连同 Margin 一起缩放为零 -->
+                        <Border x:Name="ExpandSite">
+                            <Border.LayoutTransform>
                                 <ScaleTransform ScaleY="0"/>
-                            </ContentPresenter.LayoutTransform>
-                        </ContentPresenter>
+                            </Border.LayoutTransform>
+                            <ContentPresenter Margin="0,8,0,0"/>
+                        </Border>
                     </StackPanel>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsExpanded" Value="True">
                             <Trigger.EnterActions>
                                 <BeginStoryboard>
                                     <Storyboard>
-                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ExpandSite" Storyboard.TargetProperty="Visibility">
-                                            <DiscreteObjectKeyFrame KeyTime="0:0:0" Value="Visible"/>
-                                        </ObjectAnimationUsingKeyFrames>
                                         <DoubleAnimation Storyboard.TargetName="ExpandSite"
                                                          Storyboard.TargetProperty="(FrameworkElement.LayoutTransform).(ScaleTransform.ScaleY)"
                                                          To="1"
@@ -275,9 +283,6 @@
                                                 <CubicEase EasingMode="EaseIn"/>
                                             </DoubleAnimation.EasingFunction>
                                         </DoubleAnimation>
-                                        <ObjectAnimationUsingKeyFrames Storyboard.TargetName="ExpandSite" Storyboard.TargetProperty="Visibility">
-                                            <DiscreteObjectKeyFrame KeyTime="0:0:0.15" Value="Collapsed"/>
-                                        </ObjectAnimationUsingKeyFrames>
                                     </Storyboard>
                                 </BeginStoryboard>
                             </Trigger.ExitActions>

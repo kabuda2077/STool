@@ -28,19 +28,11 @@ public class GeneralSettingsPanel : StackPanel
     {
         Margin = new Thickness(0);
 
-        // 标题
-        var title = new TextBlock
-        {
-            Text = "通用设置",
-            Style = (Style)FindResource("SettingsPageTitle")
-        };
-        Children.Add(title);
-
-        // 启动选项
-        var launchSection = CreateSection();
+        // ── 启动与托盘 ──
+        var launchSection = new StackPanel();
         launchSection.Children.Add(new TextBlock
         {
-            Text = "启动",
+            Text = "启动与托盘",
             Style = (Style)FindResource("SettingsGroupTitle")
         });
 
@@ -52,77 +44,65 @@ public class GeneralSettingsPanel : StackPanel
         _chkAutoStart.Click += ChkAutoStart_Changed;
         launchSection.Children.Add(_chkAutoStart);
 
-        Children.Add(WrapSection(launchSection));
-
-        // 托盘选项
-        var traySection = CreateSection();
-        traySection.Children.Add(new TextBlock
-        {
-            Text = "托盘",
-            Style = (Style)FindResource("SettingsGroupTitle")
-        });
-
         _chkHideTrayIcon = new System.Windows.Controls.CheckBox
         {
             Content = "隐藏托盘图标",
-            Style = (Style)FindResource("ModernCheckBox")
+            Style = (Style)FindResource("ModernCheckBox"),
+            Margin = new Thickness(0, SettingsLayout.SpacingXS, 0, 0)
         };
-        traySection.Children.Add(_chkHideTrayIcon);
-        traySection.Children.Add(new TextBlock
+        launchSection.Children.Add(_chkHideTrayIcon);
+        launchSection.Children.Add(new TextBlock
         {
             Text = "隐藏后仍可通过快捷键打开功能面板，重新显示可在本窗口取消勾选。",
             Style = (Style)FindResource("HintText"),
-            Margin = new Thickness(0, 3, 0, 0)
+            Margin = SettingsLayout.HintMargin
         });
 
-        Children.Add(WrapSection(traySection));
+        Children.Add(WrapSection(launchSection));
 
-        // 快捷键设置
-        var hotkeysSection = CreateSection();
+        // ── 快捷键设置(紧凑双列) ──
+        var hotkeysSection = new StackPanel();
         hotkeysSection.Children.Add(new TextBlock
         {
             Text = "快捷键设置",
             Style = (Style)FindResource("SettingsGroupTitle")
         });
+        hotkeysSection.Children.Add(new TextBlock
+        {
+            Text = "点击输入框后，直接按下快捷键组合（如 Ctrl+Alt+A）",
+            Style = (Style)FindResource("HintText"),
+            Margin = new Thickness(0, 0, 0, SettingsLayout.SpacingSM)
+        });
 
-        // 截图快捷键
-        AddHotkeyField(hotkeysSection, "截图", ref _txtScreenshotHotkey, showHint: true);
+        var hotkeyGrid = new Grid();
+        hotkeyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(SettingsLayout.HotkeyLabelWidth) });
+        hotkeyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        // 翻译快捷键
-        AddHotkeyField(hotkeysSection, "翻译", ref _txtTranslationHotkey, showHint: false);
+        _txtScreenshotHotkey = AddHotkeyRow(hotkeyGrid, 0, "截图");
+        _txtTranslationHotkey = AddHotkeyRow(hotkeyGrid, 1, "翻译");
+        _txtClipboardHotkey = AddHotkeyRow(hotkeyGrid, 2, "剪贴板");
+        _txtSettingsHotkey = AddHotkeyRow(hotkeyGrid, 3, "设置");
 
-        // 剪贴板快捷键
-        AddHotkeyField(hotkeysSection, "剪贴板", ref _txtClipboardHotkey, showHint: false);
-
-        // 设置快捷键
-        AddHotkeyField(hotkeysSection, "设置", ref _txtSettingsHotkey, showHint: false);
-
+        hotkeysSection.Children.Add(hotkeyGrid);
         Children.Add(WrapSection(hotkeysSection));
 
-        // 保存按钮
+        // ── 保存按钮 ──
         var btnSave = new System.Windows.Controls.Button
         {
             Content = "保存设置",
             Style = (Style)FindResource("ModernButton"),
             Padding = new Thickness(18, 8, 18, 8),
-            Margin = new Thickness(0, 10, 0, 0),
+            Margin = SettingsLayout.SaveButtonMargin,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Right
         };
         btnSave.Click += BtnSave_Click;
         Children.Add(btnSave);
 
-        // 添加底部占位，防止内容过少
         Children.Add(new Border { Height = 20 });
-    }
-
-    private StackPanel CreateSection()
-    {
-        return new StackPanel();
     }
 
     private Border WrapSection(StackPanel section)
     {
-        // 色块分层:分组包成无边框白底卡片,靠柔和阴影从画布浮起
         return new Border
         {
             Style = (Style)FindResource("SurfaceCard"),
@@ -130,37 +110,33 @@ public class GeneralSettingsPanel : StackPanel
         };
     }
 
-    private void AddHotkeyField(StackPanel parent, string label, ref System.Windows.Controls.TextBox textBox, bool showHint = true)
+    private System.Windows.Controls.TextBox AddHotkeyRow(Grid grid, int row, string label)
     {
-        var panel = new StackPanel { Margin = new Thickness(0, 0, 0, 10) };
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
-        var labelBlock = new TextBlock
+        var lbl = new TextBlock
         {
             Text = label,
-            Margin = new Thickness(0, 0, 0, 4)
+            Style = (Style)FindResource("FieldLabel"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0)
         };
-        panel.Children.Add(labelBlock);
+        Grid.SetRow(lbl, row);
+        Grid.SetColumn(lbl, 0);
+        grid.Children.Add(lbl);
 
-        textBox = new HotkeyBox
+        var box = new HotkeyBox
         {
             Style = (Style)FindResource("HotkeyTextBox"),
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
+            Height = SettingsLayout.InputHeight,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
+            Margin = new Thickness(0, 0, 0, SettingsLayout.SpacingXS)
         };
-        panel.Children.Add(textBox);
+        Grid.SetRow(box, row);
+        Grid.SetColumn(box, 1);
+        grid.Children.Add(box);
 
-        if (showHint)
-        {
-            var hint = new TextBlock
-            {
-                Text = "点击输入框后，直接按下快捷键组合（如 Ctrl+Alt+A）",
-                Style = (Style)FindResource("HintText"),
-                Margin = new Thickness(0, 3, 0, 0)
-            };
-            panel.Children.Add(hint);
-        }
-
-        parent.Children.Add(panel);
+        return box;
     }
 
     private void LoadSettings()

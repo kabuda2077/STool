@@ -20,7 +20,6 @@ public class OcrSettingsPanel : StackPanel
     private System.Windows.Controls.TextBox _txtAiApiUrl = null!;
     private System.Windows.Controls.PasswordBox _pwdAiApiKey = null!;
     private System.Windows.Controls.TextBox _txtAiModel = null!;
-    private StackPanel _activeSection = null!;
 
     public OcrSettingsPanel(ConfigManager configManager)
     {
@@ -33,87 +32,75 @@ public class OcrSettingsPanel : StackPanel
     {
         Margin = new Thickness(0);
 
-        // 标题
-        var title = new TextBlock
+        // ── 基础选项 ──
+        var baseSection = new StackPanel();
+        baseSection.Children.Add(new TextBlock
         {
-            Text = "OCR 设置",
-            Style = (Style)FindResource("SettingsPageTitle")
-        };
-        Children.Add(title);
+            Text = "基础选项",
+            Style = (Style)FindResource("SettingsGroupTitle")
+        });
 
-        _activeSection = CreateSection("基础选项");
-
-        // 提供商选择
-        AddLabel("OCR 提供商");
-        _cmbProvider = new System.Windows.Controls.ComboBox
+        baseSection.Children.Add(new TextBlock
         {
-            Style = (Style)FindResource("SunkenComboBox"),
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Margin = new Thickness(0, 3, 0, 7)
-        };
+            Text = "OCR 提供商",
+            Style = (Style)FindResource("FieldLabel")
+        });
+        _cmbProvider = SettingsLayout.CreateComboBox();
+        _cmbProvider.Margin = SettingsLayout.FieldSpacing;
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "Windows 本地 OCR", Tag = OcrProvider.WindowsLocal });
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "腾讯云 OCR", Tag = OcrProvider.Tencent });
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "AI Vision OCR", Tag = OcrProvider.AI });
         _cmbProvider.SelectionChanged += CmbProvider_SelectionChanged;
-        _activeSection.Children.Add(_cmbProvider);
+        baseSection.Children.Add(_cmbProvider);
 
-        // 降级到本地
         _chkFallbackToLocal = new System.Windows.Controls.CheckBox
         {
             Content = "失败时自动降级到本地 OCR",
-            Margin = new Thickness(0, 0, 0, 14)
+            Style = (Style)FindResource("ModernCheckBox")
         };
-        _activeSection.Children.Add(_chkFallbackToLocal);
-        Children.Add(WrapSection(_activeSection));
+        baseSection.Children.Add(_chkFallbackToLocal);
+        Children.Add(WrapSection(baseSection));
 
-        // 腾讯云设置(可折叠)
-        var tencentSection = CreateCollapsibleSection("腾讯云设置");
+        // ── 腾讯云设置(可折叠,行内布局) ──
+        var (tencentContent, tencentCard) = CreateCollapsibleSection("腾讯云设置");
 
-        AddLabel("Secret ID");
-        _txtTencentSecretId = AddTextBox();
+        _txtTencentSecretId = SettingsLayout.CreateTextBox();
+        tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret ID", _txtTencentSecretId));
 
-        AddLabel("Secret Key");
-        _pwdTencentSecretKey = AddPasswordBox();
-        Children.Add(tencentSection);
+        var (tencentPwdHost, tencentPwd) = SettingsLayout.CreatePasswordField();
+        _pwdTencentSecretKey = tencentPwd;
+        tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret Key", tencentPwdHost));
 
-        // AI Vision 设置(可折叠)
-        var aiSection = CreateCollapsibleSection("AI Vision 设置");
+        Children.Add(tencentCard);
 
-        AddLabel("API URL");
-        _txtAiApiUrl = AddTextBox();
-        AddHint("例如：https://api.openai.com/v1/chat/completions");
+        // ── AI Vision 设置(可折叠,行内布局) ──
+        var (aiContent, aiCard) = CreateCollapsibleSection("AI Vision 设置");
 
-        AddLabel("API Key");
-        _pwdAiApiKey = AddPasswordBox();
+        _txtAiApiUrl = SettingsLayout.CreateTextBox();
+        aiContent.Children.Add(SettingsLayout.CreateInlineField("API URL", _txtAiApiUrl));
+        aiContent.Children.Add(SettingsLayout.CreateHint("例如：https://api.openai.com/v1/chat/completions", inline: true));
 
-        AddLabel("模型");
-        _txtAiModel = AddTextBox();
-        AddHint("例如：gpt-4o, claude-3-5-sonnet-20241022");
-        Children.Add(aiSection);
+        var (aiPwdHost, aiPwd) = SettingsLayout.CreatePasswordField();
+        _pwdAiApiKey = aiPwd;
+        aiContent.Children.Add(SettingsLayout.CreateInlineField("API Key", aiPwdHost));
 
-        // 保存按钮
+        _txtAiModel = SettingsLayout.CreateTextBox();
+        aiContent.Children.Add(SettingsLayout.CreateInlineField("模型", _txtAiModel));
+        aiContent.Children.Add(SettingsLayout.CreateHint("例如：gpt-4o, claude-3-5-sonnet-20241022", inline: true));
+
+        Children.Add(aiCard);
+
+        // ── 保存按钮 ──
         var btnSave = new System.Windows.Controls.Button
         {
             Content = "保存设置",
             Style = (Style)FindResource("ModernButton"),
             Padding = new Thickness(18, 8, 18, 8),
-            Margin = new Thickness(0, 10, 0, 0),
+            Margin = SettingsLayout.SaveButtonMargin,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Right
         };
         btnSave.Click += BtnSave_Click;
         Children.Add(btnSave);
-    }
-
-    private StackPanel CreateSection(string title)
-    {
-        var section = new StackPanel();
-        section.Children.Add(new TextBlock
-        {
-            Text = title,
-            Style = (Style)FindResource("SettingsGroupTitle")
-        });
-        return section;
     }
 
     private Border WrapSection(StackPanel section)
@@ -125,11 +112,9 @@ public class OcrSettingsPanel : StackPanel
         };
     }
 
-    /// <summary>创建可折叠分组(默认收起),后续 Add* 写入其内容区;整组包成阴影卡片。</summary>
-    private Border CreateCollapsibleSection(string title)
+    private (StackPanel content, Border card) CreateCollapsibleSection(string title)
     {
         var content = new StackPanel();
-        _activeSection = content;
         var exp = new Expander
         {
             Style = (Style)FindResource("SettingsExpander"),
@@ -137,135 +122,12 @@ public class OcrSettingsPanel : StackPanel
             Content = content,
             IsExpanded = false
         };
-        return new Border
+        var card = new Border
         {
             Style = (Style)FindResource("SurfaceCard"),
             Child = exp
         };
-    }
-
-    private void AddLabel(string text)
-    {
-        var label = new TextBlock
-        {
-            Text = text,
-            Margin = new Thickness(0, 7, 0, 4)
-        };
-        _activeSection.Children.Add(label);
-    }
-
-    private System.Windows.Controls.TextBox AddTextBox()
-    {
-        var textBox = new System.Windows.Controls.TextBox
-        {
-            Style = (Style)FindResource("SunkenTextBox"),
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
-        };
-        _activeSection.Children.Add(textBox);
-        return textBox;
-    }
-
-    private System.Windows.Controls.PasswordBox AddPasswordBox()
-    {
-        var inputHost = new Grid
-        {
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
-        };
-
-        var passwordBox = new System.Windows.Controls.PasswordBox
-        {
-            Style = (Style)FindResource("SunkenPasswordBox"),
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Padding = new Thickness(5, 3, 38, 3)
-        };
-
-        var textBox = new System.Windows.Controls.TextBox
-        {
-            Style = (Style)FindResource("SunkenTextBox"),
-            Height = 32,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Padding = new Thickness(5, 3, 38, 3),
-            Visibility = Visibility.Collapsed
-        };
-
-        var revealButton = new System.Windows.Controls.Button
-        {
-            Style = (Style)FindResource("IconButton"),
-            Width = 32,
-            Height = 32,
-            Padding = new Thickness(0),
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = "显示密钥",
-            Content = new TextBlock
-            {
-                Text = "\uE890",
-                FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"),
-                FontSize = 14,
-                Foreground = (System.Windows.Media.Brush)FindResource("TextSecondaryBrush")
-            }
-        };
-
-        var isRevealed = false;
-        var isSyncing = false;
-
-        passwordBox.PasswordChanged += (_, _) =>
-        {
-            if (isSyncing || isRevealed) return;
-            isSyncing = true;
-            textBox.Text = passwordBox.Password;
-            isSyncing = false;
-        };
-
-        textBox.TextChanged += (_, _) =>
-        {
-            if (isSyncing || !isRevealed) return;
-            isSyncing = true;
-            passwordBox.Password = textBox.Text;
-            isSyncing = false;
-        };
-
-        revealButton.Click += (_, _) =>
-        {
-            isRevealed = !isRevealed;
-            if (isRevealed)
-            {
-                textBox.Text = passwordBox.Password;
-                passwordBox.Visibility = Visibility.Collapsed;
-                textBox.Visibility = Visibility.Visible;
-                revealButton.ToolTip = "隐藏密钥";
-                textBox.Focus();
-                textBox.CaretIndex = textBox.Text.Length;
-            }
-            else
-            {
-                passwordBox.Password = textBox.Text;
-                textBox.Visibility = Visibility.Collapsed;
-                passwordBox.Visibility = Visibility.Visible;
-                revealButton.ToolTip = "显示密钥";
-                passwordBox.Focus();
-            }
-        };
-
-        inputHost.Children.Add(passwordBox);
-        inputHost.Children.Add(textBox);
-        inputHost.Children.Add(revealButton);
-        _activeSection.Children.Add(inputHost);
-        return passwordBox;
-    }
-
-    private void AddHint(string text)
-    {
-        var hint = new TextBlock
-        {
-            Text = text,
-            Style = (Style)FindResource("HintText"),
-            Margin = new Thickness(0, 3, 0, 0)
-        };
-        _activeSection.Children.Add(hint);
+        return (content, card);
     }
 
     private void CmbProvider_SelectionChanged(object sender, SelectionChangedEventArgs e)

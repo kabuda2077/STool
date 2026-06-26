@@ -52,12 +52,7 @@ public class GeneralSettingsPanel : StackPanel
             Margin = new Thickness(0, 0, 0, SettingsLayout.SpacingSM)
         };
         launchSection.Children.Add(_chkHideTrayIcon);
-        launchSection.Children.Add(new TextBlock
-        {
-            Text = "隐藏后仍可通过快捷键打开功能面板，重新显示可在本窗口取消勾选。",
-            Style = (Style)FindResource("HintText"),
-            Margin = new Thickness(0)
-        });
+        launchSection.Children.Add(SettingsLayout.CreateHint("隐藏后仍可通过快捷键打开功能面板，重新显示可在本窗口取消勾选。"));
 
         Children.Add(WrapSection(launchSection));
 
@@ -68,12 +63,9 @@ public class GeneralSettingsPanel : StackPanel
             Text = "快捷键设置",
             Style = (Style)FindResource("SettingsGroupTitle")
         });
-        hotkeysSection.Children.Add(new TextBlock
-        {
-            Text = "点击输入框后，直接按下快捷键组合（如 Ctrl+Alt+A）",
-            Style = (Style)FindResource("HintText"),
-            Margin = new Thickness(0, 0, 0, SettingsLayout.SpacingSM)
-        });
+        var hotkeyHint = SettingsLayout.CreateHint("点击输入框后，直接按下快捷键组合（如 Ctrl+Alt+A）");
+        hotkeyHint.Margin = new Thickness(0, 0, 0, SettingsLayout.SpacingSM);
+        hotkeysSection.Children.Add(hotkeyHint);
 
         var hotkeyGrid = new Grid();
         hotkeyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(SettingsLayout.HotkeyLabelWidth) });

@@ -185,7 +185,11 @@ internal static class SettingsLayout
         {
             Text = text,
             Style = (Style)Application.Current.FindResource("HintText"),
-            Margin = inline ? InlineHintMargin : HintMargin
+            Margin = inline ? InlineHintMargin : HintMargin,
+            FontSize = (double)Application.Current.FindResource("FontSizeMicro"),
+            Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush"),
+            FontWeight = FontWeights.Normal,
+            TextWrapping = TextWrapping.Wrap
         };
     }
 }

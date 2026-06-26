@@ -35,17 +35,12 @@ public class TranslationSettingsPanel : StackPanel
     {
         Margin = new Thickness(0);
 
-        // ── 服务商 ──
+        // ── 翻译提供商 ──
         var providerSection = new StackPanel();
         providerSection.Children.Add(new TextBlock
         {
-            Text = "服务商",
-            Style = (Style)FindResource("SettingsGroupTitle")
-        });
-        providerSection.Children.Add(new TextBlock
-        {
             Text = "翻译提供商",
-            Style = (Style)FindResource("FieldLabel")
+            Style = (Style)FindResource("SettingsGroupTitle")
         });
         _cmbProvider = SettingsLayout.CreateComboBox();
         _cmbProvider.Margin = SettingsLayout.FieldSpacing;

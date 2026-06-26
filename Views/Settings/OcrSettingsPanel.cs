@@ -33,19 +33,14 @@ public class OcrSettingsPanel : StackPanel
     {
         Margin = new Thickness(0);
 
-        // ── 基础选项 ──
+        // ── OCR 提供商 ──
         var baseSection = new StackPanel();
         baseSection.Children.Add(new TextBlock
         {
-            Text = "基础选项",
+            Text = "OCR 提供商",
             Style = (Style)FindResource("SettingsGroupTitle")
         });
 
-        baseSection.Children.Add(new TextBlock
-        {
-            Text = "OCR 提供商",
-            Style = (Style)FindResource("FieldLabel")
-        });
         _cmbProvider = SettingsLayout.CreateComboBox();
         _cmbProvider.Margin = SettingsLayout.FieldSpacing;
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "Windows 本地 OCR", Tag = OcrProvider.WindowsLocal });

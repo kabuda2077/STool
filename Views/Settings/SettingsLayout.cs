@@ -128,6 +128,14 @@ internal static class SettingsLayout
             Visibility = Visibility.Collapsed
         };
 
+        var iconBlock = new TextBlock
+        {
+            Text = "\uE890",
+            FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"),
+            FontSize = 14,
+            Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush")
+        };
+
         var btn = new Button
         {
             Style = (Style)Application.Current.FindResource("IconButton"),
@@ -136,13 +144,7 @@ internal static class SettingsLayout
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
             ToolTip = "显示密钥",
-            Content = new TextBlock
-            {
-                Text = "\uE890",
-                FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"),
-                FontSize = 14,
-                Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush")
-            }
+            Content = iconBlock
         };
 
         var isRevealed = false;
@@ -173,6 +175,7 @@ internal static class SettingsLayout
                 pwd.Visibility = Visibility.Collapsed;
                 txt.Visibility = Visibility.Visible;
                 btn.ToolTip = "隐藏密钥";
+                iconBlock.Text = "\uED1A";
                 txt.Focus();
                 txt.CaretIndex = txt.Text.Length;
             }
@@ -182,6 +185,7 @@ internal static class SettingsLayout
                 txt.Visibility = Visibility.Collapsed;
                 pwd.Visibility = Visibility.Visible;
                 btn.ToolTip = "显示密钥";
+                iconBlock.Text = "\uE890";
                 pwd.Focus();
             }
         };

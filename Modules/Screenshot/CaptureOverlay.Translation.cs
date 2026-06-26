@@ -340,16 +340,8 @@ public partial class CaptureOverlay
             var contentHeight = Math.Max(1, rect.Height - paddingY * 2);
 
             // 整段统一字号:以段内行高中位数为基准,再按译文是否塞得下整体缩放一次。
-            var baseSize = Clamp(paragraph.MedianLineHeight / _scaleY * 0.82, 11, 26);
+            var baseSize = Clamp(paragraph.MedianLineHeight / _scaleY * 0.82, 9, 26);
             var fontSize = FitParagraphFontSize(translations[i], baseSize, contentWidth, contentHeight);
-            if (fontSize < 11)
-            {
-                Log.Information(
-                    "[ScreenshotTranslate] Paragraph {Index} too long to fit (text length={Length}), skipping block rendering",
-                    i,
-                    translations[i].Length);
-                throw new InvalidOperationException("段落译文过长,无法以可读字号渲染");
-            }
 
             var lineHeight = Math.Ceiling(fontSize * 1.25);
 
@@ -495,12 +487,11 @@ public partial class CaptureOverlay
 
     /// <summary>
     /// 整段统一字号:从基准字号起逐档缩小,直到译文按 availableWidth 自动换行后总高度塞进段落框。
-    /// 返回 0 表示译文过长无法以可读字号渲染,调用方应回退到整块翻译。
     /// </summary>
     private static double FitParagraphFontSize(string text, double preferredSize, double availableWidth, double availableHeight)
     {
-        var baseSize = Clamp(preferredSize, 11, 26);
-        const double minSize = 11;
+        var baseSize = Clamp(preferredSize, 9, 26);
+        const double minSize = 9;
         var typeface = new Typeface(System.Windows.SystemFonts.MessageFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
 
         for (var size = baseSize; size >= minSize; size -= 0.5)
@@ -522,7 +513,7 @@ public partial class CaptureOverlay
                 return size;
         }
 
-        return 0;
+        return minSize;
     }
 
     private static Brush ContrastBrush(System.Windows.Media.Color background)

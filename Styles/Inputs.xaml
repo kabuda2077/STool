@@ -240,10 +240,6 @@
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
             </Trigger>
-            <Trigger Property="IsKeyboardFocused" Value="True">
-                <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-                <Setter Property="BorderThickness" Value="1"/>
-            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -272,10 +268,6 @@
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
             </Trigger>
-            <Trigger Property="IsKeyboardFocused" Value="True">
-                <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-                <Setter Property="BorderThickness" Value="1"/>
-            </Trigger>
         </Style.Triggers>
     </Style>
 
@@ -285,16 +277,6 @@
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
-            </Trigger>
-            <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
-                <Setter Property="BorderThickness" Value="1"/>
-            </Trigger>
-            <Trigger Property="IsDropDownOpen" Value="True">
-                <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-                <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
-                <Setter Property="BorderThickness" Value="1"/>
             </Trigger>
         </Style.Triggers>
     </Style>

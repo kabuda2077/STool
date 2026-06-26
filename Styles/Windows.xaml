@@ -260,7 +260,7 @@
                             <Border.LayoutTransform>
                                 <ScaleTransform ScaleY="0"/>
                             </Border.LayoutTransform>
-                            <ContentPresenter Margin="0,8,0,0"/>
+                            <ContentPresenter Margin="0,18,0,0"/>
                         </Border>
                     </StackPanel>
                     <ControlTemplate.Triggers>

@@ -192,6 +192,8 @@
 
     <!-- 可折叠分组:标题行点击展开/收起,右侧 chevron 旋转 -->
     <Style x:Key="SettingsExpander" TargetType="Expander">
+        <Setter Property="Margin" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Expander">
@@ -205,8 +207,8 @@
                                       FocusVisualStyle="{x:Null}">
                             <ToggleButton.Template>
                                 <ControlTemplate TargetType="ToggleButton">
-                                    <Border Margin="-10">
-                                        <Border x:Name="HeaderBg" Background="{StaticResource TransparentBrush}" CornerRadius="8" Padding="10,14">
+                                    <Border Margin="-6,-8">
+                                        <Border x:Name="HeaderBg" Background="{StaticResource TransparentBrush}" CornerRadius="6" Padding="6,12">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>

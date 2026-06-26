@@ -16,12 +16,12 @@ public class TranslationSettingsPanel : StackPanel
 
     // 腾讯云
     private System.Windows.Controls.TextBox _txtTencentSecretId = null!;
-    private System.Windows.Controls.PasswordBox _pwdTencentSecretKey = null!;
+    private SecurePasswordField _pwdTencentSecretKey = null!;
 
     // AI
     private System.Windows.Controls.ComboBox _cmbAiPlatform = null!;
     private System.Windows.Controls.TextBox _txtAiApiUrl = null!;
-    private System.Windows.Controls.PasswordBox _pwdAiApiKey = null!;
+    private SecurePasswordField _pwdAiApiKey = null!;
     private System.Windows.Controls.ComboBox _cmbAiModel = null!;
 
     public TranslationSettingsPanel(ConfigManager configManager)
@@ -65,7 +65,7 @@ public class TranslationSettingsPanel : StackPanel
         });
         _cmbTranslationMode = SettingsLayout.CreateComboBox();
         _cmbTranslationMode.Margin = SettingsLayout.FieldSpacing;
-        _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "中 ⇄ 英", Tag = "zh-en" });
+        _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "中文 ⇄ 英文", Tag = "zh-en" });
         _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "自动 → 中文", Tag = "auto-zh" });
         _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "自动 → 英文", Tag = "auto-en" });
         _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "自动 → 日文", Tag = "auto-ja" });
@@ -74,13 +74,13 @@ public class TranslationSettingsPanel : StackPanel
 
         strategySection.Children.Add(new TextBlock
         {
-            Text = "截图翻译模式",
+            Text = "截图翻译识别模式",
             Style = (Style)FindResource("FieldLabel")
         });
         _cmbScreenshotMode = SettingsLayout.CreateComboBox();
         _cmbScreenshotMode.Margin = SettingsLayout.FieldSpacing;
-        _cmbScreenshotMode.Items.Add(new ComboBoxItem { Content = "快速：规则筛选 + 当前翻译引擎", Tag = ScreenshotTranslationMode.Fast });
-        _cmbScreenshotMode.Items.Add(new ComboBoxItem { Content = "智能：AI 选择并翻译正文", Tag = ScreenshotTranslationMode.Smart });
+        _cmbScreenshotMode.Items.Add(new ComboBoxItem { Content = "快速：本地规则识别", Tag = ScreenshotTranslationMode.Fast });
+        _cmbScreenshotMode.Items.Add(new ComboBoxItem { Content = "智能：AI 识别并翻译", Tag = ScreenshotTranslationMode.Smart });
         strategySection.Children.Add(_cmbScreenshotMode);
         strategySection.Children.Add(SettingsLayout.CreateHint("智能模式会额外使用 AI 翻译配置，失败时自动回退快速模式。"));
         Children.Add(WrapSection(strategySection));
@@ -91,9 +91,8 @@ public class TranslationSettingsPanel : StackPanel
         _txtTencentSecretId = SettingsLayout.CreateTextBox();
         tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret ID", _txtTencentSecretId));
 
-        var (tencentPwdHost, tencentPwd) = SettingsLayout.CreatePasswordField();
-        _pwdTencentSecretKey = tencentPwd;
-        tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret Key", tencentPwdHost));
+        _pwdTencentSecretKey = SettingsLayout.CreatePasswordField();
+        tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret Key", _pwdTencentSecretKey));
 
         Children.Add(tencentCard);
 
@@ -111,9 +110,8 @@ public class TranslationSettingsPanel : StackPanel
         _txtAiApiUrl = SettingsLayout.CreateTextBox();
         aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("API URL", _txtAiApiUrl, "OpenAI 兼容 Chat Completions 地址，自定义接口需手动填写。"));
 
-        var (aiPwdHost, aiPwd) = SettingsLayout.CreatePasswordField();
-        _pwdAiApiKey = aiPwd;
-        aiContent.Children.Add(SettingsLayout.CreateInlineField("API Key", aiPwdHost));
+        _pwdAiApiKey = SettingsLayout.CreatePasswordField();
+        aiContent.Children.Add(SettingsLayout.CreateInlineField("API Key", _pwdAiApiKey));
 
         _cmbAiModel = SettingsLayout.CreateEditableComboBox();
         aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", _cmbAiModel, "可点击获取模型列表，也可以直接手动输入模型名。"));

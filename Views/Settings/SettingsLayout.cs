@@ -102,98 +102,10 @@ internal static class SettingsLayout
         return cb;
     }
 
-    /// <summary>创建密码框 + 明文框 + 眼睛切换按钮的组合控件。</summary>
-    public static (Grid host, PasswordBox pwd) CreatePasswordField()
+    /// <summary>创建安全密码框组合控件。</summary>
+    public static SecurePasswordField CreatePasswordField()
     {
-        var host = new Grid
-        {
-            Height = InputHeight,
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
-
-        var pwd = new PasswordBox
-        {
-            Style = (Style)Application.Current.FindResource("SunkenPasswordBox"),
-            Height = InputHeight,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Padding = new Thickness(5, 3, 38, 3)
-        };
-
-        var txt = new System.Windows.Controls.TextBox
-        {
-            Style = (Style)Application.Current.FindResource("SunkenTextBox"),
-            Height = InputHeight,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Padding = new Thickness(5, 3, 38, 3),
-            Visibility = Visibility.Collapsed
-        };
-
-        var iconBlock = new TextBlock
-        {
-            Text = "\uE72E",
-            FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"),
-            FontSize = 14,
-            Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush")
-        };
-
-        var btn = new Button
-        {
-            Style = (Style)Application.Current.FindResource("IconButton"),
-            Width = 32, Height = 32,
-            Padding = new Thickness(0),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = "显示密钥",
-            Content = iconBlock
-        };
-
-        var isRevealed = false;
-        var isSyncing = false;
-
-        pwd.PasswordChanged += (_, _) =>
-        {
-            if (isSyncing || isRevealed) return;
-            isSyncing = true;
-            txt.Text = pwd.Password;
-            isSyncing = false;
-        };
-
-        txt.TextChanged += (_, _) =>
-        {
-            if (isSyncing || !isRevealed) return;
-            isSyncing = true;
-            pwd.Password = txt.Text;
-            isSyncing = false;
-        };
-
-        btn.Click += (_, _) =>
-        {
-            isRevealed = !isRevealed;
-            if (isRevealed)
-            {
-                txt.Text = pwd.Password;
-                pwd.Visibility = Visibility.Collapsed;
-                txt.Visibility = Visibility.Visible;
-                btn.ToolTip = "隐藏密钥";
-                iconBlock.Text = "\uE785";
-                txt.Focus();
-                txt.CaretIndex = txt.Text.Length;
-            }
-            else
-            {
-                pwd.Password = txt.Text;
-                txt.Visibility = Visibility.Collapsed;
-                pwd.Visibility = Visibility.Visible;
-                btn.ToolTip = "显示密钥";
-                iconBlock.Text = "\uE72E";
-                pwd.Focus();
-            }
-        };
-
-        host.Children.Add(pwd);
-        host.Children.Add(txt);
-        host.Children.Add(btn);
-        return (host, pwd);
+        return new SecurePasswordField();
     }
 
     /// <summary>创建提示文本。</summary>
@@ -209,5 +121,177 @@ internal static class SettingsLayout
             FontWeight = FontWeights.Normal,
             TextWrapping = TextWrapping.Wrap
         };
+    }
+}
+
+/// <summary>安全密码框组件，支持密文定长遮罩与显示/隐藏状态切换。</summary>
+public class SecurePasswordField : Grid
+{
+    private readonly PasswordBox _pwd;
+    private readonly TextBox _txt;
+    private readonly Button _btn;
+    private readonly TextBlock _iconBlock;
+
+    private string _realPassword = "";
+    private bool _isRevealed = false;
+    private bool _isSyncing = false;
+
+    // 使用定长 16 个圆点作为象征性遮罩，防止溢出裁切，同时更美观和安全
+    private const string MaskPlaceholder = "••••••••••••••••";
+
+    public string Password
+    {
+        get => _realPassword;
+        set
+        {
+            _realPassword = value ?? "";
+            UpdateUI();
+        }
+    }
+
+    public SecurePasswordField()
+    {
+        Height = SettingsLayout.InputHeight;
+        HorizontalAlignment = HorizontalAlignment.Stretch;
+
+        _pwd = new PasswordBox
+        {
+            Style = (Style)Application.Current.FindResource("SunkenPasswordBox"),
+            Height = SettingsLayout.InputHeight,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Padding = new Thickness(5, 3, 38, 3)
+        };
+
+        _txt = new TextBox
+        {
+            Style = (Style)Application.Current.FindResource("SunkenTextBox"),
+            Height = SettingsLayout.InputHeight,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Padding = new Thickness(5, 3, 38, 3),
+            Visibility = Visibility.Collapsed
+        };
+
+        _iconBlock = new TextBlock
+        {
+            Text = "\uE72E", // 锁闭
+            FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"),
+            FontSize = 14,
+            Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush")
+        };
+
+        _btn = new Button
+        {
+            Style = (Style)Application.Current.FindResource("IconButton"),
+            Width = 32,
+            Height = 32,
+            Padding = new Thickness(0),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            ToolTip = "显示密钥",
+            Content = _iconBlock
+        };
+
+        _pwd.PasswordChanged += (s, e) =>
+        {
+            if (_isSyncing) return;
+            var newText = _pwd.Password;
+            if (newText.Contains('•'))
+            {
+                var cleanText = newText.Replace("•", "");
+                _realPassword = cleanText;
+                _isSyncing = true;
+                _pwd.Password = cleanText;
+                _isSyncing = false;
+            }
+            else
+            {
+                _realPassword = newText;
+            }
+            _txt.Text = _realPassword;
+        };
+
+        _txt.TextChanged += (s, e) =>
+        {
+            if (_isSyncing) return;
+            _realPassword = _txt.Text;
+            _isSyncing = true;
+            if (_isRevealed)
+            {
+                _pwd.Password = _realPassword;
+            }
+            else
+            {
+                _pwd.Password = string.IsNullOrEmpty(_realPassword) ? "" : MaskPlaceholder;
+            }
+            _isSyncing = false;
+        };
+
+        _pwd.GotFocus += (s, e) => _pwd.SelectAll();
+        _txt.GotFocus += (s, e) => _txt.SelectAll();
+
+        _pwd.PreviewMouseLeftButtonDown += (s, e) =>
+        {
+            if (!_pwd.IsKeyboardFocusWithin)
+            {
+                _pwd.Focus();
+                e.Handled = true;
+            }
+        };
+        _txt.PreviewMouseLeftButtonDown += (s, e) =>
+        {
+            if (!_txt.IsKeyboardFocusWithin)
+            {
+                _txt.Focus();
+                e.Handled = true;
+            }
+        };
+
+        _btn.Click += (s, e) => ToggleReveal();
+
+        Children.Add(_pwd);
+        Children.Add(_txt);
+        Children.Add(_btn);
+    }
+
+    private void ToggleReveal()
+    {
+        _isRevealed = !_isRevealed;
+        _isSyncing = true;
+        if (_isRevealed)
+        {
+            _txt.Text = _realPassword;
+            _pwd.Visibility = Visibility.Collapsed;
+            _txt.Visibility = Visibility.Visible;
+            _btn.ToolTip = "隐藏密钥";
+            _iconBlock.Text = "\uE785"; // 锁开
+            _txt.Focus();
+            _txt.CaretIndex = _txt.Text.Length;
+        }
+        else
+        {
+            _pwd.Password = string.IsNullOrEmpty(_realPassword) ? "" : MaskPlaceholder;
+            _txt.Visibility = Visibility.Collapsed;
+            _pwd.Visibility = Visibility.Visible;
+            _btn.ToolTip = "显示密钥";
+            _iconBlock.Text = "\uE72E"; // 锁闭
+            _pwd.Focus();
+        }
+        _isSyncing = false;
+    }
+
+    private void UpdateUI()
+    {
+        _isSyncing = true;
+        if (_isRevealed)
+        {
+            _txt.Text = _realPassword;
+            _pwd.Password = _realPassword;
+        }
+        else
+        {
+            _txt.Text = _realPassword;
+            _pwd.Password = string.IsNullOrEmpty(_realPassword) ? "" : MaskPlaceholder;
+        }
+        _isSyncing = false;
     }
 }

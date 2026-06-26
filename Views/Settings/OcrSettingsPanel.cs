@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Controls;
 using STool.Core;
 using STool.Models;
+using STool.Modules.Translation;
 
 namespace STool.Views.Settings;
 
@@ -14,13 +15,13 @@ public class OcrSettingsPanel : StackPanel
 
     // 腾讯云
     private System.Windows.Controls.TextBox _txtTencentSecretId = null!;
-    private System.Windows.Controls.PasswordBox _pwdTencentSecretKey = null!;
+    private SecurePasswordField _pwdTencentSecretKey = null!;
 
     // AI Vision
     private System.Windows.Controls.ComboBox _cmbAiPlatform = null!;
     private System.Windows.Controls.TextBox _txtAiApiUrl = null!;
-    private System.Windows.Controls.PasswordBox _pwdAiApiKey = null!;
-    private System.Windows.Controls.TextBox _txtAiModel = null!;
+    private SecurePasswordField _pwdAiApiKey = null!;
+    private System.Windows.Controls.ComboBox _cmbAiModel = null!;
 
     public OcrSettingsPanel(ConfigManager configManager)
     {
@@ -63,9 +64,8 @@ public class OcrSettingsPanel : StackPanel
         _txtTencentSecretId = SettingsLayout.CreateTextBox();
         tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret ID", _txtTencentSecretId));
 
-        var (tencentPwdHost, tencentPwd) = SettingsLayout.CreatePasswordField();
-        _pwdTencentSecretKey = tencentPwd;
-        tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret Key", tencentPwdHost));
+        _pwdTencentSecretKey = SettingsLayout.CreatePasswordField();
+        tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret Key", _pwdTencentSecretKey));
 
         Children.Add(tencentCard);
 
@@ -82,12 +82,26 @@ public class OcrSettingsPanel : StackPanel
         _txtAiApiUrl = SettingsLayout.CreateTextBox();
         aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("API URL", _txtAiApiUrl, "OpenAI 兼容 Chat Completions 地址，自定义接口需手动填写。"));
 
-        var (aiPwdHost, aiPwd) = SettingsLayout.CreatePasswordField();
-        _pwdAiApiKey = aiPwd;
-        aiContent.Children.Add(SettingsLayout.CreateInlineField("API Key", aiPwdHost));
+        _pwdAiApiKey = SettingsLayout.CreatePasswordField();
+        aiContent.Children.Add(SettingsLayout.CreateInlineField("API Key", _pwdAiApiKey));
 
-        _txtAiModel = SettingsLayout.CreateTextBox();
-        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", _txtAiModel, "例如：gpt-4o-mini, gemini-1.5-flash"));
+        _cmbAiModel = SettingsLayout.CreateEditableComboBox();
+        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", _cmbAiModel, "可点击获取模型列表，也可以直接手动输入模型名。"));
+
+        var aiActions = new StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            Margin = new Thickness(SettingsLayout.InlineLabelWidth, SettingsLayout.SpacingSM, 0, 0)
+        };
+        var btnFetchModels = new System.Windows.Controls.Button
+        {
+            Content = "获取模型",
+            Style = (Style)FindResource("SecondaryButton"),
+            Padding = new Thickness(14, 7, 14, 7)
+        };
+        btnFetchModels.Click += BtnFetchModels_Click;
+        aiActions.Children.Add(btnFetchModels);
+        aiContent.Children.Add(aiActions);
 
         Children.Add(aiCard);
 
@@ -181,7 +195,7 @@ public class OcrSettingsPanel : StackPanel
         {
             _pwdAiApiKey.Password = SecureStorage.Decrypt(config.AiApiKeyEncrypted);
         }
-        _txtAiModel.Text = config.AiModel ?? "";
+        _cmbAiModel.Text = config.AiModel ?? "";
     }
 
     private void BtnSave_Click(object sender, RoutedEventArgs e)
@@ -218,7 +232,7 @@ public class OcrSettingsPanel : StackPanel
             {
                 config.Ocr.AiApiKeyEncrypted = SecureStorage.Encrypt(_pwdAiApiKey.Password);
             }
-            config.Ocr.AiModel = _txtAiModel.Text;
+            config.Ocr.AiModel = GetAiModel();
 
             _configManager.Save(config);
 
@@ -245,12 +259,47 @@ public class OcrSettingsPanel : StackPanel
             _ => string.Empty
         };
 
-        _txtAiModel.Text = platform switch
+        _cmbAiModel.Text = platform switch
         {
             OcrAiPlatform.OpenAI => "gpt-4o-mini",
             OcrAiPlatform.GoogleAiStudio => "gemini-1.5-flash",
             _ => string.Empty
         };
+    }
+
+    private string GetAiModel()
+    {
+        return _cmbAiModel.Text.Trim();
+    }
+
+    private async void BtnFetchModels_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var models = await AiTranslationService.FetchModelsAsync(_txtAiApiUrl.Text, _pwdAiApiKey.Password);
+            var currentModel = GetAiModel();
+
+            _cmbAiModel.Items.Clear();
+            foreach (var model in models)
+            {
+                _cmbAiModel.Items.Add(model);
+            }
+
+            if (!string.IsNullOrWhiteSpace(currentModel))
+            {
+                _cmbAiModel.Text = currentModel;
+            }
+            else if (models.Count > 0)
+            {
+                _cmbAiModel.Text = models[0];
+            }
+
+            ToastNotification.Show("模型已获取", $"共 {models.Count} 个模型", ToastNotification.ToastType.Success);
+        }
+        catch (Exception ex)
+        {
+            ToastNotification.Show("获取模型失败", ex.Message, ToastNotification.ToastType.Error);
+        }
     }
 
     private OcrAiPlatform GetSelectedAiPlatform()

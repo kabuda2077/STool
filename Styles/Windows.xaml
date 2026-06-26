@@ -131,6 +131,9 @@
                         <Trigger Property="core:ModernWindowChrome.ShowTopmostButton" Value="True">
                             <Setter TargetName="PART_TopmostButton" Property="Visibility" Value="Visible"/>
                         </Trigger>
+                        <Trigger Property="core:ModernWindowChrome.HideTitleText" Value="True">
+                            <Setter TargetName="PART_TitleText" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
                         <Trigger Property="core:ModernWindowChrome.TitleBarExtraTopPadding" Value="True">
                             <Setter TargetName="PART_TitleBar" Property="Height" Value="62"/>
                             <Setter TargetName="PART_TitleText" Property="Margin" Value="18,2,140,0"/>

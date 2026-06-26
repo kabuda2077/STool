@@ -39,7 +39,8 @@ public class GeneralSettingsPanel : StackPanel
         _chkAutoStart = new System.Windows.Controls.CheckBox
         {
             Content = "开机自动启动",
-            Style = (Style)FindResource("ModernCheckBox")
+            Style = (Style)FindResource("ModernCheckBox"),
+            Margin = new Thickness(0, 0, 0, SettingsLayout.SpacingSM)
         };
         _chkAutoStart.Click += ChkAutoStart_Changed;
         launchSection.Children.Add(_chkAutoStart);
@@ -48,14 +49,14 @@ public class GeneralSettingsPanel : StackPanel
         {
             Content = "隐藏托盘图标",
             Style = (Style)FindResource("ModernCheckBox"),
-            Margin = new Thickness(0, SettingsLayout.SpacingXS, 0, 0)
+            Margin = new Thickness(0, 0, 0, SettingsLayout.SpacingSM)
         };
         launchSection.Children.Add(_chkHideTrayIcon);
         launchSection.Children.Add(new TextBlock
         {
             Text = "隐藏后仍可通过快捷键打开功能面板，重新显示可在本窗口取消勾选。",
             Style = (Style)FindResource("HintText"),
-            Margin = SettingsLayout.HintMargin
+            Margin = new Thickness(0)
         });
 
         Children.Add(WrapSection(launchSection));

@@ -340,6 +340,48 @@
         </Setter>
     </Style>
 
+    <Style x:Key="SwitchCheckBox" TargetType="CheckBox">
+        <Setter Property="Cursor" Value="Hand"/>
+        <Setter Property="Focusable" Value="False"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <Border x:Name="Track"
+                            Width="38"
+                            Height="22"
+                            CornerRadius="8"
+                            Background="{StaticResource BorderBrush}"
+                            SnapsToDevicePixels="True">
+                        <Border x:Name="Thumb"
+                                Width="16"
+                                Height="16"
+                                CornerRadius="5"
+                                Background="{StaticResource SurfaceBrush}"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Center"
+                                Margin="3">
+                            <Border.Effect>
+                                <StaticResource ResourceKey="PaneShadow"/>
+                            </Border.Effect>
+                        </Border>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Track" Property="Background" Value="{StaticResource BorderBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Track" Property="Background" Value="{StaticResource PrimaryBrush}"/>
+                            <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right"/>
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter Property="Opacity" Value="0.5"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
     <Style TargetType="CheckBox" BasedOn="{StaticResource ModernCheckBox}"/>
 
     <Style TargetType="Slider">

@@ -74,7 +74,7 @@ public partial class TrayMenuWindow : Window
             var shortcutText = new TextBlock
             {
                 Text = shortcut,
-                FontSize = 11,
+                FontSize = (double)FindResource("FontSizeHint"),
                 Foreground = (Brush)FindResource("TextSecondaryBrush"),
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(16, 0, 0, 0)

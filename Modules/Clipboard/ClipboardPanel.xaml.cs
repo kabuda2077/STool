@@ -10,6 +10,7 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using STool.Core;
@@ -38,6 +39,7 @@ public partial class ClipboardPanel : Window
     private Tab _tab = Tab.All;
     private string _searchText = string.Empty;
     private readonly IntPtr _targetHwnd;
+    private const double TabSegmentWidth = 58d;
 
     // D: ViewModel 按 Id 缓存,切分类/搜索时复用,避免重复造 VM 与重复解码
     private readonly Dictionary<string, ClipboardItemViewModel> _vmCache = new();
@@ -168,6 +170,35 @@ public partial class ClipboardPanel : Window
         tabFile.Tag = _tab == Tab.File ? "on" : null;
         tabFavorite.Tag = _tab == Tab.Favorite ? "on" : null;
         btnClearAll.ToolTip = GetClearActionText();
+        UpdateTabSlider();
+    }
+
+    private void UpdateTabSlider()
+    {
+        var target = _tab switch
+        {
+            Tab.Text => TabSegmentWidth,
+            Tab.Image => TabSegmentWidth * 2,
+            Tab.File => TabSegmentWidth * 3,
+            Tab.Favorite => TabSegmentWidth * 4,
+            _ => 0d
+        };
+
+        if (!IsLoaded)
+        {
+            tabSliderTransform.X = target;
+            return;
+        }
+
+        var animation = new DoubleAnimationUsingKeyFrames
+        {
+            Duration = TimeSpan.FromMilliseconds(220)
+        };
+        animation.KeyFrames.Add(new SplineDoubleKeyFrame(
+            target,
+            KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(220)),
+            new KeySpline(0.2, 0.8, 0.2, 1.0)));
+        tabSliderTransform.BeginAnimation(TranslateTransform.XProperty, animation);
     }
 
     // 单击复制不关闭;双击复制、关闭面板并尝试粘贴到原前台文本框

@@ -135,9 +135,10 @@
                             <Setter TargetName="PART_TitleText" Property="Visibility" Value="Collapsed"/>
                         </Trigger>
                         <Trigger Property="core:ModernWindowChrome.TitleBarExtraTopPadding" Value="True">
-                            <Setter TargetName="PART_TitleBar" Property="Height" Value="62"/>
+                            <Setter TargetName="PART_TitleBar" Property="Height" Value="60"/>
+                            <Setter TargetName="PART_TitleText" Property="FontSize" Value="{StaticResource FontSizeTitle}"/>
                             <Setter TargetName="PART_TitleText" Property="Margin" Value="18,2,140,0"/>
-                            <Setter TargetName="PART_CaptionButtons" Property="Margin" Value="0,11,10,13"/>
+                            <Setter TargetName="PART_CaptionButtons" Property="Margin" Value="0,10,10,12"/>
                         </Trigger>
                         <!-- 最大化时去掉 1px 外边框(WindowChrome 会自动将最大化尺寸约束到工作区) -->
                         <Trigger Property="WindowState" Value="Maximized">
@@ -168,6 +169,53 @@
         <Setter Property="Effect" Value="{StaticResource PaneShadow}"/>
     </Style>
 
+    <!-- Floating tool panels: translation, clipboard and OCR result windows share this visual language. -->
+    <Style x:Key="ToolPanelPane" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="14"/>
+        <Setter Property="Effect" Value="{StaticResource PaneShadow}"/>
+    </Style>
+
+    <Style x:Key="ToolPanelToolbarSurface" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusMedium}"/>
+        <Setter Property="Padding" Value="2"/>
+        <Setter Property="Effect" Value="{StaticResource PaneShadow}"/>
+    </Style>
+
+    <Style x:Key="ToolPanelTextBox" TargetType="TextBox">
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+        <Setter Property="CaretBrush" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="SelectionBrush" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="SelectionOpacity" Value="0.35"/>
+        <Setter Property="VerticalContentAlignment" Value="Top"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <ScrollViewer x:Name="PART_ContentHost"
+                                  Background="{TemplateBinding Background}"
+                                  Focusable="False"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Settings pages use flatter sections than floating tool panels. -->
+    <Style x:Key="SettingsFlatSection" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="Padding" Value="14"/>
+        <Setter Property="Margin" Value="0,0,0,12"/>
+        <Setter Property="Effect" Value="{StaticResource PaneShadow}"/>
+    </Style>
+
     <Style x:Key="SettingsPageTitle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="{StaticResource FontSizeTitle}"/>
         <Setter Property="FontWeight" Value="{StaticResource FontWeightStrong}"/>
@@ -179,14 +227,15 @@
         <Setter Property="FontSize" Value="{StaticResource FontSizeSubtitle}"/>
         <Setter Property="FontWeight" Value="{StaticResource FontWeightStrong}"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-        <Setter Property="Margin" Value="0,0,0,8"/>
+        <Setter Property="Margin" Value="0,0,0,10"/>
     </Style>
 
     <!-- 表单字段标签:Caption 字号,次要色,用于输入框/下拉框前的字段名 -->
     <Style x:Key="FieldLabel" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="{StaticResource FontSizeCaption}"/>
-        <Setter Property="FontWeight" Value="{StaticResource FontWeightStrong}"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightNormal}"/>
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="Opacity" Value="0.9"/>
         <Setter Property="Margin" Value="0,7,0,4"/>
     </Style>
 
@@ -207,8 +256,8 @@
                                       FocusVisualStyle="{x:Null}">
                             <ToggleButton.Template>
                                 <ControlTemplate TargetType="ToggleButton">
-                                    <Border Margin="-6,-8">
-                                        <Border x:Name="HeaderBg" Background="{StaticResource TransparentBrush}" CornerRadius="6" Padding="6,12">
+                                    <Border Margin="-8">
+                                        <Border x:Name="HeaderBg" Background="{StaticResource TransparentBrush}" CornerRadius="8" Padding="12">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
@@ -260,7 +309,7 @@
                             <Border.LayoutTransform>
                                 <ScaleTransform ScaleY="0"/>
                             </Border.LayoutTransform>
-                            <ContentPresenter Margin="0,18,0,0"/>
+                            <ContentPresenter Margin="0,12,0,0"/>
                         </Border>
                     </StackPanel>
                     <ControlTemplate.Triggers>
@@ -307,8 +356,9 @@
     </Style>
 
     <Style x:Key="HintText" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="{StaticResource FontSizeMicro}"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeHint}"/>
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="Opacity" Value="0.78"/>
         <Setter Property="TextWrapping" Value="Wrap"/>
     </Style>
 

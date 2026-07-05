@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media.Animation;
 using Microsoft.Win32;
 using Serilog;
 using STool.Core;
@@ -16,6 +17,7 @@ public class GeneralSettingsPanel : StackPanel
     private System.Windows.Controls.TextBox _txtTranslationHotkey = null!;
     private System.Windows.Controls.TextBox _txtClipboardHotkey = null!;
     private System.Windows.Controls.TextBox _txtSettingsHotkey = null!;
+    private TextBlock _savedIndicator = null!;
 
     public GeneralSettingsPanel(ConfigManager configManager)
     {
@@ -36,23 +38,30 @@ public class GeneralSettingsPanel : StackPanel
             Style = (Style)FindResource("SettingsGroupTitle")
         });
 
-        _chkAutoStart = new System.Windows.Controls.CheckBox
-        {
-            Content = "开机自动启动",
-            Style = (Style)FindResource("ModernCheckBox"),
-            Margin = new Thickness(0, 0, 0, SettingsLayout.SpacingSM)
-        };
-        _chkAutoStart.Click += ChkAutoStart_Changed;
-        launchSection.Children.Add(_chkAutoStart);
+        _chkAutoStart = SettingsLayout.CreateSwitch();
+        launchSection.Children.Add(SettingsLayout.CreateSwitchRow(
+            "开机自动启动",
+            "随系统启动",
+            _chkAutoStart,
+            enabled =>
+            {
+                if (SetAutoStart(enabled))
+                {
+                    FlashSaved();
+                }
+                else
+                {
+                    _chkAutoStart.IsChecked = !enabled;
+                }
+            }));
 
-        _chkHideTrayIcon = new System.Windows.Controls.CheckBox
-        {
-            Content = "隐藏托盘图标",
-            Style = (Style)FindResource("ModernCheckBox"),
-            Margin = new Thickness(0, 0, 0, SettingsLayout.SpacingSM)
-        };
-        launchSection.Children.Add(_chkHideTrayIcon);
-        launchSection.Children.Add(SettingsLayout.CreateHint("隐藏后仍可通过快捷键打开功能面板，重新显示可在本窗口取消勾选。"));
+        _chkHideTrayIcon = SettingsLayout.CreateSwitch();
+        launchSection.Children.Add(SettingsLayout.CreateSwitchRow(
+            "隐藏托盘图标",
+            "仍可用快捷键唤出",
+            _chkHideTrayIcon,
+            SaveHideTrayIcon,
+            isLast: true));
 
         Children.Add(WrapSection(launchSection));
 
@@ -70,43 +79,46 @@ public class GeneralSettingsPanel : StackPanel
         _txtScreenshotHotkey = AddHotkeyRow(hotkeyGrid, 0, "截图");
         _txtTranslationHotkey = AddHotkeyRow(hotkeyGrid, 1, "翻译");
         _txtClipboardHotkey = AddHotkeyRow(hotkeyGrid, 2, "剪贴板");
-        _txtSettingsHotkey = AddHotkeyRow(hotkeyGrid, 3, "设置");
+        _txtSettingsHotkey = AddHotkeyRow(hotkeyGrid, 3, "设置", isLast: true);
+
+        // 即时保存:快捷键录制完(失焦)自动校验并保存
+        foreach (var box in new[] { _txtScreenshotHotkey, _txtTranslationHotkey, _txtClipboardHotkey, _txtSettingsHotkey })
+        {
+            box.LostKeyboardFocus += (_, _) => CommitHotkeysIfChanged();
+        }
 
         hotkeysSection.Children.Add(hotkeyGrid);
 
-        var hotkeyHint = SettingsLayout.CreateHint("点击输入框后，直接按下快捷键组合（如 Ctrl+Alt+A）");
-        hotkeyHint.Margin = new Thickness(0, SettingsLayout.SpacingSM, 0, 0);
+        var hotkeyHint = SettingsLayout.CreateHint("点击后直接按快捷键组合");
+        hotkeyHint.Margin = new Thickness(SettingsLayout.HotkeyLabelWidth, SettingsLayout.InputHintSpacing, 0, 0);
         hotkeysSection.Children.Add(hotkeyHint);
 
         Children.Add(WrapSection(hotkeysSection));
 
-        // ── 保存按钮 ──
-        var btnSave = new System.Windows.Controls.Button
+        // ── 即时保存反馈:成功后右下角轻闪,随后淡出 ──
+        _savedIndicator = new TextBlock
         {
-            Content = "保存设置",
-            Style = (Style)FindResource("ModernButton"),
-            Padding = new Thickness(18, 8, 18, 8),
-            Margin = SettingsLayout.SaveButtonMargin,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Right
+            Text = "✓ 已保存",
+            FontSize = SettingsLayout.BodyFontSize,
+            Foreground = (System.Windows.Media.Brush)FindResource("SuccessBrush"),
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
+            Margin = new Thickness(0, SettingsLayout.SpacingSM, 2, 0),
+            Opacity = 0
         };
-        btnSave.Click += BtnSave_Click;
-        Children.Add(btnSave);
+        Children.Add(_savedIndicator);
 
-        Children.Add(new Border { Height = 20 });
+        Children.Add(new Border { Height = 12 });
     }
 
     private Border WrapSection(StackPanel section)
     {
-        return new Border
-        {
-            Style = (Style)FindResource("SurfaceCard"),
-            Child = section
-        };
+        return SettingsLayout.CreateSection(section);
     }
 
-    private System.Windows.Controls.TextBox AddHotkeyRow(Grid grid, int row, string label)
+    private System.Windows.Controls.TextBox AddHotkeyRow(Grid grid, int row, string label, bool isLast = false)
     {
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        var bottomSpacing = isLast ? 0 : SettingsLayout.SpacingMD;
 
         var lbl = new TextBlock
         {
@@ -115,16 +127,22 @@ public class GeneralSettingsPanel : StackPanel
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0)
         };
-        Grid.SetRow(lbl, row);
-        Grid.SetColumn(lbl, 0);
-        grid.Children.Add(lbl);
+        var labelHost = new Border
+        {
+            Height = SettingsLayout.InputHeight,
+            Margin = new Thickness(0, 0, 0, bottomSpacing),
+            Child = lbl
+        };
+        Grid.SetRow(labelHost, row);
+        Grid.SetColumn(labelHost, 0);
+        grid.Children.Add(labelHost);
 
         var box = new HotkeyBox
         {
             Style = (Style)FindResource("HotkeyTextBox"),
             Height = SettingsLayout.InputHeight,
             HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Margin = new Thickness(0, 0, 0, SettingsLayout.SpacingXS)
+            Margin = new Thickness(0, 0, 0, bottomSpacing)
         };
         Grid.SetRow(box, row);
         Grid.SetColumn(box, 1);
@@ -148,46 +166,68 @@ public class GeneralSettingsPanel : StackPanel
         _txtSettingsHotkey.Text = config.Hotkeys.Settings;
     }
 
-    private void ChkAutoStart_Changed(object sender, RoutedEventArgs e)
+    /// <summary>快捷键录制完(失焦)时:有变化才校验并保存,非法则回退到已保存值。</summary>
+    private void CommitHotkeysIfChanged()
     {
-        var enabled = _chkAutoStart.IsChecked == true;
-        SetAutoStart(enabled);
-    }
+        var config = _configManager.Get();
+        var screenshot = _txtScreenshotHotkey.Text.Trim();
+        var translation = _txtTranslationHotkey.Text.Trim();
+        var clipboard = _txtClipboardHotkey.Text.Trim();
+        var settings = _txtSettingsHotkey.Text.Trim();
 
-    private void BtnSave_Click(object sender, RoutedEventArgs e)
-    {
-        SaveSettings();
-    }
+        // 无变化则不动,避免无意义的保存和"已保存"闪烁
+        if (screenshot == config.Hotkeys.Screenshot &&
+            translation == config.Hotkeys.Translation &&
+            clipboard == config.Hotkeys.Clipboard &&
+            settings == config.Hotkeys.Settings)
+        {
+            return;
+        }
 
-    public void SaveSettings()
-    {
+        // 任一非法:全部回退到已保存值并提示
+        if (!ValidateHotkey(screenshot, "截图快捷键") ||
+            !ValidateHotkey(translation, "翻译快捷键") ||
+            !ValidateHotkey(clipboard, "剪贴板快捷键") ||
+            !ValidateHotkey(settings, "设置快捷键"))
+        {
+            _txtScreenshotHotkey.Text = config.Hotkeys.Screenshot;
+            _txtTranslationHotkey.Text = config.Hotkeys.Translation;
+            _txtClipboardHotkey.Text = config.Hotkeys.Clipboard;
+            _txtSettingsHotkey.Text = config.Hotkeys.Settings;
+            return;
+        }
+
         try
         {
-            if (!ValidateHotkey(_txtScreenshotHotkey.Text, "截图快捷键") ||
-                !ValidateHotkey(_txtTranslationHotkey.Text, "翻译快捷键") ||
-                !ValidateHotkey(_txtClipboardHotkey.Text, "剪贴板快捷键") ||
-                !ValidateHotkey(_txtSettingsHotkey.Text, "设置快捷键"))
-            {
-                return;
-            }
-
-            var config = _configManager.Get();
-            config.Hotkeys.Screenshot = _txtScreenshotHotkey.Text.Trim();
-            config.Hotkeys.Translation = _txtTranslationHotkey.Text.Trim();
-            config.Hotkeys.Clipboard = _txtClipboardHotkey.Text.Trim();
-            config.Hotkeys.Settings = _txtSettingsHotkey.Text.Trim();
-            config.HideTrayIcon = _chkHideTrayIcon.IsChecked == true;
+            config.Hotkeys.Screenshot = screenshot;
+            config.Hotkeys.Translation = translation;
+            config.Hotkeys.Clipboard = clipboard;
+            config.Hotkeys.Settings = settings;
 
             _configManager.Save(config);
             ((App)System.Windows.Application.Current).ReloadHotkeys();
-            ((App)System.Windows.Application.Current).ReloadTrayIconVisibility();
 
-            ToastNotification.Show("设置已保存", "通用设置已更新", ToastNotification.ToastType.Success);
+            FlashSaved();
         }
         catch (Exception ex)
         {
             ToastNotification.Show("保存失败", ex.Message, ToastNotification.ToastType.Error);
         }
+    }
+
+    /// <summary>即时保存成功后的轻量反馈:显示"已保存"并淡出。</summary>
+    private void FlashSaved()
+    {
+        _savedIndicator.BeginAnimation(OpacityProperty, null);
+        _savedIndicator.Opacity = 1;
+        _savedIndicator.BeginAnimation(OpacityProperty, new DoubleAnimation
+        {
+            From = 1,
+            To = 0,
+            BeginTime = TimeSpan.FromSeconds(1.1),
+            Duration = TimeSpan.FromSeconds(0.7),
+            FillBehavior = FillBehavior.HoldEnd
+        });
     }
 
     private static bool ValidateHotkey(string hotkey, string label)
@@ -215,12 +255,29 @@ public class GeneralSettingsPanel : StackPanel
         }
     }
 
-    private void SetAutoStart(bool enabled)
+    private void SaveHideTrayIcon(bool enabled)
+    {
+        try
+        {
+            var config = _configManager.Get();
+            config.HideTrayIcon = enabled;
+            _configManager.Save(config);
+            ((App)System.Windows.Application.Current).ReloadTrayIconVisibility();
+            FlashSaved();
+        }
+        catch (Exception ex)
+        {
+            _chkHideTrayIcon.IsChecked = !enabled;
+            ToastNotification.Show("保存失败", ex.Message, ToastNotification.ToastType.Error);
+        }
+    }
+
+    private bool SetAutoStart(bool enabled)
     {
         try
         {
             using var key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true);
-            if (key == null) return;
+            if (key == null) return false;
 
             if (enabled)
             {
@@ -234,10 +291,13 @@ public class GeneralSettingsPanel : StackPanel
             {
                 key.DeleteValue("STool", false);
             }
+
+            return true;
         }
         catch (Exception ex)
         {
             ToastNotification.Show("设置开机自启失败", ex.Message, ToastNotification.ToastType.Error);
+            return false;
         }
     }
 }

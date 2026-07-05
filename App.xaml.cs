@@ -3,6 +3,7 @@ using System.Windows;
 using System.Windows.Threading;
 using Serilog;
 using STool.Core;
+using STool.Views.Settings;
 
 namespace STool;
 
@@ -16,6 +17,15 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        if (IsSettingsLab(e.Args))
+        {
+            base.OnStartup(e);
+            ShutdownMode = ShutdownMode.OnMainWindowClose;
+            MainWindow = new SettingsDesignLabWindow();
+            MainWindow.Show();
+            return;
+        }
+
         // 全局异常兜底:托盘常驻应用不能因为单个未捕获异常(尤其 async void 事件处理器)而整体崩溃
         DispatcherUnhandledException += OnDispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += OnAppDomainUnhandledException;
@@ -38,6 +48,11 @@ public partial class App : System.Windows.Application
         });
 
         base.OnStartup(e);
+    }
+
+    private static bool IsSettingsLab(string[] args)
+    {
+        return args.Any(arg => string.Equals(arg, "--settings-lab", StringComparison.OrdinalIgnoreCase));
     }
 
     protected override void OnExit(ExitEventArgs e)
@@ -136,4 +151,3 @@ public partial class App : System.Windows.Application
         }
     }
 }
-

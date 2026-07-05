@@ -60,6 +60,7 @@ public partial class CaptureOverlay : Window
     private HwndSource? _hwndSource;
     private readonly List<TranslationRenderBlock> _translationRenderBlocks = new();
     private System.Threading.CancellationTokenSource? _translationCts;
+    private EventHandler? _firstRenderingHandler;
 
     // P/Invoke for ForceForeground
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
@@ -89,7 +90,15 @@ public partial class CaptureOverlay : Window
         }
 
         Mouse.OverrideCursor = Cursors.Cross;
-        Closed += (_, _) => Mouse.OverrideCursor = null;
+        Closed += (_, _) =>
+        {
+            Mouse.OverrideCursor = null;
+            if (_firstRenderingHandler != null)
+            {
+                CompositionTarget.Rendering -= _firstRenderingHandler;
+                _firstRenderingHandler = null;
+            }
+        };
 
         // 覆盖整个虚拟屏幕(DIP)
         Left = SystemParameters.VirtualScreenLeft;
@@ -103,6 +112,15 @@ public partial class CaptureOverlay : Window
         LogStartupStep($"CaptureAllScreens {_frozen.Width}x{_frozen.Height}");
         screenshotImage.Source = BitmapInterop.ToBitmapSource(_frozen);
         LogStartupStep("BitmapInterop.ToBitmapSource");
+
+        ContentRendered += OnContentRendered;
+        _firstRenderingHandler = (_, _) =>
+        {
+            CompositionTarget.Rendering -= _firstRenderingHandler;
+            _firstRenderingHandler = null;
+            LogStartupStep("CompositionTarget.Rendering first frame");
+        };
+        CompositionTarget.Rendering += _firstRenderingHandler;
 
         Loaded += OnLoaded;
     }
@@ -119,6 +137,24 @@ public partial class CaptureOverlay : Window
             elapsedMs,
             elapsedMs - _lastStartupMarkMs);
         _lastStartupMarkMs = elapsedMs;
+    }
+
+    public void SchedulePostShowDiagnostics()
+    {
+        QueueStartupCheckpoint(System.Windows.Threading.DispatcherPriority.Render, "Post-show dispatcher Render");
+        QueueStartupCheckpoint(System.Windows.Threading.DispatcherPriority.Input, "Post-show dispatcher Input");
+        QueueStartupCheckpoint(System.Windows.Threading.DispatcherPriority.Loaded, "Post-show dispatcher Loaded");
+        QueueStartupCheckpoint(System.Windows.Threading.DispatcherPriority.Background, "Post-show dispatcher Background");
+    }
+
+    private void QueueStartupCheckpoint(System.Windows.Threading.DispatcherPriority priority, string step)
+    {
+        Dispatcher.BeginInvoke(priority, new Action(() => LogStartupStep(step)));
+    }
+
+    private void OnContentRendered(object? sender, EventArgs e)
+    {
+        LogStartupStep("ContentRendered");
     }
 
     private void UpdateCursorState()

@@ -4,6 +4,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using STool.Models;
 
@@ -73,6 +74,33 @@ public partial class TranslationPanel : Window
         btnProviderGoogle.Tag = _provider == TranslationProvider.Google ? "on" : null;
         btnProviderTencent.Tag = _provider == TranslationProvider.Tencent ? "on" : null;
         btnProviderAi.Tag = _provider == TranslationProvider.OpenAI ? "on" : null;
+        UpdateProviderSlider();
+    }
+
+    private void UpdateProviderSlider()
+    {
+        var target = _provider switch
+        {
+            TranslationProvider.Tencent => 82d,
+            TranslationProvider.OpenAI => 164d,
+            _ => 0d
+        };
+
+        if (!IsLoaded)
+        {
+            providerSliderTransform.X = target;
+            return;
+        }
+
+        var animation = new DoubleAnimationUsingKeyFrames
+        {
+            Duration = TimeSpan.FromMilliseconds(220)
+        };
+        animation.KeyFrames.Add(new SplineDoubleKeyFrame(
+            target,
+            KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(220)),
+            new KeySpline(0.2, 0.8, 0.2, 1.0)));
+        providerSliderTransform.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, animation);
     }
 
     private void LoadTranslationMode()

@@ -44,7 +44,7 @@
                 </Grid.ColumnDefinitions>
 
                 <TextBlock x:Name="txtProvider"
-                           FontSize="{StaticResource FontSizeMicro}"
+                           FontSize="{StaticResource FontSizeHint}"
                            Foreground="{StaticResource TextSecondaryBrush}"
                            VerticalAlignment="Center"/>
 

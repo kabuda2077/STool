@@ -5,7 +5,7 @@
         Style="{StaticResource ModernWindow}"
         core:ModernWindowChrome.HideTitleText="True"
         Title=""
-        Width="720"
+        Width="710"
         Height="560"
         MinWidth="640"
         MinHeight="480"
@@ -42,15 +42,31 @@
 
         <Border Grid.Column="1"
                 Background="{StaticResource SurfaceAltBrush}">
-            <ScrollViewer x:Name="contentScroll"
-                          Margin="0,46,0,0"
-                          VerticalScrollBarVisibility="Auto"
-                          Background="{StaticResource TransparentBrush}"
-                          FocusVisualStyle="{x:Null}"
-                          PreviewMouseWheel="ContentScroll_PreviewMouseWheel"
-                          Padding="0">
-                <Grid x:Name="contentPanel" Margin="18,8,18,18"/>
-            </ScrollViewer>
+            <Grid>
+                <ScrollViewer x:Name="contentScroll"
+                              Margin="0,46,0,0"
+                              VerticalScrollBarVisibility="Hidden"
+                              Background="{StaticResource TransparentBrush}"
+                              FocusVisualStyle="{x:Null}"
+                              SizeChanged="ContentScroll_SizeChanged"
+                              ScrollChanged="ContentScroll_ScrollChanged"
+                              PreviewMouseWheel="ContentScroll_PreviewMouseWheel"
+                              Padding="0">
+                    <Grid x:Name="contentPanel"
+                          HorizontalAlignment="Left"
+                          Margin="6,0,6,18"/>
+                </ScrollViewer>
+
+                <ScrollBar x:Name="contentScrollBar"
+                           Orientation="Vertical"
+                           Width="6"
+                           MinWidth="6"
+                           Margin="0,48,2,4"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Stretch"
+                           Visibility="Collapsed"
+                           ValueChanged="ContentScrollBar_ValueChanged"/>
+            </Grid>
         </Border>
     </Grid>
 </Window>

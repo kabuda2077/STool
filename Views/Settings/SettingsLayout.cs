@@ -1,44 +1,125 @@
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using Application = System.Windows.Application;
 using Button = System.Windows.Controls.Button;
 using TextBox = System.Windows.Controls.TextBox;
 using ComboBox = System.Windows.Controls.ComboBox;
+using CheckBox = System.Windows.Controls.CheckBox;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
+using Path = System.Windows.Shapes.Path;
 
 namespace STool.Views.Settings;
 
-/// <summary>设置面板共享的布局常量和 UI 工厂方法。</summary>
+/// <summary>设置页布局参数。默认值用于正式页面,设计预览台可临时覆盖。</summary>
+internal sealed class SettingsLayoutMetrics
+{
+    public double SpacingXS { get; init; } = 4;
+    public double SpacingSM { get; init; } = 8;
+    public double SpacingMD { get; init; } = 6;
+    public double SpacingLG { get; init; } = 14;
+    public double InlineLabelWidth { get; init; } = 84;
+    public double HotkeyLabelWidth { get; init; } = 84;
+    public double InputHeight { get; init; } = 32;
+    public double SectionPadding { get; init; } = 14;
+    public double SectionSpacing { get; init; } = 8;
+    public double SectionBorderThickness { get; init; } = 0;
+    public bool SectionShadow { get; init; } = true;
+    public double ContentHorizontalMargin { get; init; } = 10;
+    public double ContentTopMargin { get; init; } = 2;
+    public double NavigationButtonVerticalPadding { get; init; } = 10;
+
+    public static SettingsLayoutMetrics Default { get; } = new();
+
+    public SettingsLayoutMetrics With(
+        double? spacingMD = null,
+        double? inlineLabelWidth = null,
+        double? hotkeyLabelWidth = null,
+        double? inputHeight = null,
+        double? sectionPadding = null,
+        double? sectionSpacing = null,
+        double? contentHorizontalMargin = null,
+        double? contentTopMargin = null,
+        double? navigationButtonVerticalPadding = null,
+        bool? sectionShadow = null)
+    {
+        return new SettingsLayoutMetrics
+        {
+            SpacingXS = SpacingXS,
+            SpacingSM = SpacingSM,
+            SpacingMD = spacingMD ?? SpacingMD,
+            SpacingLG = SpacingLG,
+            InlineLabelWidth = inlineLabelWidth ?? InlineLabelWidth,
+            HotkeyLabelWidth = hotkeyLabelWidth ?? HotkeyLabelWidth,
+            InputHeight = inputHeight ?? InputHeight,
+            SectionPadding = sectionPadding ?? SectionPadding,
+            SectionSpacing = sectionSpacing ?? SectionSpacing,
+            SectionBorderThickness = SectionBorderThickness,
+            SectionShadow = sectionShadow ?? SectionShadow,
+            ContentHorizontalMargin = contentHorizontalMargin ?? ContentHorizontalMargin,
+            ContentTopMargin = contentTopMargin ?? ContentTopMargin,
+            NavigationButtonVerticalPadding = navigationButtonVerticalPadding ?? NavigationButtonVerticalPadding
+        };
+    }
+}
+
+/// <summary>设置面板共享的布局参数和 UI 工厂方法。</summary>
 internal static class SettingsLayout
 {
+    private static SettingsLayoutMetrics _metrics = SettingsLayoutMetrics.Default;
+
     // ── 间距 Token ──
-    public const double SpacingXS = 4;
-    public const double SpacingSM = 8;
-    public const double SpacingMD = 12;
+    public static double SpacingXS => _metrics.SpacingXS;
+    public static double SpacingSM => _metrics.SpacingSM;
+    public static double SpacingMD => _metrics.SpacingMD;
+    public static double SpacingLG => _metrics.SpacingLG;
 
     /// <summary>行内字段 Label 列宽。</summary>
-    public const double InlineLabelWidth = 90;
+    public static double InlineLabelWidth => _metrics.InlineLabelWidth;
 
     /// <summary>快捷键行内字段 Label 列宽(标签较短)。</summary>
-    public const double HotkeyLabelWidth = 70;
+    public static double HotkeyLabelWidth => _metrics.HotkeyLabelWidth;
 
     /// <summary>输入控件统一高度。</summary>
-    public const double InputHeight = 32;
+    public static double InputHeight => _metrics.InputHeight;
+    public static double BodyFontSize => (double)Application.Current.FindResource("FontSizeBody");
+    public static double HintFontSize => (double)Application.Current.FindResource("FontSizeHint");
+
+    public static double SectionPadding => _metrics.SectionPadding;
+    public static double SectionSpacing => _metrics.SectionSpacing;
+    public static double ContentHorizontalMargin => _metrics.ContentHorizontalMargin;
+    public static double ContentTopMargin => _metrics.ContentTopMargin;
+    public static double NavigationButtonVerticalPadding => _metrics.NavigationButtonVerticalPadding;
+    public static double InputHintSpacing => 5;
 
     // ── 常用 Margin ──
-    public static readonly Thickness FieldSpacing = new(0, 0, 0, SpacingSM);
-    public static readonly Thickness HintMargin = new(0, 3, 0, 0);
-    public static readonly Thickness InlineHintMargin = new(InlineLabelWidth, 3, 0, 0);
-    public static readonly Thickness SaveButtonMargin = new(0, SpacingMD, 0, 0);
+    public static Thickness FieldSpacing => new(0, 0, 0, SpacingMD);
+    public static Thickness HintMargin => new(0, 3, 0, 0);
+    public static Thickness InlineHintMargin => new(InlineLabelWidth, 3, 0, 0);
+    public static Thickness SaveButtonMargin => new(0, SpacingXS, 0, 0);
+    public static Thickness ActionRowMargin => new(InlineLabelWidth, SpacingXS, 0, 0);
+
+    public static SettingsLayoutMetrics CurrentMetrics => _metrics;
+
+    public static void ApplyMetrics(SettingsLayoutMetrics metrics)
+    {
+        _metrics = metrics;
+    }
+
+    public static void ResetMetrics()
+    {
+        _metrics = SettingsLayoutMetrics.Default;
+    }
 
     // ── UI 工厂方法 ──
 
     /// <summary>创建 Label(左) + Input(右) 同行布局。</summary>
     public static Grid CreateInlineField(string label, FrameworkElement input,
-        double labelWidth = InlineLabelWidth)
+        double? labelWidth = null)
     {
+        var resolvedLabelWidth = labelWidth ?? InlineLabelWidth;
         var grid = new Grid { Margin = FieldSpacing };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(labelWidth) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(resolvedLabelWidth) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var lbl = new TextBlock
@@ -59,16 +140,37 @@ internal static class SettingsLayout
 
     /// <summary>创建 Label(左) + [Input + Hint](右) 同行布局，使提示紧贴输入框并对其对齐。</summary>
     public static Grid CreateInlineFieldWithHint(string label, FrameworkElement input, string hint,
-        double labelWidth = InlineLabelWidth)
+        double? labelWidth = null)
     {
-        var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Vertical };
-        panel.Children.Add(input);
+        var resolvedLabelWidth = labelWidth ?? InlineLabelWidth;
+        var grid = new Grid { Margin = FieldSpacing };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(resolvedLabelWidth) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var lbl = new TextBlock
+        {
+            Text = label,
+            Style = (Style)Application.Current.FindResource("FieldLabel"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0)
+        };
+        Grid.SetRow(lbl, 0);
+        Grid.SetColumn(lbl, 0);
+        grid.Children.Add(lbl);
+
+        Grid.SetRow(input, 0);
+        Grid.SetColumn(input, 1);
+        grid.Children.Add(input);
 
         var hintBlock = CreateHint(hint, inline: false);
-        hintBlock.Margin = new Thickness(0, 2, 0, 0);
-        panel.Children.Add(hintBlock);
+        hintBlock.Margin = new Thickness(0, InputHintSpacing, 0, 0);
+        Grid.SetRow(hintBlock, 1);
+        Grid.SetColumn(hintBlock, 1);
+        grid.Children.Add(hintBlock);
 
-        return CreateInlineField(label, panel, labelWidth);
+        return grid;
     }
 
     /// <summary>创建标准 TextBox。</summary>
@@ -78,6 +180,7 @@ internal static class SettingsLayout
         {
             Style = (Style)Application.Current.FindResource("SunkenTextBox"),
             Height = InputHeight,
+            FontSize = BodyFontSize,
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
     }
@@ -89,6 +192,7 @@ internal static class SettingsLayout
         {
             Style = (Style)Application.Current.FindResource("SunkenComboBox"),
             Height = InputHeight,
+            FontSize = BodyFontSize,
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
     }
@@ -108,6 +212,159 @@ internal static class SettingsLayout
         return new SecurePasswordField();
     }
 
+    /// <summary>创建设置页开关控件。</summary>
+    public static CheckBox CreateSwitch()
+    {
+        return new CheckBox
+        {
+            Style = (Style)Application.Current.FindResource("SwitchCheckBox"),
+            FontSize = BodyFontSize,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(12, 0, 0, 0),
+            IsHitTestVisible = false
+        };
+    }
+
+    /// <summary>创建设置页布尔偏好行。</summary>
+    public static Border CreateSwitchRow(string title, string description, CheckBox switchBox, Action<bool>? onChanged = null, bool isLast = false)
+    {
+        var row = new Border
+        {
+            Background = (System.Windows.Media.Brush)Application.Current.FindResource("SurfaceAltBrush"),
+            CornerRadius = (CornerRadius)Application.Current.FindResource("CornerRadiusMedium"),
+            MinHeight = 48,
+            Padding = new Thickness(12, 8, 10, 8),
+            Margin = new Thickness(0, 0, 0, isLast ? SpacingXS : SpacingMD),
+            Cursor = System.Windows.Input.Cursors.Hand
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var textStack = new StackPanel
+        {
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        textStack.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontSize = BodyFontSize,
+            Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextPrimaryBrush"),
+            FontWeight = FontWeights.Normal
+        });
+        textStack.Children.Add(new TextBlock
+        {
+            Text = description,
+            Style = (Style)Application.Current.FindResource("HintText"),
+            FontSize = HintFontSize,
+            Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush"),
+            Opacity = 0.78,
+            Margin = new Thickness(0, 2, 0, 0),
+            TextWrapping = TextWrapping.Wrap
+        });
+        Grid.SetColumn(textStack, 0);
+        grid.Children.Add(textStack);
+
+        Grid.SetColumn(switchBox, 1);
+        grid.Children.Add(switchBox);
+        row.Child = grid;
+
+        var normalBrush = (System.Windows.Media.Brush)Application.Current.FindResource("SurfaceAltBrush");
+        var hoverBrush = (System.Windows.Media.Brush)Application.Current.FindResource("PrimarySoftBrush");
+        row.MouseEnter += (_, _) => row.Background = hoverBrush;
+        row.MouseLeave += (_, _) => row.Background = normalBrush;
+        row.MouseLeftButtonUp += (_, _) =>
+        {
+            var enabled = switchBox.IsChecked != true;
+            switchBox.IsChecked = enabled;
+            onChanged?.Invoke(enabled);
+        };
+
+        return row;
+    }
+
+    /// <summary>创建行内布尔偏好字段,用于表单区域里的开关项。</summary>
+    public static Grid CreateInlineSwitchField(string label, string title, string description, CheckBox switchBox, Action<bool>? onChanged = null, bool isLast = false)
+    {
+        var grid = new Grid
+        {
+            Margin = new Thickness(0, 0, 0, isLast ? 0 : SpacingMD),
+            Cursor = System.Windows.Input.Cursors.Hand
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(InlineLabelWidth) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        if (!string.IsNullOrWhiteSpace(description))
+        {
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var lbl = new TextBlock
+        {
+            Text = label,
+            Style = (Style)Application.Current.FindResource("FieldLabel"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0)
+        };
+        var labelHost = new Border
+        {
+            Height = InputHeight,
+            Child = lbl
+        };
+        Grid.SetRow(labelHost, 0);
+        Grid.SetColumn(labelHost, 0);
+        grid.Children.Add(labelHost);
+
+        var valueGrid = new Grid();
+        valueGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        valueGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var valueHost = new Border
+        {
+            Background = (System.Windows.Media.Brush)Application.Current.FindResource("SurfaceAltBrush"),
+            CornerRadius = (CornerRadius)Application.Current.FindResource("CornerRadiusMedium"),
+            Height = InputHeight,
+            Padding = new Thickness(10, 0, 10, 0)
+        };
+
+        var titleBlock = new TextBlock
+        {
+            Text = title,
+            FontSize = BodyFontSize,
+            Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextPrimaryBrush"),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(titleBlock, 0);
+        valueGrid.Children.Add(titleBlock);
+
+        Grid.SetColumn(switchBox, 1);
+        valueGrid.Children.Add(switchBox);
+        valueHost.Child = valueGrid;
+        Grid.SetRow(valueHost, 0);
+        Grid.SetColumn(valueHost, 1);
+        grid.Children.Add(valueHost);
+
+        if (!string.IsNullOrWhiteSpace(description))
+        {
+            var hintBlock = CreateHint(description);
+            hintBlock.Margin = new Thickness(0, InputHintSpacing, 0, 0);
+            Grid.SetRow(hintBlock, 1);
+            Grid.SetColumn(hintBlock, 1);
+            grid.Children.Add(hintBlock);
+        }
+
+        grid.MouseLeftButtonUp += (_, _) =>
+        {
+            var enabled = switchBox.IsChecked != true;
+            switchBox.IsChecked = enabled;
+            onChanged?.Invoke(enabled);
+        };
+
+        return grid;
+    }
+
     /// <summary>创建提示文本。</summary>
     public static TextBlock CreateHint(string text, bool inline = false)
     {
@@ -116,10 +373,55 @@ internal static class SettingsLayout
             Text = text,
             Style = (Style)Application.Current.FindResource("HintText"),
             Margin = inline ? InlineHintMargin : HintMargin,
-            FontSize = (double)Application.Current.FindResource("FontSizeMicro"),
+            FontSize = HintFontSize,
             Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush"),
+            Opacity = 0.78,
             FontWeight = FontWeights.Normal,
             TextWrapping = TextWrapping.Wrap
+        };
+    }
+
+    /// <summary>创建设置页轻量分组容器。</summary>
+    public static Border CreateSection(UIElement content)
+    {
+        return new Border
+        {
+            Style = (Style)Application.Current.FindResource("SettingsFlatSection"),
+            Padding = new Thickness(_metrics.SectionPadding),
+            Margin = new Thickness(0, 0, 0, _metrics.SectionSpacing),
+            BorderThickness = new Thickness(_metrics.SectionBorderThickness),
+            Effect = _metrics.SectionShadow
+                ? (System.Windows.Media.Effects.Effect)Application.Current.FindResource("PaneShadow")
+                : null,
+            Child = content
+        };
+    }
+
+    /// <summary>创建可折叠的设置页轻量分组。</summary>
+    public static (StackPanel content, Border section, Expander expander) CreateCollapsibleSection(string title, bool isExpanded = false)
+    {
+        var content = new StackPanel();
+        var expander = new Expander
+        {
+            Style = (Style)Application.Current.FindResource("SettingsExpander"),
+            Header = title,
+            Content = content,
+            IsExpanded = isExpanded
+        };
+
+        return (content, CreateSection(expander), expander);
+    }
+
+    /// <summary>设置页主保存按钮。</summary>
+    public static Button CreateSaveButton(string content = "保存设置")
+    {
+        return new Button
+        {
+            Content = content,
+            Style = (Style)Application.Current.FindResource("ModernButton"),
+            Padding = new Thickness(18, 8, 18, 8),
+            Margin = SaveButtonMargin,
+            HorizontalAlignment = HorizontalAlignment.Right
         };
     }
 }
@@ -130,7 +432,7 @@ public class SecurePasswordField : Grid
     private readonly PasswordBox _pwd;
     private readonly TextBox _txt;
     private readonly Button _btn;
-    private readonly TextBlock _iconBlock;
+    private readonly Path _iconPath;
 
     private string _realPassword = "";
     private bool _isRevealed = false;
@@ -158,6 +460,7 @@ public class SecurePasswordField : Grid
         {
             Style = (Style)Application.Current.FindResource("SunkenPasswordBox"),
             Height = SettingsLayout.InputHeight,
+            FontSize = SettingsLayout.BodyFontSize,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Padding = new Thickness(5, 3, 38, 3)
         };
@@ -166,29 +469,39 @@ public class SecurePasswordField : Grid
         {
             Style = (Style)Application.Current.FindResource("SunkenTextBox"),
             Height = SettingsLayout.InputHeight,
+            FontSize = SettingsLayout.BodyFontSize,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             Padding = new Thickness(5, 3, 38, 3),
             Visibility = Visibility.Collapsed
         };
 
-        _iconBlock = new TextBlock
+        _iconPath = new Path
         {
-            Text = "\uE72E", // 锁闭
-            FontFamily = new System.Windows.Media.FontFamily("Segoe MDL2 Assets"),
-            FontSize = 14,
-            Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush")
+            Data = (System.Windows.Media.Geometry)Application.Current.FindResource("IconEye"),
+            Stroke = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush"),
+            StrokeThickness = 2,
+            StrokeStartLineCap = System.Windows.Media.PenLineCap.Round,
+            StrokeEndLineCap = System.Windows.Media.PenLineCap.Round,
+            StrokeLineJoin = System.Windows.Media.PenLineJoin.Round,
+            Fill = (System.Windows.Media.Brush)Application.Current.FindResource("TransparentBrush"),
+            Stretch = System.Windows.Media.Stretch.Uniform
         };
 
         _btn = new Button
         {
             Style = (Style)Application.Current.FindResource("IconButton"),
-            Width = 32,
-            Height = 32,
+            Width = SettingsLayout.InputHeight,
+            Height = SettingsLayout.InputHeight,
             Padding = new Thickness(0),
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
             ToolTip = "显示密钥",
-            Content = _iconBlock
+            Content = new Viewbox
+            {
+                Width = 15,
+                Height = 15,
+                Child = _iconPath
+            }
         };
 
         _pwd.PasswordChanged += (s, e) =>
@@ -263,7 +576,7 @@ public class SecurePasswordField : Grid
             _pwd.Visibility = Visibility.Collapsed;
             _txt.Visibility = Visibility.Visible;
             _btn.ToolTip = "隐藏密钥";
-            _iconBlock.Text = "\uE785"; // 锁开
+            _iconPath.Data = (System.Windows.Media.Geometry)Application.Current.FindResource("IconEyeOff");
             _txt.Focus();
             _txt.CaretIndex = _txt.Text.Length;
         }
@@ -273,7 +586,7 @@ public class SecurePasswordField : Grid
             _txt.Visibility = Visibility.Collapsed;
             _pwd.Visibility = Visibility.Visible;
             _btn.ToolTip = "显示密钥";
-            _iconBlock.Text = "\uE72E"; // 锁闭
+            _iconPath.Data = (System.Windows.Media.Geometry)Application.Current.FindResource("IconEye");
             _pwd.Focus();
         }
         _isSyncing = false;

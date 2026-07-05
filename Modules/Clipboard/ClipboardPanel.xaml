@@ -78,40 +78,14 @@
         <Style x:Key="ClipRow" TargetType="Border">
             <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
             <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusMedium}"/>
-            <Setter Property="Padding" Value="16,14"/>
+            <Setter Property="Padding" Value="14,12"/>
             <Setter Property="Margin" Value="0,4"/>
             <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Opacity" Value="0"/>
-            <Setter Property="RenderTransformOrigin" Value="0.5,0.5"/>
-            <Setter Property="RenderTransform">
-                <Setter.Value>
-                    <TranslateTransform Y="-10"/>
-                </Setter.Value>
-            </Setter>
+            <Setter Property="Opacity" Value="1"/>
             <Style.Triggers>
                 <Trigger Property="IsMouseOver" Value="True">
                     <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
                 </Trigger>
-                <EventTrigger RoutedEvent="Loaded">
-                    <BeginStoryboard>
-                        <Storyboard>
-                            <DoubleAnimation Storyboard.TargetProperty="Opacity"
-                                             To="1"
-                                             Duration="0:0:0.25">
-                                <DoubleAnimation.EasingFunction>
-                                    <CubicEase EasingMode="EaseOut"/>
-                                </DoubleAnimation.EasingFunction>
-                            </DoubleAnimation>
-                            <DoubleAnimation Storyboard.TargetProperty="(UIElement.RenderTransform).(TranslateTransform.Y)"
-                                             To="0"
-                                             Duration="0:0:0.25">
-                                <DoubleAnimation.EasingFunction>
-                                    <CubicEase EasingMode="EaseOut"/>
-                                </DoubleAnimation.EasingFunction>
-                            </DoubleAnimation>
-                        </Storyboard>
-                    </BeginStoryboard>
-                </EventTrigger>
             </Style.Triggers>
         </Style>
 
@@ -169,75 +143,125 @@
             <Setter Property="Padding" Value="7,2"/>
             <Setter Property="Margin" Value="0,6,6,0"/>
         </Style>
+
+        <Style x:Key="ClipboardSegmentButton" TargetType="Button">
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+            <Setter Property="Height" Value="32"/>
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
+            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+            <Setter Property="FocusVisualStyle" Value="{StaticResource ModernFocusVisual}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="Button">
+                        <Border Background="{StaticResource TransparentBrush}"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                            </Trigger>
+                            <Trigger Property="Tag" Value="on">
+                                <Setter Property="Foreground" Value="{StaticResource OnPrimaryBrush}"/>
+                                <Setter Property="FontWeight" Value="{StaticResource FontWeightStrong}"/>
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ClipboardSearchSurface" TargetType="Border" BasedOn="{StaticResource ToolPanelToolbarSurface}">
+            <Setter Property="Height" Value="36"/>
+            <Setter Property="Padding" Value="12,0"/>
+            <Setter Property="HorizontalAlignment" Value="Right"/>
+            <Setter Property="Width" Value="218"/>
+            <Style.Triggers>
+                <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                    <Trigger.EnterActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Width"
+                                                 To="300"
+                                                 Duration="0:0:0.2">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseOut"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </Trigger.EnterActions>
+                    <Trigger.ExitActions>
+                        <BeginStoryboard>
+                            <Storyboard>
+                                <DoubleAnimation Storyboard.TargetProperty="Width"
+                                                 To="218"
+                                                 Duration="0:0:0.15">
+                                    <DoubleAnimation.EasingFunction>
+                                        <CubicEase EasingMode="EaseIn"/>
+                                    </DoubleAnimation.EasingFunction>
+                                </DoubleAnimation>
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </Trigger.ExitActions>
+                </Trigger>
+            </Style.Triggers>
+        </Style>
     </Window.Resources>
 
-    <Grid Margin="0,58,0,0">
+    <Grid Margin="10,52,10,10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Margin="10,0,10,6">
+        <Grid Grid.Row="0" Margin="0,0,0,8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
             </Grid.ColumnDefinitions>
 
-            <Border Background="{StaticResource SurfaceBrush}"
-                    CornerRadius="{StaticResource CornerRadiusMedium}"
-                    Padding="4"
+            <Border Style="{StaticResource ToolPanelToolbarSurface}"
                     HorizontalAlignment="Left">
-                <StackPanel Orientation="Horizontal">
-                    <Button x:Name="tabAll" Style="{StaticResource CapsuleTabButton}" Tag="on" Content="全部" Click="Tab_Click"/>
-                    <Button x:Name="tabText" Style="{StaticResource CapsuleTabButton}" Content="文本" Click="Tab_Click"/>
-                    <Button x:Name="tabImage" Style="{StaticResource CapsuleTabButton}" Content="图像" Click="Tab_Click"/>
-                    <Button x:Name="tabFile" Style="{StaticResource CapsuleTabButton}" Content="文件" Click="Tab_Click"/>
-                    <Button x:Name="tabFavorite" Style="{StaticResource CapsuleTabButton}" Content="收藏" Click="Tab_Click"/>
-                </StackPanel>
+                <Grid Width="290" Height="32" ClipToBounds="True">
+                    <Border x:Name="tabSlider"
+                            Width="58"
+                            Height="32"
+                            HorizontalAlignment="Left"
+                            Background="{StaticResource PrimaryBrush}"
+                            CornerRadius="{StaticResource CornerRadiusMedium}">
+                        <Border.Effect>
+                            <StaticResource ResourceKey="MenuShadow"/>
+                        </Border.Effect>
+                        <Border.RenderTransform>
+                            <TranslateTransform x:Name="tabSliderTransform"/>
+                        </Border.RenderTransform>
+                    </Border>
+
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="58"/>
+                            <ColumnDefinition Width="58"/>
+                            <ColumnDefinition Width="58"/>
+                            <ColumnDefinition Width="58"/>
+                            <ColumnDefinition Width="58"/>
+                        </Grid.ColumnDefinitions>
+                        <Button x:Name="tabAll" Grid.Column="0" Style="{StaticResource ClipboardSegmentButton}" Tag="on" Content="全部" Click="Tab_Click"/>
+                        <Button x:Name="tabText" Grid.Column="1" Style="{StaticResource ClipboardSegmentButton}" Content="文本" Click="Tab_Click"/>
+                        <Button x:Name="tabImage" Grid.Column="2" Style="{StaticResource ClipboardSegmentButton}" Content="图像" Click="Tab_Click"/>
+                        <Button x:Name="tabFile" Grid.Column="3" Style="{StaticResource ClipboardSegmentButton}" Content="文件" Click="Tab_Click"/>
+                        <Button x:Name="tabFavorite" Grid.Column="4" Style="{StaticResource ClipboardSegmentButton}" Content="收藏" Click="Tab_Click"/>
+                    </Grid>
+                </Grid>
             </Border>
 
             <Border Grid.Column="1"
-                    Height="40"
-                    Background="{StaticResource SurfaceBrush}"
-                    BorderThickness="0"
-                    CornerRadius="{StaticResource CornerRadiusMedium}"
-                    Padding="13,0"
-                    HorizontalAlignment="Right">
-                <Border.Style>
-                    <Style TargetType="Border">
-                        <Setter Property="Width" Value="218"/>
-                        <Style.Triggers>
-                            <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                                <Trigger.EnterActions>
-                                    <BeginStoryboard>
-                                        <Storyboard>
-                                            <DoubleAnimation Storyboard.TargetProperty="Width"
-                                                             To="300"
-                                                             Duration="0:0:0.2">
-                                                <DoubleAnimation.EasingFunction>
-                                                    <CubicEase EasingMode="EaseOut"/>
-                                                </DoubleAnimation.EasingFunction>
-                                            </DoubleAnimation>
-                                        </Storyboard>
-                                    </BeginStoryboard>
-                                </Trigger.EnterActions>
-                                <Trigger.ExitActions>
-                                    <BeginStoryboard>
-                                        <Storyboard>
-                                            <DoubleAnimation Storyboard.TargetProperty="Width"
-                                                             To="218"
-                                                             Duration="0:0:0.15">
-                                                <DoubleAnimation.EasingFunction>
-                                                    <CubicEase EasingMode="EaseIn"/>
-                                                </DoubleAnimation.EasingFunction>
-                                            </DoubleAnimation>
-                                        </Storyboard>
-                                    </BeginStoryboard>
-                                </Trigger.ExitActions>
-                            </Trigger>
-                        </Style.Triggers>
-                    </Style>
-                </Border.Style>
+                    Style="{StaticResource ClipboardSearchSurface}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
@@ -264,7 +288,7 @@
                         <TextBlock x:Name="searchPlaceholder"
                                    Text="搜索剪贴板"
                                    Foreground="{StaticResource TextSecondaryBrush}"
-                                   FontSize="13"
+                                   FontSize="{StaticResource FontSizeBody}"
                                    Opacity="0.72"
                                    IsHitTestVisible="False"
                                    VerticalAlignment="Center"/>
@@ -273,7 +297,7 @@
                                  BorderThickness="0"
                                  Padding="0"
                                  Height="32"
-                                 FontSize="13"
+                                 FontSize="{StaticResource FontSizeBody}"
                                  VerticalContentAlignment="Center"
                                  TextChanged="TxtSearch_TextChanged"/>
                     </Grid>
@@ -373,7 +397,7 @@
                         <Grid>
                             <ScrollViewer x:Name="PART_Scroll"
                                           Focusable="False"
-                                          Padding="10,0,10,4"
+                                          Padding="0,0,0,4"
                                           CanContentScroll="True"
                                           VerticalScrollBarVisibility="Auto"
                                           HorizontalScrollBarVisibility="Disabled">
@@ -466,7 +490,7 @@
                                                TextTrimming="CharacterEllipsis"
                                                Visibility="{Binding IsText, Converter={StaticResource BoolToVis}}"/>
                                     <TextBlock Text="{Binding RelativeTime}"
-                                               FontSize="{StaticResource FontSizeMicro}"
+                                               FontSize="{StaticResource FontSizeHint}"
                                                Foreground="{StaticResource TextSecondaryBrush}"
                                                Margin="0,8,0,0"
                                                ToolTip="{Binding FullTimestamp}"/>
@@ -482,14 +506,14 @@
                                         <Border Style="{StaticResource ImageLargeBadge}"
                                                 Visibility="{Binding IsLargeImage, Converter={StaticResource BoolToVis}}">
                                             <TextBlock Text="大图"
-                                                       FontSize="{StaticResource FontSizeMicro}"
+                                                       FontSize="{StaticResource FontSizeHint}"
                                                        Foreground="{StaticResource PrimaryBrush}"
                                                        FontWeight="{StaticResource FontWeightStrong}"/>
                                         </Border>
                                         <Border Style="{StaticResource ImageInfoBadge}"
                                                 Margin="0,6,0,0">
                                             <TextBlock Text="{Binding ImageInfoText}"
-                                                       FontSize="{StaticResource FontSizeMicro}"
+                                                       FontSize="{StaticResource FontSizeHint}"
                                                        Foreground="{StaticResource TextSecondaryBrush}"/>
                                         </Border>
                                     </StackPanel>
@@ -498,7 +522,7 @@
                                             Margin="0,6,0,0"
                                             Visibility="{Binding HasSource, Converter={StaticResource BoolToVis}}">
                                         <TextBlock Text="{Binding SourceApp}"
-                                                   FontSize="{StaticResource FontSizeMicro}"
+                                                   FontSize="{StaticResource FontSizeHint}"
                                                    Foreground="{StaticResource TextSecondaryBrush}"/>
                                     </Border>
                                     <Button Style="{StaticResource FavoriteButton}"
@@ -507,8 +531,8 @@
                                             Click="FavoriteButton_Click"
                                             HorizontalAlignment="Right">
                                         <TextBlock Text="{Binding FavoriteGlyph}"
-                                                   FontSize="13"
-                                                   LineHeight="13"
+                                                   FontSize="{StaticResource FontSizeCaption}"
+                                                   LineHeight="{StaticResource FontSizeCaption}"
                                                    VerticalAlignment="Center"
                                                    HorizontalAlignment="Center"/>
                                     </Button>
@@ -523,8 +547,8 @@
             <Button x:Name="btnClearAll"
                     VerticalAlignment="Bottom"
                     HorizontalAlignment="Right"
-                    Margin="0,0,14,14"
-                    Width="44" Height="44"
+                    Margin="0,0,4,4"
+                    Width="40" Height="40"
                     Cursor="Hand"
                     ToolTip="清空全部"
                     Click="BtnClearAll_Click">
@@ -533,11 +557,11 @@
                         <Border x:Name="fab"
                                 Background="{StaticResource SurfaceBrush}"
                                 BorderThickness="0"
-                                CornerRadius="22">
+                                CornerRadius="20">
                             <Border.Effect>
                                 <StaticResource ResourceKey="MenuShadow"/>
                             </Border.Effect>
-                            <Viewbox Width="20" Height="20"
+                            <Viewbox Width="18" Height="18"
                                      HorizontalAlignment="Center"
                                      VerticalAlignment="Center">
                                 <Canvas Width="24" Height="24">

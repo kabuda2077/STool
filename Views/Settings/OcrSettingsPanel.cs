@@ -43,19 +43,19 @@ public class OcrSettingsPanel : StackPanel
         });
 
         _cmbProvider = SettingsLayout.CreateComboBox();
-        _cmbProvider.Margin = SettingsLayout.FieldSpacing;
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "Windows 本地 OCR", Tag = OcrProvider.WindowsLocal });
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "腾讯云 OCR", Tag = OcrProvider.Tencent });
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "AI Vision OCR", Tag = OcrProvider.AI });
-        _cmbProvider.SelectionChanged += CmbProvider_SelectionChanged;
-        baseSection.Children.Add(_cmbProvider);
+        baseSection.Children.Add(SettingsLayout.CreateInlineField("当前引擎", _cmbProvider));
 
-        _chkFallbackToLocal = new System.Windows.Controls.CheckBox
-        {
-            Content = "失败时自动降级到本地 OCR",
-            Style = (Style)FindResource("ModernCheckBox")
-        };
-        baseSection.Children.Add(_chkFallbackToLocal);
+        _chkFallbackToLocal = SettingsLayout.CreateSwitch();
+        var fallbackField = SettingsLayout.CreateInlineSwitchField(
+            "自动降级",
+            "异常时使用本地 OCR",
+            "",
+            _chkFallbackToLocal);
+        fallbackField.Margin = new Thickness(0);
+        baseSection.Children.Add(fallbackField);
         Children.Add(WrapSection(baseSection));
 
         // ── 腾讯云设置(可折叠,行内布局) ──
@@ -80,18 +80,18 @@ public class OcrSettingsPanel : StackPanel
         aiContent.Children.Add(SettingsLayout.CreateInlineField("平台", _cmbAiPlatform));
 
         _txtAiApiUrl = SettingsLayout.CreateTextBox();
-        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("API URL", _txtAiApiUrl, "OpenAI 兼容 Chat Completions 地址，自定义接口需手动填写。"));
+        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("API URL", _txtAiApiUrl, "OpenAI 兼容地址，自定义需手动填写。"));
 
         _pwdAiApiKey = SettingsLayout.CreatePasswordField();
         aiContent.Children.Add(SettingsLayout.CreateInlineField("API Key", _pwdAiApiKey));
 
         _cmbAiModel = SettingsLayout.CreateEditableComboBox();
-        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", _cmbAiModel, "可点击获取模型列表，也可以直接手动输入模型名。"));
+        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", _cmbAiModel, "可获取列表，也可手动输入。"));
 
         var aiActions = new StackPanel
         {
             Orientation = System.Windows.Controls.Orientation.Horizontal,
-            Margin = new Thickness(SettingsLayout.InlineLabelWidth, SettingsLayout.SpacingSM, 0, 0)
+            Margin = SettingsLayout.ActionRowMargin
         };
         var btnFetchModels = new System.Windows.Controls.Button
         {
@@ -106,48 +106,20 @@ public class OcrSettingsPanel : StackPanel
         Children.Add(aiCard);
 
         // ── 保存按钮 ──
-        var btnSave = new System.Windows.Controls.Button
-        {
-            Content = "保存设置",
-            Style = (Style)FindResource("ModernButton"),
-            Padding = new Thickness(18, 8, 18, 8),
-            Margin = SettingsLayout.SaveButtonMargin,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Right
-        };
+        var btnSave = SettingsLayout.CreateSaveButton();
         btnSave.Click += BtnSave_Click;
         Children.Add(btnSave);
     }
 
     private Border WrapSection(StackPanel section)
     {
-        return new Border
-        {
-            Style = (Style)FindResource("SurfaceCard"),
-            Child = section
-        };
+        return SettingsLayout.CreateSection(section);
     }
 
     private (StackPanel content, Border card) CreateCollapsibleSection(string title)
     {
-        var content = new StackPanel();
-        var exp = new Expander
-        {
-            Style = (Style)FindResource("SettingsExpander"),
-            Header = title,
-            Content = content,
-            IsExpanded = false
-        };
-        var card = new Border
-        {
-            Style = (Style)FindResource("SurfaceCard"),
-            Child = exp
-        };
+        var (content, card, _) = SettingsLayout.CreateCollapsibleSection(title);
         return (content, card);
-    }
-
-    private void CmbProvider_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        // 可以根据选择显示/隐藏相关设置
     }
 
     private void LoadSettings()
@@ -163,6 +135,7 @@ public class OcrSettingsPanel : StackPanel
                 break;
             }
         }
+        _cmbProvider.SelectedIndex = _cmbProvider.SelectedIndex < 0 ? 0 : _cmbProvider.SelectedIndex;
 
         _chkFallbackToLocal.IsChecked = config.FallbackToLocal;
 

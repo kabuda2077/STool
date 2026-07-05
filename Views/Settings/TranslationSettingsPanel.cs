@@ -1,6 +1,8 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Shapes;
 using STool.Core;
 using STool.Modules.Translation;
 using STool.Models;
@@ -13,6 +15,10 @@ public class TranslationSettingsPanel : StackPanel
     private System.Windows.Controls.ComboBox _cmbProvider = null!;
     private System.Windows.Controls.ComboBox _cmbTranslationMode = null!;
     private System.Windows.Controls.ComboBox _cmbScreenshotMode = null!;
+    private Border _tencentSection = null!;
+    private Border _aiSection = null!;
+    private Expander _tencentExpander = null!;
+    private Expander _aiExpander = null!;
 
     // 腾讯云
     private System.Windows.Controls.TextBox _txtTencentSecretId = null!;
@@ -43,11 +49,11 @@ public class TranslationSettingsPanel : StackPanel
             Style = (Style)FindResource("SettingsGroupTitle")
         });
         _cmbProvider = SettingsLayout.CreateComboBox();
-        _cmbProvider.Margin = SettingsLayout.FieldSpacing;
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "谷歌翻译", Tag = TranslationProvider.Google });
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "腾讯云翻译", Tag = TranslationProvider.Tencent });
-        _cmbProvider.Items.Add(new ComboBoxItem { Content = "AI 翻译 (OpenAI/Claude)", Tag = TranslationProvider.OpenAI });
-        providerSection.Children.Add(_cmbProvider);
+        _cmbProvider.Items.Add(new ComboBoxItem { Content = "AI 翻译", Tag = TranslationProvider.OpenAI });
+        _cmbProvider.SelectionChanged += CmbProvider_SelectionChanged;
+        providerSection.Children.Add(SettingsLayout.CreateInlineField("当前引擎", _cmbProvider));
         Children.Add(WrapSection(providerSection));
 
         // ── 默认策略 ──
@@ -58,35 +64,23 @@ public class TranslationSettingsPanel : StackPanel
             Style = (Style)FindResource("SettingsGroupTitle")
         });
 
-        strategySection.Children.Add(new TextBlock
-        {
-            Text = "翻译策略",
-            Style = (Style)FindResource("FieldLabel")
-        });
         _cmbTranslationMode = SettingsLayout.CreateComboBox();
-        _cmbTranslationMode.Margin = SettingsLayout.FieldSpacing;
-        _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "中文 ⇄ 英文", Tag = "zh-en" });
-        _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "自动 → 中文", Tag = "auto-zh" });
-        _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "自动 → 英文", Tag = "auto-en" });
-        _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "自动 → 日文", Tag = "auto-ja" });
-        _cmbTranslationMode.Items.Add(new ComboBoxItem { Content = "自动 → 韩文", Tag = "auto-ko" });
-        strategySection.Children.Add(_cmbTranslationMode);
+        _cmbTranslationMode.Items.Add(CreateLanguageModeItem("中文", "IconArrowLeftRight", "英文", "zh-en"));
+        _cmbTranslationMode.Items.Add(CreateLanguageModeItem("自动", "IconArrowRight", "中文", "auto-zh"));
+        _cmbTranslationMode.Items.Add(CreateLanguageModeItem("自动", "IconArrowRight", "英文", "auto-en"));
+        _cmbTranslationMode.Items.Add(CreateLanguageModeItem("自动", "IconArrowRight", "日文", "auto-ja"));
+        _cmbTranslationMode.Items.Add(CreateLanguageModeItem("自动", "IconArrowRight", "韩文", "auto-ko"));
+        strategySection.Children.Add(SettingsLayout.CreateInlineField("翻译策略", _cmbTranslationMode));
 
-        strategySection.Children.Add(new TextBlock
-        {
-            Text = "截图翻译识别模式",
-            Style = (Style)FindResource("FieldLabel")
-        });
         _cmbScreenshotMode = SettingsLayout.CreateComboBox();
-        _cmbScreenshotMode.Margin = SettingsLayout.FieldSpacing;
         _cmbScreenshotMode.Items.Add(new ComboBoxItem { Content = "快速：本地规则识别", Tag = ScreenshotTranslationMode.Fast });
         _cmbScreenshotMode.Items.Add(new ComboBoxItem { Content = "智能：AI 识别并翻译", Tag = ScreenshotTranslationMode.Smart });
-        strategySection.Children.Add(_cmbScreenshotMode);
-        strategySection.Children.Add(SettingsLayout.CreateHint("智能模式会额外使用 AI 翻译配置，失败时自动回退快速模式。"));
+        strategySection.Children.Add(SettingsLayout.CreateInlineFieldWithHint("截图翻译", _cmbScreenshotMode, "智能模式使用 AI，失败回退快速模式。"));
         Children.Add(WrapSection(strategySection));
 
         // ── 腾讯云设置(可折叠,行内布局) ──
         var (tencentContent, tencentCard) = CreateCollapsibleSection("腾讯云设置");
+        _tencentSection = tencentCard;
 
         _txtTencentSecretId = SettingsLayout.CreateTextBox();
         tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret ID", _txtTencentSecretId));
@@ -98,6 +92,7 @@ public class TranslationSettingsPanel : StackPanel
 
         // ── AI 翻译设置(可折叠,行内布局) ──
         var (aiContent, aiCard) = CreateCollapsibleSection("AI 翻译设置");
+        _aiSection = aiCard;
 
         _cmbAiPlatform = SettingsLayout.CreateComboBox();
         _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "OpenAI", Tag = TranslationAiPlatform.OpenAI });
@@ -108,18 +103,18 @@ public class TranslationSettingsPanel : StackPanel
         aiContent.Children.Add(SettingsLayout.CreateInlineField("平台", _cmbAiPlatform));
 
         _txtAiApiUrl = SettingsLayout.CreateTextBox();
-        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("API URL", _txtAiApiUrl, "OpenAI 兼容 Chat Completions 地址，自定义接口需手动填写。"));
+        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("API URL", _txtAiApiUrl, "OpenAI 兼容地址，自定义需手动填写。"));
 
         _pwdAiApiKey = SettingsLayout.CreatePasswordField();
         aiContent.Children.Add(SettingsLayout.CreateInlineField("API Key", _pwdAiApiKey));
 
         _cmbAiModel = SettingsLayout.CreateEditableComboBox();
-        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", _cmbAiModel, "可点击获取模型列表，也可以直接手动输入模型名。"));
+        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", _cmbAiModel, "可获取列表，也可手动输入。"));
 
         var aiActions = new StackPanel
         {
             Orientation = System.Windows.Controls.Orientation.Horizontal,
-            Margin = new Thickness(SettingsLayout.InlineLabelWidth, SettingsLayout.SpacingSM, 0, 0)
+            Margin = SettingsLayout.ActionRowMargin
         };
         var btnFetchModels = new System.Windows.Controls.Button
         {
@@ -143,43 +138,89 @@ public class TranslationSettingsPanel : StackPanel
         Children.Add(aiCard);
 
         // ── 保存按钮 ──
-        var btnSave = new System.Windows.Controls.Button
-        {
-            Content = "保存设置",
-            Style = (Style)FindResource("ModernButton"),
-            Padding = new Thickness(18, 8, 18, 8),
-            Margin = SettingsLayout.SaveButtonMargin,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Right
-        };
+        var btnSave = SettingsLayout.CreateSaveButton();
         btnSave.Click += BtnSave_Click;
         Children.Add(btnSave);
     }
 
+    private ComboBoxItem CreateLanguageModeItem(string source, string iconKey, string target, string tag)
+    {
+        var textBrush = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush");
+        var transparentBrush = (System.Windows.Media.Brush)FindResource("TransparentBrush");
+        var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
+        System.Windows.Documents.TextElement.SetForeground(panel, textBrush);
+        panel.Children.Add(new TextBlock { Text = source });
+        panel.Children.Add(new Viewbox
+        {
+            Width = 13,
+            Height = 13,
+            Margin = new Thickness(5, 0, 5, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new System.Windows.Controls.Canvas
+            {
+                Width = 24,
+                Height = 24,
+                Children =
+                {
+                    new Path
+                    {
+                        Data = (Geometry)FindResource(iconKey),
+                        Stroke = textBrush,
+                        StrokeThickness = 2,
+                        StrokeStartLineCap = PenLineCap.Round,
+                        StrokeEndLineCap = PenLineCap.Round,
+                        StrokeLineJoin = PenLineJoin.Round,
+                        Fill = transparentBrush
+                    }
+                }
+            }
+        });
+        panel.Children.Add(new TextBlock { Text = target });
+
+        return new ComboBoxItem
+        {
+            Content = panel,
+            Tag = tag
+        };
+    }
+
     private Border WrapSection(StackPanel section)
     {
-        return new Border
-        {
-            Style = (Style)FindResource("SurfaceCard"),
-            Child = section
-        };
+        return SettingsLayout.CreateSection(section);
     }
 
     private (StackPanel content, Border card) CreateCollapsibleSection(string title)
     {
-        var content = new StackPanel();
-        var exp = new Expander
+        var (content, card, expander) = SettingsLayout.CreateCollapsibleSection(title);
+        if (title.Contains("腾讯"))
         {
-            Style = (Style)FindResource("SettingsExpander"),
-            Header = title,
-            Content = content,
-            IsExpanded = false
-        };
-        var card = new Border
+            _tencentExpander = expander;
+        }
+        else
         {
-            Style = (Style)FindResource("SurfaceCard"),
-            Child = exp
-        };
+            _aiExpander = expander;
+        }
         return (content, card);
+    }
+
+    private void CmbProvider_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        UpdateProviderSections();
+    }
+
+    private void UpdateProviderSections()
+    {
+        if (_tencentSection == null || _aiSection == null || _tencentExpander == null || _aiExpander == null)
+        {
+            return;
+        }
+
+        var provider = (_cmbProvider.SelectedItem as ComboBoxItem)?.Tag is TranslationProvider selected
+            ? selected
+            : TranslationProvider.Google;
+
+        _tencentExpander.IsExpanded = provider == TranslationProvider.Tencent;
+        _aiExpander.IsExpanded = provider == TranslationProvider.OpenAI;
     }
 
     private void CmbAiPlatform_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -268,6 +309,8 @@ public class TranslationSettingsPanel : StackPanel
                 break;
             }
         }
+        _cmbProvider.SelectedIndex = _cmbProvider.SelectedIndex < 0 ? 0 : _cmbProvider.SelectedIndex;
+        UpdateProviderSections();
 
         // 翻译策略
         foreach (ComboBoxItem item in _cmbTranslationMode.Items)

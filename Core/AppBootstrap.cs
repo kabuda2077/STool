@@ -232,6 +232,7 @@ public class AppBootstrap : IDisposable
 
         overlay.Show();
         Log.Information("[CaptureStartup] Show returned in {ElapsedMs}ms", startupTimer.ElapsedMilliseconds);
+        overlay.SchedulePostShowDiagnostics();
     }
 
     private void OnTranslationHotkey()

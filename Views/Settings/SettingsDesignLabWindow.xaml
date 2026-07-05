@@ -1,0 +1,158 @@
+<Window x:Class="STool.Views.Settings.SettingsDesignLabWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:core="clr-namespace:STool.Core"
+        Style="{StaticResource ModernWindow}"
+        core:ModernWindowChrome.HideTitleText="False"
+        Title="设置页设计预览台"
+        Width="1180"
+        Height="760"
+        MinWidth="1080"
+        MinHeight="680"
+        WindowStartupLocation="CenterScreen"
+        Loaded="Window_Loaded"
+        Closed="Window_Closed">
+
+    <Grid Background="{StaticResource SurfaceAltBrush}"
+          Margin="16,56,16,16">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*"/>
+            <ColumnDefinition Width="316"/>
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0"
+                Background="#ECECEF"
+                CornerRadius="10"
+                Padding="14">
+            <StackPanel>
+                <TextBlock x:Name="PreviewSizeText"
+                           Text="真实设置窗口边界 710 × 560"
+                           Style="{StaticResource HintText}"
+                           Margin="2,0,0,8"/>
+                <Border Width="710"
+                        Height="560"
+                        HorizontalAlignment="Left"
+                        VerticalAlignment="Top"
+                        Background="{StaticResource SurfaceBrush}"
+                        BorderBrush="#C9CCD3"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        ClipToBounds="True"
+                        Effect="{StaticResource StandardShadow}">
+                    <ContentControl x:Name="PreviewHost"/>
+                </Border>
+            </StackPanel>
+        </Border>
+
+        <Border Grid.Column="1"
+                Margin="14,0,0,0"
+                Background="{StaticResource SurfaceBrush}"
+                CornerRadius="10"
+                Padding="16"
+                Effect="{StaticResource PaneShadow}">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel>
+                    <TextBlock Text="调参"
+                               Style="{StaticResource SettingsGroupTitle}"/>
+                    <TextBlock Text="这里只影响预览台进程。满意后再把参数固化到正式样式。"
+                               Style="{StaticResource HintText}"
+                               Margin="0,0,0,12"/>
+
+                    <UniformGrid Columns="3"
+                                 Margin="0,0,0,14">
+                        <Button Content="紧凑"
+                                Style="{StaticResource SecondaryButton}"
+                                Margin="0,0,6,0"
+                                Click="CompactPreset_Click"/>
+                        <Button Content="默认"
+                                Style="{StaticResource SecondaryButton}"
+                                Margin="0,0,6,0"
+                                Click="BalancedPreset_Click"/>
+                        <Button Content="宽松"
+                                Style="{StaticResource SecondaryButton}"
+                                Click="LoosePreset_Click"/>
+                    </UniformGrid>
+
+                    <CheckBox x:Name="ShadowCheckBox"
+                              Content="分组微阴影"
+                              Style="{StaticResource ModernCheckBox}"
+                              Margin="0,0,0,12"
+                              Checked="ControlValueChanged"
+                              Unchecked="ControlValueChanged"/>
+
+                    <TextBlock x:Name="SectionPaddingValue" Style="{StaticResource FieldLabel}"/>
+                    <Slider x:Name="SectionPaddingSlider"
+                            Minimum="10"
+                            Maximum="20"
+                            TickFrequency="1"
+                            IsSnapToTickEnabled="True"
+                            ValueChanged="ControlValueChanged"/>
+
+                    <TextBlock x:Name="SectionSpacingValue" Style="{StaticResource FieldLabel}"/>
+                    <Slider x:Name="SectionSpacingSlider"
+                            Minimum="8"
+                            Maximum="18"
+                            TickFrequency="1"
+                            IsSnapToTickEnabled="True"
+                            ValueChanged="ControlValueChanged"/>
+
+                    <TextBlock x:Name="FieldSpacingValue" Style="{StaticResource FieldLabel}"/>
+                    <Slider x:Name="FieldSpacingSlider"
+                            Minimum="6"
+                            Maximum="14"
+                            TickFrequency="1"
+                            IsSnapToTickEnabled="True"
+                            ValueChanged="ControlValueChanged"/>
+
+                    <TextBlock x:Name="LabelWidthValue" Style="{StaticResource FieldLabel}"/>
+                    <Slider x:Name="LabelWidthSlider"
+                            Minimum="84"
+                            Maximum="108"
+                            TickFrequency="2"
+                            IsSnapToTickEnabled="True"
+                            ValueChanged="ControlValueChanged"/>
+
+                    <TextBlock x:Name="InputHeightValue" Style="{StaticResource FieldLabel}"/>
+                    <Slider x:Name="InputHeightSlider"
+                            Minimum="32"
+                            Maximum="36"
+                            TickFrequency="1"
+                            IsSnapToTickEnabled="True"
+                            ValueChanged="ControlValueChanged"/>
+
+                    <TextBlock x:Name="ContentMarginValue" Style="{StaticResource FieldLabel}"/>
+                    <Slider x:Name="ContentMarginSlider"
+                            Minimum="0"
+                            Maximum="24"
+                            TickFrequency="1"
+                            IsSnapToTickEnabled="True"
+                            ValueChanged="ControlValueChanged"/>
+
+                    <TextBlock x:Name="ContentTopValue" Style="{StaticResource FieldLabel}"/>
+                    <Slider x:Name="ContentTopSlider"
+                            Minimum="0"
+                            Maximum="14"
+                            TickFrequency="1"
+                            IsSnapToTickEnabled="True"
+                            ValueChanged="ControlValueChanged"/>
+
+                    <TextBlock x:Name="NavPaddingValue" Style="{StaticResource FieldLabel}"/>
+                    <Slider x:Name="NavPaddingSlider"
+                            Minimum="7"
+                            Maximum="12"
+                            TickFrequency="1"
+                            IsSnapToTickEnabled="True"
+                            ValueChanged="ControlValueChanged"/>
+
+                    <TextBox x:Name="MetricsText"
+                             Style="{StaticResource SunkenTextBox}"
+                             Margin="0,16,0,0"
+                             Height="120"
+                             IsReadOnly="True"
+                             TextWrapping="Wrap"
+                             VerticalContentAlignment="Top"/>
+                </StackPanel>
+            </ScrollViewer>
+        </Border>
+    </Grid>
+</Window>

@@ -9,11 +9,13 @@ public partial class SettingsWindow : Window
 {
     private readonly ConfigManager _configManager;
     private System.Windows.Controls.Button? _currentSelectedButton;
+    private bool _syncingScrollBar;
 
     public SettingsWindow(ConfigManager configManager)
     {
         InitializeComponent();
         _configManager = configManager;
+        ApplyLayoutMetrics();
 
         // 默认显示通用设置
         ShowGeneralSettings();
@@ -44,6 +46,27 @@ public partial class SettingsWindow : Window
     {
         contentScroll.ScrollToVerticalOffset(contentScroll.VerticalOffset - e.Delta);
         e.Handled = true;
+    }
+
+    private void ContentScroll_SizeChanged(object sender, SizeChangedEventArgs e)
+    {
+        UpdateContentPanelWidth();
+        UpdateOverlayScrollBar();
+    }
+
+    private void ContentScroll_ScrollChanged(object sender, ScrollChangedEventArgs e)
+    {
+        UpdateOverlayScrollBar();
+    }
+
+    private void ContentScrollBar_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        if (_syncingScrollBar)
+        {
+            return;
+        }
+
+        contentScroll.ScrollToVerticalOffset(e.NewValue);
     }
 
     private void SelectNavigationButton(System.Windows.Controls.Button button)
@@ -81,8 +104,52 @@ public partial class SettingsWindow : Window
     {
         contentPanel.Children.Clear();
         contentPanel.Children.Add(panel);
+        UpdateContentPanelWidth();
+        UpdateOverlayScrollBar();
         contentScroll.ScrollToTop();
     }
 
+    private void ApplyLayoutMetrics()
+    {
+        contentPanel.Margin = new Thickness(
+            SettingsLayout.ContentHorizontalMargin,
+            SettingsLayout.ContentTopMargin,
+            SettingsLayout.ContentHorizontalMargin,
+            18);
+        UpdateContentPanelWidth();
+        UpdateOverlayScrollBar();
+    }
+
+    private void UpdateContentPanelWidth()
+    {
+        var availableWidth = contentScroll.ActualWidth
+            - SettingsLayout.ContentHorizontalMargin * 2;
+
+        if (availableWidth <= 0)
+        {
+            return;
+        }
+
+        contentPanel.Width = availableWidth;
+    }
+
+    private void UpdateOverlayScrollBar()
+    {
+        if (contentScrollBar == null)
+        {
+            return;
+        }
+
+        var scrollableHeight = Math.Max(0, contentScroll.ScrollableHeight);
+        contentScrollBar.Visibility = scrollableHeight > 0 ? Visibility.Visible : Visibility.Collapsed;
+        contentScrollBar.Maximum = scrollableHeight;
+        contentScrollBar.ViewportSize = Math.Max(0, contentScroll.ViewportHeight);
+        contentScrollBar.LargeChange = Math.Max(16, contentScroll.ViewportHeight * 0.9);
+        contentScrollBar.SmallChange = 32;
+
+        _syncingScrollBar = true;
+        contentScrollBar.Value = Math.Min(contentScroll.VerticalOffset, scrollableHeight);
+        _syncingScrollBar = false;
+    }
 
 }

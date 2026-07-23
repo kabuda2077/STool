@@ -245,6 +245,7 @@ public partial class CaptureOverlay : Window
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         LogStartupStep("Loaded begin");
+        Core.MemoryDiagnostics.LogCheckpoint("ScreenshotShown");
 
         EnsureInteractionReady("Loaded");
         Activate();

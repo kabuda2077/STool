@@ -274,4 +274,12 @@ public partial class TranslationPanel : Window
             cmbMode.SelectedIndex = nextIndex;
         }
     }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        txtSource.Clear();
+        txtTarget.Clear();
+        MemoryDiagnostics.LogCheckpoint("TranslationPanelClosed");
+        base.OnClosed(e);
+    }
 }

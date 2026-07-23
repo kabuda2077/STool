@@ -48,6 +48,9 @@ public partial class ClipboardPanel : Window
     // B: 缩略图后台解码并发限流(最多 3 个同时解码)
     private static readonly SemaphoreSlim ThumbThrottle = new(3);
     private const long LargeImageBytes = 2 * 1024 * 1024;
+    private readonly ThumbnailCache _thumbnailCache = new();
+    private readonly CancellationTokenSource _thumbnailLifetime = new();
+    private bool _closing;
 
     public ClipboardPanel(ClipboardManager manager)
     {
@@ -61,8 +64,13 @@ public partial class ClipboardPanel : Window
             _searchDebounce.Stop();
             ApplyFilter();
         };
-        Loaded += (_, _) => UpdateTabSlider();
+        Loaded += (_, _) =>
+        {
+            UpdateTabSlider();
+            MemoryDiagnostics.LogCheckpoint("ClipboardOpened");
+        };
         tabSegmentGrid.SizeChanged += (_, _) => UpdateTabSlider();
+        _thumbnailCache.ItemEvicted += OnThumbnailEvicted;
 
         LoadRecent();
     }
@@ -74,7 +82,7 @@ public partial class ClipboardPanel : Window
         // D: 数据刷新时,清理缓存中已不存在的条目,避免无限增长
         var liveIds = new HashSet<string>(fresh.Select(i => i.Id));
         foreach (var staleId in _vmCache.Keys.Where(id => !liveIds.Contains(id)).ToList())
-            _vmCache.Remove(staleId);
+            RemoveCachedViewModel(staleId);
 
         _allRaw = fresh;
         ApplyFilter();
@@ -229,7 +237,7 @@ public partial class ClipboardPanel : Window
         if (sender is FrameworkElement fe && fe.DataContext is ClipboardItemViewModel vm)
         {
             _manager.ToggleFavorite(vm.Id);
-            _vmCache.Remove(vm.Id);
+            RemoveCachedViewModel(vm.Id);
             LoadRecent();
             ToastNotification.Show(vm.IsFavorite ? "已取消收藏" : "已收藏");
         }
@@ -242,7 +250,7 @@ public partial class ClipboardPanel : Window
         if (id != null)
         {
             _manager.ToggleFavorite(id);
-            _vmCache.Remove(id);   // D: 收藏态变了,使该 VM 失效以便重建
+            RemoveCachedViewModel(id);   // D: 收藏态变了,使该 VM 失效以便重建
             LoadRecent();
         }
     }
@@ -254,7 +262,7 @@ public partial class ClipboardPanel : Window
         {
             var item = _allRaw.FirstOrDefault(i => i.Id == id);
             _manager.Delete(id);
-            _vmCache.Remove(id);
+            RemoveCachedViewModel(id);
             LoadRecent();
             ToastNotification.Show("已删除剪贴板记录", item == null ? "" : $"已删除{GetItemKindText(item)}记录");
         }
@@ -459,6 +467,7 @@ public partial class ClipboardPanel : Window
         {
             vm.IsImage = true;
             vm.ImagePath = item.ImagePath;            // B: 仅记录路径,延迟到可见时解码
+            vm.ThumbnailCacheKey = BuildThumbnailCacheKey(vm.Id, item.ImagePath);
             vm.DisplayText = Path.GetFileName(item.ImagePath);
             var (w, h) = ReadPngSize(item.ImagePath!);
             var fileSize = new FileInfo(item.ImagePath).Length;
@@ -507,31 +516,107 @@ public partial class ClipboardPanel : Window
     {
         if (sender is not System.Windows.Controls.Image img || img.DataContext is not ClipboardItemViewModel vm)
             return;
-        if (!vm.IsImage || vm.ImageSource != null || vm.ThumbRequested || string.IsNullOrEmpty(vm.ImagePath))
+        if (_closing || !vm.IsImage || vm.ImageSource != null || vm.ThumbRequested || string.IsNullOrEmpty(vm.ImagePath))
             return;
 
         vm.ThumbRequested = true;
         var path = vm.ImagePath;
+        var cacheKey = BuildThumbnailCacheKey(vm.Id, path);
+        vm.ThumbnailCacheKey = cacheKey;
+        if (_thumbnailCache.TryGet(cacheKey, out var cached))
+        {
+            vm.ImageSource = cached;
+            return;
+        }
+
+        var decodeHeight = GetThumbnailDecodeHeight();
+        var cancellationToken = _thumbnailLifetime.Token;
 
         _ = Task.Run(async () =>
         {
-            await ThumbThrottle.WaitAsync();
+            var acquired = false;
             try
             {
-                var bmp = LoadThumbnail(path);
+                await ThumbThrottle.WaitAsync(cancellationToken);
+                acquired = true;
+                cancellationToken.ThrowIfCancellationRequested();
+                var bmp = LoadThumbnail(path, decodeHeight);
                 if (bmp != null)
-                    Dispatcher.Invoke(() => vm.ImageSource = bmp);
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    _thumbnailCache.Set(cacheKey, bmp, EstimateImageBytes(bmp));
+                    PostThumbnailResult(vm, bmp, cancellationToken);
+                }
                 else
-                    vm.ThumbRequested = false;   // 解码失败,允许后续重试
+                {
+                    PostThumbnailFailure(vm, cancellationToken);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                // 窗口关闭后不再回 UI 线程写入 ViewModel。
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Clipboard thumbnail load failed: {ex.Message}");
+                PostThumbnailFailure(vm, cancellationToken);
             }
             finally
             {
-                ThumbThrottle.Release();
+                if (acquired)
+                    ThumbThrottle.Release();
             }
         });
     }
 
-    private static ImageSource? LoadThumbnail(string path)
+    private void PostThumbnailResult(ClipboardItemViewModel vm, ImageSource image, CancellationToken cancellationToken)
+    {
+        if (_closing || cancellationToken.IsCancellationRequested || Dispatcher.HasShutdownStarted)
+            return;
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        {
+            if (!_closing && !cancellationToken.IsCancellationRequested)
+            {
+                vm.ImageSource = image;
+                var count = _thumbnailCache.Count;
+                if (count == 1 || count % 16 == 0)
+                {
+                    MemoryDiagnostics.LogCheckpoint(
+                        "ClipboardThumbnailsLoaded",
+                        count,
+                        _thumbnailCache.EstimatedBytes);
+                }
+            }
+        }));
+    }
+
+    private void PostThumbnailFailure(ClipboardItemViewModel vm, CancellationToken cancellationToken)
+    {
+        if (_closing || cancellationToken.IsCancellationRequested || Dispatcher.HasShutdownStarted)
+            return;
+
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        {
+            if (!_closing && !cancellationToken.IsCancellationRequested)
+                vm.ThumbRequested = false;
+        }));
+    }
+
+    private int GetThumbnailDecodeHeight()
+    {
+        var dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleY;
+        return Math.Clamp((int)Math.Round(160 * dpiScale), 160, 220);
+    }
+
+    private static long EstimateImageBytes(ImageSource image)
+    {
+        return image is BitmapSource bitmap
+            ? Math.Max(1, (long)bitmap.PixelWidth * bitmap.PixelHeight * 4)
+            : 0;
+    }
+
+    private static ImageSource? LoadThumbnail(string path, int decodeHeight)
     {
         try
         {
@@ -541,7 +626,7 @@ public partial class ClipboardPanel : Window
             var bmp = new BitmapImage();
             bmp.BeginInit();
             bmp.CacheOption = BitmapCacheOption.OnLoad;   // 立即加载,不锁文件
-            bmp.DecodePixelHeight = 220;                  // 缩略图,降低内存
+            bmp.DecodePixelHeight = decodeHeight;         // 按 DPI 适配,避免过度解码
             bmp.UriSource = new Uri(File.Exists(thumbPath) ? thumbPath : path);
             bmp.EndInit();
             bmp.Freeze();                                 // 跨线程:冻结后可在 UI 线程使用
@@ -590,6 +675,55 @@ public partial class ClipboardPanel : Window
         return Path.Combine(AppPaths.ClipboardThumbnailsDirectory, fileName + ".thumb.png");
     }
 
+    internal static string BuildThumbnailCacheKey(string id, string path)
+    {
+        long lastWriteTicks = 0;
+        try
+        {
+            lastWriteTicks = File.GetLastWriteTimeUtc(path).Ticks;
+        }
+        catch
+        {
+            // 文件不存在时仍使用稳定键,让加载失败可以重试。
+        }
+
+        return $"{id}|{path}|{lastWriteTicks}";
+    }
+
+    private void OnThumbnailEvicted(string cacheKey)
+    {
+        if (_closing)
+            return;
+
+        if (!Dispatcher.CheckAccess())
+        {
+            if (!Dispatcher.HasShutdownStarted)
+                Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => OnThumbnailEvicted(cacheKey)));
+            return;
+        }
+
+        foreach (var vm in _vmCache.Values)
+        {
+            if (string.Equals(vm.ThumbnailCacheKey, cacheKey, StringComparison.Ordinal))
+            {
+                vm.ImageSource = null;
+                vm.ThumbRequested = false;
+                break;
+            }
+        }
+    }
+
+    private void RemoveCachedViewModel(string id)
+    {
+        if (!_vmCache.Remove(id, out var vm))
+            return;
+
+        if (!string.IsNullOrEmpty(vm.ThumbnailCacheKey))
+            _thumbnailCache.Remove(vm.ThumbnailCacheKey);
+        vm.ImageSource = null;
+        vm.ThumbRequested = false;
+    }
+
     private static string FormatImageInfo(int width, int height, long bytes)
     {
         var dimensions = width > 0 && height > 0 ? $"{width} × {height}" : "图片";
@@ -635,6 +769,10 @@ public partial class ClipboardPanel : Window
             imagePreview.Source = bmp;
             imagePreviewTitle.Text = vm.ImageInfoText;
             imagePreviewOverlay.Visibility = Visibility.Visible;
+            MemoryDiagnostics.LogCheckpoint(
+                "ClipboardPreviewOpened",
+                _thumbnailCache.Count,
+                _thumbnailCache.EstimatedBytes);
         }
         catch
         {
@@ -659,8 +797,16 @@ public partial class ClipboardPanel : Window
 
     private void HideImagePreview()
     {
+        var wasVisible = imagePreviewOverlay.Visibility == Visibility.Visible;
         imagePreview.Source = null;
         imagePreviewOverlay.Visibility = Visibility.Collapsed;
+        if (wasVisible)
+        {
+            MemoryDiagnostics.LogCheckpoint(
+                "ClipboardPreviewClosed",
+                _thumbnailCache.Count,
+                _thumbnailCache.EstimatedBytes);
+        }
     }
 
     /// <summary>从 PNG 文件头读取原始尺寸(剪贴板图片均存为 PNG),避免整图解码。</summary>
@@ -684,6 +830,32 @@ public partial class ClipboardPanel : Window
         catch { }
         return (0, 0);
     }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        _closing = true;
+        _searchDebounce.Stop();
+        _thumbnailLifetime.Cancel();
+
+        itemsList.ItemsSource = null;
+        HideImagePreview();
+        foreach (var vm in _vmCache.Values)
+        {
+            vm.ImageSource = null;
+            vm.ThumbRequested = false;
+        }
+
+        _thumbnailCache.Clear();
+        _vmCache.Clear();
+        _allRaw.Clear();
+        _thumbnailCache.ItemEvicted -= OnThumbnailEvicted;
+        _thumbnailLifetime.Dispose();
+        MemoryDiagnostics.LogCheckpoint(
+            "ClipboardClosed",
+            _thumbnailCache.Count,
+            _thumbnailCache.EstimatedBytes);
+        base.OnClosed(e);
+    }
 }
 
 /// <summary>
@@ -698,6 +870,7 @@ public class ClipboardItemViewModel : INotifyPropertyChanged
 
     // B: 图片路径与延迟解码标记
     public string? ImagePath { get; set; }
+    public string? ThumbnailCacheKey { get; set; }
     public bool ThumbRequested { get; set; }
 
     private ImageSource? _imageSource;

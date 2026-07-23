@@ -31,4 +31,12 @@ public partial class OcrResultWindow : Window
     {
         Close();
     }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        txtResult.Clear();
+        txtProvider.Text = string.Empty;
+        MemoryDiagnostics.LogCheckpoint("OcrResultClosed");
+        base.OnClosed(e);
+    }
 }

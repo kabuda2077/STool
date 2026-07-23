@@ -139,7 +139,15 @@ public partial class CaptureOverlay
         // 选区在屏幕上的 DIP 位置 = 覆盖窗口原点(虚拟屏左上)+ 窗口内 DIP 偏移
         var screenRect = new Rect(Left + _selection.X, Top + _selection.Y, _selection.Width, _selection.Height);
         CloseOverlay();
-        new PinWindow(bmp, screenRect).Show();
+        try
+        {
+            new PinWindow(bmp, screenRect).Show();
+        }
+        catch (Exception ex)
+        {
+            bmp.Dispose();
+            Core.ToastNotification.Show("钉图失败", ex.Message, Core.ToastNotification.ToastType.Error);
+        }
     }
 
     private async void BtnOcr_Click(object sender, RoutedEventArgs e)

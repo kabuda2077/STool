@@ -10,8 +10,9 @@ namespace STool.Views.Settings;
 public class OcrSettingsPanel : StackPanel
 {
     private readonly ConfigManager _configManager;
+    private SettingsAutoSaveController _autoSave = null!;
     private System.Windows.Controls.ComboBox _cmbProvider = null!;
-    private System.Windows.Controls.CheckBox _chkFallbackToLocal = null!;
+    private System.Windows.Controls.ComboBox _cmbFallbackPolicy = null!;
 
     // 腾讯云
     private System.Windows.Controls.TextBox _txtTencentSecretId = null!;
@@ -20,6 +21,7 @@ public class OcrSettingsPanel : StackPanel
     // AI Vision
     private System.Windows.Controls.ComboBox _cmbAiPlatform = null!;
     private System.Windows.Controls.TextBox _txtAiApiUrl = null!;
+    private TextBlock _txtAiApiUrlHint = null!;
     private SecurePasswordField _pwdAiApiKey = null!;
     private System.Windows.Controls.ComboBox _cmbAiModel = null!;
 
@@ -28,6 +30,7 @@ public class OcrSettingsPanel : StackPanel
         _configManager = configManager;
         InitializeUI();
         LoadSettings();
+        EnableAutoSave();
     }
 
     private void InitializeUI()
@@ -35,12 +38,7 @@ public class OcrSettingsPanel : StackPanel
         Margin = new Thickness(0);
 
         // ── OCR 提供商 ──
-        var baseSection = new StackPanel();
-        baseSection.Children.Add(new TextBlock
-        {
-            Text = "OCR 提供商",
-            Style = (Style)FindResource("SettingsGroupTitle")
-        });
+        var baseSection = SettingsLayout.CreateSectionContent("OCR 提供商");
 
         _cmbProvider = SettingsLayout.CreateComboBox();
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "Windows 本地 OCR", Tag = OcrProvider.WindowsLocal });
@@ -48,14 +46,14 @@ public class OcrSettingsPanel : StackPanel
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "AI Vision OCR", Tag = OcrProvider.AI });
         baseSection.Children.Add(SettingsLayout.CreateInlineField("当前引擎", _cmbProvider));
 
-        _chkFallbackToLocal = SettingsLayout.CreateSwitch();
-        var fallbackField = SettingsLayout.CreateInlineSwitchField(
-            "自动降级",
-            "异常时使用本地 OCR",
-            "",
-            _chkFallbackToLocal);
-        fallbackField.Margin = new Thickness(0);
-        baseSection.Children.Add(fallbackField);
+        _cmbFallbackPolicy = SettingsLayout.CreateComboBox();
+        _cmbFallbackPolicy.Items.Add(new ComboBoxItem { Content = "使用 Windows 本地 OCR", Tag = true });
+        _cmbFallbackPolicy.Items.Add(new ComboBoxItem { Content = "不自动处理", Tag = false });
+        baseSection.Children.Add(SettingsLayout.CreateInlineFieldWithHint(
+            "失败时",
+            _cmbFallbackPolicy,
+            "云服务异常时执行的策略",
+            isLast: true));
         Children.Add(WrapSection(baseSection));
 
         // ── 腾讯云设置(可折叠,行内布局) ──
@@ -65,7 +63,7 @@ public class OcrSettingsPanel : StackPanel
         tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret ID", _txtTencentSecretId));
 
         _pwdTencentSecretKey = SettingsLayout.CreatePasswordField();
-        tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret Key", _pwdTencentSecretKey));
+        tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret Key", _pwdTencentSecretKey, isLast: true));
 
         Children.Add(tencentCard);
 
@@ -80,35 +78,22 @@ public class OcrSettingsPanel : StackPanel
         aiContent.Children.Add(SettingsLayout.CreateInlineField("平台", _cmbAiPlatform));
 
         _txtAiApiUrl = SettingsLayout.CreateTextBox();
-        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("API URL", _txtAiApiUrl, "OpenAI 兼容地址，自定义需手动填写。"));
+        _txtAiApiUrlHint = SettingsLayout.CreateHint(string.Empty, inline: false);
+        _txtAiApiUrl.TextChanged += (_, _) => UpdateApiUrlPreview();
+        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("API URL", _txtAiApiUrl, _txtAiApiUrlHint));
 
         _pwdAiApiKey = SettingsLayout.CreatePasswordField();
         aiContent.Children.Add(SettingsLayout.CreateInlineField("API Key", _pwdAiApiKey));
 
         _cmbAiModel = SettingsLayout.CreateEditableComboBox();
-        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", _cmbAiModel, "可获取列表，也可手动输入。"));
+        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", _cmbAiModel, "可获取列表，也可手动输入。", isLast: true));
 
-        var aiActions = new StackPanel
-        {
-            Orientation = System.Windows.Controls.Orientation.Horizontal,
-            Margin = SettingsLayout.ActionRowMargin
-        };
-        var btnFetchModels = new System.Windows.Controls.Button
-        {
-            Content = "获取模型",
-            Style = (Style)FindResource("SecondaryButton"),
-            Padding = new Thickness(14, 7, 14, 7)
-        };
+        var btnFetchModels = SettingsLayout.CreateSecondaryActionButton("获取模型");
         btnFetchModels.Click += BtnFetchModels_Click;
-        aiActions.Children.Add(btnFetchModels);
-        aiContent.Children.Add(aiActions);
+        aiContent.Children.Add(SettingsLayout.CreateActionRow(btnFetchModels));
 
         Children.Add(aiCard);
 
-        // ── 保存按钮 ──
-        var btnSave = SettingsLayout.CreateSaveButton();
-        btnSave.Click += BtnSave_Click;
-        Children.Add(btnSave);
     }
 
     private Border WrapSection(StackPanel section)
@@ -118,7 +103,7 @@ public class OcrSettingsPanel : StackPanel
 
     private (StackPanel content, Border card) CreateCollapsibleSection(string title)
     {
-        var (content, card, _) = SettingsLayout.CreateCollapsibleSection(title);
+        var (content, card, _) = SettingsLayout.CreateCompactCollapsibleSection(title);
         return (content, card);
     }
 
@@ -137,7 +122,15 @@ public class OcrSettingsPanel : StackPanel
         }
         _cmbProvider.SelectedIndex = _cmbProvider.SelectedIndex < 0 ? 0 : _cmbProvider.SelectedIndex;
 
-        _chkFallbackToLocal.IsChecked = config.FallbackToLocal;
+        foreach (ComboBoxItem item in _cmbFallbackPolicy.Items)
+        {
+            if (item.Tag is bool enabled && enabled == config.FallbackToLocal)
+            {
+                _cmbFallbackPolicy.SelectedItem = item;
+                break;
+            }
+        }
+        _cmbFallbackPolicy.SelectedIndex = _cmbFallbackPolicy.SelectedIndex < 0 ? 0 : _cmbFallbackPolicy.SelectedIndex;
 
         // 腾讯云（解密显示）
         if (!string.IsNullOrEmpty(config.TencentSecretIdEncrypted))
@@ -169,52 +162,105 @@ public class OcrSettingsPanel : StackPanel
             _pwdAiApiKey.Password = SecureStorage.Decrypt(config.AiApiKeyEncrypted);
         }
         _cmbAiModel.Text = config.AiModel ?? "";
+        UpdateApiUrlPreview();
     }
 
-    private void BtnSave_Click(object sender, RoutedEventArgs e)
+    private void UpdateApiUrlPreview()
     {
-        SaveSettings();
-    }
+        var apiUrl = _txtAiApiUrl?.Text.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(apiUrl))
+        {
+            _txtAiApiUrlHint.Text = "输入域名或完整的 Chat Completions 地址";
+            return;
+        }
 
-    public void SaveSettings()
-    {
         try
         {
-            var config = _configManager.Get();
-
-            config.Ocr.Provider = (OcrProvider)(_cmbProvider.SelectedItem as ComboBoxItem)!.Tag;
-            config.Ocr.FallbackToLocal = _chkFallbackToLocal.IsChecked == true;
-
-            // 腾讯云（加密保存）
-            if (!string.IsNullOrWhiteSpace(_txtTencentSecretId.Text))
-            {
-                config.Ocr.TencentSecretIdEncrypted = SecureStorage.Encrypt(_txtTencentSecretId.Text);
-            }
-            if (!string.IsNullOrWhiteSpace(_pwdTencentSecretKey.Password))
-            {
-                config.Ocr.TencentSecretKeyEncrypted = SecureStorage.Encrypt(_pwdTencentSecretKey.Password);
-            }
-
-            // AI Vision（加密保存）
-            config.Ocr.AiPlatform = GetSelectedAiPlatform();
-            if (!string.IsNullOrWhiteSpace(_txtAiApiUrl.Text))
-            {
-                config.Ocr.AiApiUrlEncrypted = SecureStorage.Encrypt(_txtAiApiUrl.Text);
-            }
-            if (!string.IsNullOrWhiteSpace(_pwdAiApiKey.Password))
-            {
-                config.Ocr.AiApiKeyEncrypted = SecureStorage.Encrypt(_pwdAiApiKey.Password);
-            }
-            config.Ocr.AiModel = GetAiModel();
-
-            _configManager.Save(config);
-
-            ToastNotification.Show("设置已保存", "OCR 设置已更新", ToastNotification.ToastType.Success);
+            _txtAiApiUrlHint.Text = $"实际请求：{AiApiEndpointResolver.ResolvePrimaryChatCompletionUrl(apiUrl)}";
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
-            ToastNotification.Show("保存失败", ex.Message, ToastNotification.ToastType.Error);
+            _txtAiApiUrlHint.Text = ex.Message;
         }
+    }
+
+    private void EnableAutoSave()
+    {
+        _autoSave = new SettingsAutoSaveController(this, SaveSettings);
+        _autoSave.TrackImmediate(_cmbProvider);
+        _autoSave.TrackImmediate(_cmbFallbackPolicy);
+        _autoSave.TrackImmediate(_cmbAiPlatform);
+        _autoSave.TrackDebounced(_txtTencentSecretId);
+        _autoSave.TrackDebounced(_pwdTencentSecretKey);
+        _autoSave.TrackDebounced(_txtAiApiUrl);
+        _autoSave.TrackDebounced(_pwdAiApiKey);
+        _autoSave.TrackDebounced(_cmbAiModel);
+        Children.Add(new Border { Height = 12 });
+    }
+
+    private bool SaveSettings()
+    {
+        var config = _configManager.Get();
+        var provider = (OcrProvider)(_cmbProvider.SelectedItem as ComboBoxItem)!.Tag;
+        var fallbackToLocal = (_cmbFallbackPolicy.SelectedItem as ComboBoxItem)?.Tag is true;
+        var aiPlatform = GetSelectedAiPlatform();
+        var tencentSecretId = _txtTencentSecretId.Text.Trim();
+        var tencentSecretKey = _pwdTencentSecretKey.Password.Trim();
+        var aiApiUrl = _txtAiApiUrl.Text.Trim();
+        var aiApiKey = _pwdAiApiKey.Password.Trim();
+        var aiModel = GetAiModel();
+
+        if (config.Ocr.Provider == provider &&
+            config.Ocr.FallbackToLocal == fallbackToLocal &&
+            config.Ocr.AiPlatform == aiPlatform &&
+            DecryptOrEmpty(config.Ocr.TencentSecretIdEncrypted) == tencentSecretId &&
+            DecryptOrEmpty(config.Ocr.TencentSecretKeyEncrypted) == tencentSecretKey &&
+            DecryptOrEmpty(config.Ocr.AiApiUrlEncrypted) == aiApiUrl &&
+            DecryptOrEmpty(config.Ocr.AiApiKeyEncrypted) == aiApiKey &&
+            (config.Ocr.AiModel ?? string.Empty) == aiModel)
+        {
+            return false;
+        }
+
+        config.Ocr.Provider = provider;
+        config.Ocr.FallbackToLocal = fallbackToLocal;
+
+        config.Ocr.TencentSecretIdEncrypted = EncryptIfChangedOrClear(
+            tencentSecretId,
+            config.Ocr.TencentSecretIdEncrypted);
+        config.Ocr.TencentSecretKeyEncrypted = EncryptIfChangedOrClear(
+            tencentSecretKey,
+            config.Ocr.TencentSecretKeyEncrypted);
+
+        config.Ocr.AiPlatform = aiPlatform;
+        config.Ocr.AiApiUrlEncrypted = EncryptIfChangedOrClear(
+            aiApiUrl,
+            config.Ocr.AiApiUrlEncrypted);
+        config.Ocr.AiApiKeyEncrypted = EncryptIfChangedOrClear(
+            aiApiKey,
+            config.Ocr.AiApiKeyEncrypted);
+        config.Ocr.AiModel = aiModel;
+
+        _configManager.Save(config);
+        return true;
+    }
+
+    private static string DecryptOrEmpty(string? encrypted)
+    {
+        return string.IsNullOrWhiteSpace(encrypted) ? string.Empty : SecureStorage.Decrypt(encrypted);
+    }
+
+    private static string? EncryptIfChangedOrClear(string value, string? currentEncrypted)
+    {
+        var normalized = value.Trim();
+        if (string.IsNullOrEmpty(normalized))
+        {
+            return null;
+        }
+
+        return SecureStorage.Decrypt(currentEncrypted ?? string.Empty) == normalized
+            ? currentEncrypted
+            : SecureStorage.Encrypt(normalized);
     }
 
     private void CmbAiPlatform_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -247,32 +293,38 @@ public class OcrSettingsPanel : StackPanel
 
     private async void BtnFetchModels_Click(object sender, RoutedEventArgs e)
     {
-        try
+        if (sender is not System.Windows.Controls.Button button)
+            return;
+
+        await UiBusyState.RunWithBusyStateAsync(button, "获取中...", async () =>
         {
-            var models = await AiTranslationService.FetchModelsAsync(_txtAiApiUrl.Text, _pwdAiApiKey.Password);
-            var currentModel = GetAiModel();
-
-            _cmbAiModel.Items.Clear();
-            foreach (var model in models)
+            try
             {
-                _cmbAiModel.Items.Add(model);
-            }
+                var models = await AiTranslationService.FetchModelsAsync(_txtAiApiUrl.Text, _pwdAiApiKey.Password);
+                var currentModel = GetAiModel();
 
-            if (!string.IsNullOrWhiteSpace(currentModel))
-            {
-                _cmbAiModel.Text = currentModel;
-            }
-            else if (models.Count > 0)
-            {
-                _cmbAiModel.Text = models[0];
-            }
+                _cmbAiModel.Items.Clear();
+                foreach (var model in models)
+                {
+                    _cmbAiModel.Items.Add(model);
+                }
 
-            ToastNotification.Show("模型已获取", $"共 {models.Count} 个模型", ToastNotification.ToastType.Success);
-        }
-        catch (Exception ex)
-        {
-            ToastNotification.Show("获取模型失败", ex.Message, ToastNotification.ToastType.Error);
-        }
+                if (!string.IsNullOrWhiteSpace(currentModel))
+                {
+                    _cmbAiModel.Text = currentModel;
+                }
+                else if (models.Count > 0)
+                {
+                    _cmbAiModel.Text = models[0];
+                }
+
+                ToastNotification.Show("模型已获取", $"共 {models.Count} 个模型", ToastNotification.ToastType.Success);
+            }
+            catch (Exception ex)
+            {
+                ToastNotification.Show("获取模型失败", ex.Message, ToastNotification.ToastType.Error);
+            }
+        });
     }
 
     private OcrAiPlatform GetSelectedAiPlatform()

@@ -8,7 +8,9 @@ using STool.Core;
 using Button = System.Windows.Controls.Button;
 using CheckBox = System.Windows.Controls.CheckBox;
 using ComboBox = System.Windows.Controls.ComboBox;
+using TextBox = System.Windows.Controls.TextBox;
 using MediaBrush = System.Windows.Media.Brush;
+using Path = System.Windows.Shapes.Path;
 using WpfScrollBar = System.Windows.Controls.Primitives.ScrollBar;
 
 namespace STool.Views.Settings;
@@ -19,6 +21,7 @@ public partial class SettingsDesignLabWindow : Window
     private const double PreviewWindowHeight = 560;
     private const double PreviewNavigationWidth = 172;
     private const double PreviewTitleBarHeight = 46;
+    private const double BlendFieldLabelWidth = 126;
 
     private enum PreviewPage
     {
@@ -29,6 +32,7 @@ public partial class SettingsDesignLabWindow : Window
 
     private PreviewPage _currentPage = PreviewPage.General;
     private bool _updatingControls;
+    private bool _blendSurfaceDemo;
 
     public SettingsDesignLabWindow()
     {
@@ -37,7 +41,7 @@ public partial class SettingsDesignLabWindow : Window
 
     private void Window_Loaded(object sender, RoutedEventArgs e)
     {
-        ApplyPreset(SettingsLayoutMetrics.Default);
+        ApplyBlendPreset();
     }
 
     private void Window_Closed(object? sender, EventArgs e)
@@ -47,6 +51,7 @@ public partial class SettingsDesignLabWindow : Window
 
     private void CompactPreset_Click(object sender, RoutedEventArgs e)
     {
+        _blendSurfaceDemo = false;
         ApplyPreset(SettingsLayoutMetrics.Default.With(
             spacingMD: 8,
             inlineLabelWidth: 88,
@@ -54,6 +59,7 @@ public partial class SettingsDesignLabWindow : Window
             inputHeight: 32,
             sectionPadding: 12,
             sectionSpacing: 10,
+            sectionBorderThickness: 1,
             contentHorizontalMargin: 6,
             contentTopMargin: 6,
             navigationButtonVerticalPadding: 8));
@@ -61,11 +67,13 @@ public partial class SettingsDesignLabWindow : Window
 
     private void BalancedPreset_Click(object sender, RoutedEventArgs e)
     {
+        _blendSurfaceDemo = false;
         ApplyPreset(SettingsLayoutMetrics.Default);
     }
 
     private void LoosePreset_Click(object sender, RoutedEventArgs e)
     {
+        _blendSurfaceDemo = false;
         ApplyPreset(SettingsLayoutMetrics.Default.With(
             spacingMD: 12,
             inlineLabelWidth: 100,
@@ -73,9 +81,32 @@ public partial class SettingsDesignLabWindow : Window
             inputHeight: 34,
             sectionPadding: 16,
             sectionSpacing: 14,
+            sectionBorderThickness: 1,
             contentHorizontalMargin: 20,
             contentTopMargin: 10,
             navigationButtonVerticalPadding: 10));
+    }
+
+    private void BlendPreset_Click(object sender, RoutedEventArgs e)
+    {
+        ApplyBlendPreset();
+    }
+
+    private void ApplyBlendPreset()
+    {
+        _blendSurfaceDemo = true;
+        ApplyPreset(SettingsLayoutMetrics.Default.With(
+            spacingMD: 8,
+            inlineLabelWidth: BlendFieldLabelWidth,
+            hotkeyLabelWidth: BlendFieldLabelWidth,
+            inputHeight: 34,
+            sectionPadding: 16,
+            sectionSpacing: 10,
+            sectionBorderThickness: 0,
+            contentHorizontalMargin: 24,
+            contentTopMargin: 12,
+            navigationButtonVerticalPadding: 10,
+            sectionShadow: false));
     }
 
     private void ApplyPreset(SettingsLayoutMetrics metrics)
@@ -114,6 +145,7 @@ public partial class SettingsDesignLabWindow : Window
             inputHeight: InputHeightSlider.Value,
             sectionPadding: SectionPaddingSlider.Value,
             sectionSpacing: SectionSpacingSlider.Value,
+            sectionBorderThickness: _blendSurfaceDemo ? 0 : SettingsLayoutMetrics.Default.SectionBorderThickness,
             contentHorizontalMargin: ContentMarginSlider.Value,
             contentTopMargin: ContentTopSlider.Value,
             navigationButtonVerticalPadding: NavPaddingSlider.Value,
@@ -137,10 +169,12 @@ public partial class SettingsDesignLabWindow : Window
         NavPaddingValue.Text = $"导航垂直 padding: {metrics.NavigationButtonVerticalPadding:0}px";
 
         MetricsText.Text = new StringBuilder()
+            .Append(CultureInfo.InvariantCulture, $"Mode = {(_blendSurfaceDemo ? "Blend / Borderless" : "Default")}\n")
             .Append(CultureInfo.InvariantCulture, $"PreviewWindowWidth = {PreviewWindowWidth:0}\n")
             .Append(CultureInfo.InvariantCulture, $"ActualContentWidth = {actualContentWidth:0}\n")
             .Append(CultureInfo.InvariantCulture, $"SectionPadding = {metrics.SectionPadding:0}\n")
             .Append(CultureInfo.InvariantCulture, $"SectionSpacing = {metrics.SectionSpacing:0}\n")
+            .Append(CultureInfo.InvariantCulture, $"SectionBorder = {metrics.SectionBorderThickness:0}\n")
             .Append(CultureInfo.InvariantCulture, $"SpacingMD = {metrics.SpacingMD:0}\n")
             .Append(CultureInfo.InvariantCulture, $"InlineLabelWidth = {metrics.InlineLabelWidth:0}\n")
             .Append(CultureInfo.InvariantCulture, $"InputHeight = {metrics.InputHeight:0}\n")
@@ -161,7 +195,7 @@ public partial class SettingsDesignLabWindow : Window
 
         var nav = new Border
         {
-            Background = (MediaBrush)FindResource("SurfaceBrush"),
+            Background = _blendSurfaceDemo ? CreateLabBrush("#FEFEFF") : (MediaBrush)FindResource("SurfaceBrush"),
             Padding = new Thickness(10, 44, 10, 12)
         };
         var navStack = new StackPanel();
@@ -173,7 +207,7 @@ public partial class SettingsDesignLabWindow : Window
 
         var contentRoot = new Border
         {
-            Background = (MediaBrush)FindResource("SurfaceAltBrush")
+            Background = _blendSurfaceDemo ? CreateLabBrush("#F4F5F7") : (MediaBrush)FindResource("SurfaceAltBrush")
         };
         Grid.SetColumn(contentRoot, 1);
         var scroll = new ScrollViewer
@@ -192,7 +226,13 @@ public partial class SettingsDesignLabWindow : Window
                 metrics.ContentHorizontalMargin,
                 18)
         };
-        content.Children.Add(BuildCurrentPage());
+        var page = BuildCurrentPage();
+        if (_blendSurfaceDemo)
+        {
+            ApplyBlendSurfaceDemo(page);
+        }
+
+        content.Children.Add(page);
         scroll.Content = content;
         var contentLayer = new Grid();
         contentLayer.Children.Add(scroll);
@@ -317,6 +357,95 @@ public partial class SettingsDesignLabWindow : Window
         return button;
     }
 
+    private void ApplyBlendSurfaceDemo(DependencyObject root)
+    {
+        var sectionStyle = (Style)FindResource("SettingsFlatSection");
+        var sectionBrush = CreateLabBrush("#F8F9FA");
+        var sectionBorderBrush = CreateLabBrush("#ECEEF2");
+        var inputBrush = CreateLabBrush("#F1F3F6");
+        var transparentBrush = (MediaBrush)FindResource("TransparentBrush");
+
+        foreach (var child in LogicalTreeHelper.GetChildren(root))
+        {
+            if (child is DependencyObject dependencyObject)
+            {
+                ApplyBlendSurfaceDemo(dependencyObject);
+            }
+        }
+
+        if (root is Border border && ReferenceEquals(border.Style, sectionStyle))
+        {
+            border.Background = sectionBrush;
+            border.BorderBrush = sectionBorderBrush;
+            border.BorderThickness = new Thickness(0.75);
+            border.CornerRadius = new CornerRadius(10);
+            border.Padding = new Thickness(SettingsLayout.SectionPadding);
+            border.Margin = new Thickness(0, 0, 0, SettingsLayout.SectionSpacing);
+            border.Effect = null;
+            return;
+        }
+
+        switch (root)
+        {
+            case TextBox textBox:
+                textBox.Background = inputBrush;
+                textBox.BorderBrush = transparentBrush;
+                textBox.BorderThickness = new Thickness(0);
+                break;
+            case PasswordBox passwordBox:
+                passwordBox.Background = inputBrush;
+                passwordBox.BorderBrush = transparentBrush;
+                passwordBox.BorderThickness = new Thickness(0);
+                break;
+            case ComboBox comboBox:
+                comboBox.Background = inputBrush;
+                comboBox.BorderBrush = transparentBrush;
+                comboBox.BorderThickness = new Thickness(0);
+                break;
+        }
+    }
+
+    private void ApplyBlendListStructure(StackPanel page)
+    {
+        var sectionStyle = (Style)FindResource("SettingsFlatSection");
+        var originalChildren = page.Children.Cast<UIElement>().ToList();
+        page.Children.Clear();
+
+        for (var i = 0; i < originalChildren.Count; i++)
+        {
+            var child = originalChildren[i];
+            page.Children.Add(child);
+
+            if (child is not Border border || !ReferenceEquals(border.Style, sectionStyle))
+            {
+                continue;
+            }
+
+            var hasLaterSection = originalChildren
+                .Skip(i + 1)
+                .OfType<Border>()
+                .Any(next => ReferenceEquals(next.Style, sectionStyle));
+            if (!hasLaterSection)
+            {
+                continue;
+            }
+
+            page.Children.Add(new Border
+            {
+                Height = 1,
+                Background = CreateLabBrush("#ECEEF2"),
+                Margin = new Thickness(0, 14, 0, 14)
+            });
+        }
+    }
+
+    private static SolidColorBrush CreateLabBrush(string color)
+    {
+        var brush = (SolidColorBrush)new BrushConverter().ConvertFromString(color)!;
+        brush.Freeze();
+        return brush;
+    }
+
     private StackPanel BuildCurrentPage()
     {
         return _currentPage switch
@@ -364,30 +493,25 @@ public partial class SettingsDesignLabWindow : Window
         providerCombo.Items.Add("腾讯云 OCR");
         providerCombo.Items.Add("AI Vision OCR");
         providerCombo.SelectedIndex = 1;
-        var providerField = SettingsLayout.CreateInlineField("当前引擎", providerCombo);
+        var providerField = CreatePreviewInlineField("当前引擎", providerCombo);
         provider.Children.Add(providerField);
-        var fallbackSwitch = SettingsLayout.CreateSwitch();
-        fallbackSwitch.IsChecked = true;
-        var fallbackField = SettingsLayout.CreateInlineSwitchField(
-            "自动降级",
-            "OCR 服务异常时使用 Windows 本地 OCR",
-            "",
-            fallbackSwitch);
-        fallbackField.Margin = new Thickness(0);
-        provider.Children.Add(fallbackField);
+        var fallbackPolicy = SettingsLayout.CreateComboBox();
+        fallbackPolicy.Items.Add("使用 Windows 本地 OCR");
+        fallbackPolicy.Items.Add("不自动处理");
+        fallbackPolicy.SelectedIndex = 0;
+        provider.Children.Add(CreatePreviewInlineField("失败时", fallbackPolicy, "云服务异常时执行的策略"));
         page.Children.Add(SettingsLayout.CreateSection(provider));
 
-        var (tencentContent, tencentSection, tencentExpander) = SettingsLayout.CreateCollapsibleSection("腾讯云设置", isExpanded: true);
-        tencentExpander.IsExpanded = true;
-        tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret ID", SettingsLayout.CreateTextBox()));
-        tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret Key", SettingsLayout.CreatePasswordField()));
+        var (tencentContent, tencentSection, _) = CreatePreviewCollapsibleSection("腾讯云设置", isExpanded: true);
+        tencentContent.Children.Add(CreatePreviewInlineField("Secret ID", SettingsLayout.CreateTextBox()));
+        tencentContent.Children.Add(CreatePreviewInlineField("Secret Key", SettingsLayout.CreatePasswordField()));
         page.Children.Add(tencentSection);
 
-        var (aiContent, aiSection, _) = SettingsLayout.CreateCollapsibleSection("AI Vision 设置");
-        aiContent.Children.Add(SettingsLayout.CreateInlineField("平台", CreateCombo("OpenAI", "Google AI Studio", "自定义")));
-        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("API URL", SettingsLayout.CreateTextBox(), "OpenAI 兼容 Chat Completions 地址，自定义接口需手动填写。"));
-        aiContent.Children.Add(SettingsLayout.CreateInlineField("API Key", SettingsLayout.CreatePasswordField()));
-        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", SettingsLayout.CreateEditableComboBox(), "可点击获取模型列表，也可以直接手动输入模型名。"));
+        var (aiContent, aiSection, _) = CreatePreviewCollapsibleSection("AI Vision 设置");
+        aiContent.Children.Add(CreatePreviewInlineField("平台", CreateCombo("OpenAI", "Google AI Studio", "自定义")));
+        aiContent.Children.Add(CreatePreviewInlineField("API URL", SettingsLayout.CreateTextBox(), "OpenAI 兼容 Chat Completions 地址，自定义接口需手动填写。"));
+        aiContent.Children.Add(CreatePreviewInlineField("API Key", SettingsLayout.CreatePasswordField()));
+        aiContent.Children.Add(CreatePreviewInlineField("模型", SettingsLayout.CreateEditableComboBox(), "可点击获取列表，也可以直接手动输入模型名。"));
         aiContent.Children.Add(CreateActionRow("获取模型"));
         page.Children.Add(aiSection);
 
@@ -400,25 +524,24 @@ public partial class SettingsDesignLabWindow : Window
         var page = new StackPanel();
 
         var provider = CreateSectionContent("翻译提供商");
-        provider.Children.Add(SettingsLayout.CreateInlineField("当前引擎", CreateCombo("谷歌翻译", "腾讯云翻译", "AI 翻译")));
+        provider.Children.Add(CreatePreviewInlineField("当前引擎", CreateCombo("谷歌翻译", "腾讯云翻译", "AI 翻译")));
         page.Children.Add(SettingsLayout.CreateSection(provider));
 
         var strategy = CreateSectionContent("默认策略");
-        strategy.Children.Add(SettingsLayout.CreateInlineField("翻译策略", CreateCombo("中文 ⇄ 英文", "自动 → 中文", "自动 → 英文")));
-        strategy.Children.Add(SettingsLayout.CreateInlineFieldWithHint("截图翻译", CreateCombo("快速：本地规则识别", "智能：AI 识别并翻译"), "智能模式会额外使用 AI 翻译配置，失败时自动回退快速模式。"));
+        strategy.Children.Add(CreatePreviewInlineField("翻译策略", CreateCombo("中文 ⇄ 英文", "自动 → 中文", "自动 → 英文")));
+        strategy.Children.Add(CreatePreviewInlineField("截图翻译", CreateCombo("快速：本地规则识别", "智能：AI 识别并翻译"), "智能模式会额外使用 AI 翻译配置，失败时自动回退快速模式。"));
         page.Children.Add(SettingsLayout.CreateSection(strategy));
 
-        var (tencentContent, tencentSection, _) = SettingsLayout.CreateCollapsibleSection("腾讯云设置");
-        tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret ID", SettingsLayout.CreateTextBox()));
-        tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret Key", SettingsLayout.CreatePasswordField()));
+        var (tencentContent, tencentSection, _) = CreatePreviewCollapsibleSection("腾讯云设置");
+        tencentContent.Children.Add(CreatePreviewInlineField("Secret ID", SettingsLayout.CreateTextBox()));
+        tencentContent.Children.Add(CreatePreviewInlineField("Secret Key", SettingsLayout.CreatePasswordField()));
         page.Children.Add(tencentSection);
 
-        var (aiContent, aiSection, aiExpander) = SettingsLayout.CreateCollapsibleSection("AI 翻译设置", isExpanded: true);
-        aiExpander.IsExpanded = true;
-        aiContent.Children.Add(SettingsLayout.CreateInlineField("平台", CreateCombo("OpenAI", "Google AI Studio", "DeepSeek", "自定义")));
-        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("API URL", SettingsLayout.CreateTextBox(), "OpenAI 兼容 Chat Completions 地址，自定义接口需手动填写。"));
-        aiContent.Children.Add(SettingsLayout.CreateInlineField("API Key", SettingsLayout.CreatePasswordField()));
-        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", SettingsLayout.CreateEditableComboBox(), "可点击获取模型列表，也可以直接手动输入模型名。"));
+        var (aiContent, aiSection, _) = CreatePreviewCollapsibleSection("AI 翻译设置", isExpanded: true);
+        aiContent.Children.Add(CreatePreviewInlineField("平台", CreateCombo("OpenAI", "Google AI Studio", "DeepSeek", "自定义")));
+        aiContent.Children.Add(CreatePreviewInlineField("API URL", SettingsLayout.CreateTextBox(), "OpenAI 兼容 Chat Completions 地址，自定义接口需手动填写。"));
+        aiContent.Children.Add(CreatePreviewInlineField("API Key", SettingsLayout.CreatePasswordField()));
+        aiContent.Children.Add(CreatePreviewInlineField("模型", SettingsLayout.CreateEditableComboBox(), "可点击获取列表，也可以直接手动输入模型名。"));
         aiContent.Children.Add(CreateActionRow("获取模型", "测试"));
         page.Children.Add(aiSection);
 
@@ -441,7 +564,239 @@ public partial class SettingsDesignLabWindow : Window
     {
         var switchBox = SettingsLayout.CreateSwitch();
         switchBox.IsChecked = isChecked;
+        if (_blendSurfaceDemo)
+        {
+            return CreateBlendSwitchRow(title, description, switchBox, isLast);
+        }
+
         return SettingsLayout.CreateSwitchRow(title, description, switchBox, isLast: isLast);
+    }
+
+    private UIElement CreatePreviewInlineField(string label, FrameworkElement input, string? hint = null)
+    {
+        if (_blendSurfaceDemo)
+        {
+            return CreateBlendFieldRow(label, input, hint);
+        }
+
+        return string.IsNullOrWhiteSpace(hint)
+            ? SettingsLayout.CreateInlineField(label, input)
+            : SettingsLayout.CreateInlineFieldWithHint(label, input, hint);
+    }
+
+    private Grid CreateBlendFieldRow(string label, FrameworkElement input, string? hint = null)
+    {
+        var grid = new Grid
+        {
+            Margin = SettingsLayout.FieldSpacing,
+            MinHeight = SettingsLayout.InputHeight
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(SettingsLayout.InlineLabelWidth) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        if (!string.IsNullOrWhiteSpace(hint))
+        {
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
+
+        var labelBlock = new TextBlock
+        {
+            Text = label,
+            Style = (Style)FindResource("FieldLabel"),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0),
+            TextWrapping = TextWrapping.Wrap
+        };
+        Grid.SetRow(labelBlock, 0);
+        Grid.SetColumn(labelBlock, 0);
+        grid.Children.Add(labelBlock);
+
+        input.HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch;
+        Grid.SetRow(input, 0);
+        Grid.SetColumn(input, 1);
+        grid.Children.Add(input);
+
+        if (!string.IsNullOrWhiteSpace(hint))
+        {
+            var hintBlock = SettingsLayout.CreateHint(hint);
+            hintBlock.Margin = new Thickness(SettingsLayout.FormTextInset, SettingsLayout.InputHintSpacing, 0, 0);
+            Grid.SetRow(hintBlock, 1);
+            Grid.SetColumn(hintBlock, 1);
+            grid.Children.Add(hintBlock);
+        }
+
+        return grid;
+    }
+
+    private Border CreateBlendSwitchRow(string title, string description, CheckBox switchBox, bool isLast)
+    {
+        var row = new Border
+        {
+            Background = (MediaBrush)FindResource("TransparentBrush"),
+            BorderBrush = (MediaBrush)FindResource("TransparentBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            MinHeight = 48,
+            Padding = new Thickness(0, 6, 0, 6),
+            Margin = new Thickness(0, 0, 0, isLast ? 0 : SettingsLayout.SpacingMD),
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Focusable = true,
+            FocusVisualStyle = (Style)FindResource("ModernFocusVisual")
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var textStack = new StackPanel
+        {
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 18, 0)
+        };
+        textStack.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontSize = SettingsLayout.BodyFontSize,
+            Foreground = (MediaBrush)FindResource("TextPrimaryBrush"),
+            FontWeight = FontWeights.Normal
+        });
+        textStack.Children.Add(new TextBlock
+        {
+            Text = description,
+            Style = (Style)FindResource("HintText"),
+            FontSize = SettingsLayout.HintFontSize,
+            Foreground = (MediaBrush)FindResource("TextSecondaryBrush"),
+            Opacity = 0.78,
+            Margin = new Thickness(0, 2, 0, 0),
+            TextWrapping = TextWrapping.Wrap
+        });
+        Grid.SetColumn(textStack, 0);
+        grid.Children.Add(textStack);
+
+        Grid.SetColumn(switchBox, 1);
+        grid.Children.Add(switchBox);
+        row.Child = grid;
+
+        var hoverBrush = CreateLabBrush("#F3F7FF");
+        var transparentBrush = (MediaBrush)FindResource("TransparentBrush");
+        var focusBrush = (MediaBrush)FindResource("PrimaryBrush");
+
+        void Toggle() => switchBox.IsChecked = switchBox.IsChecked != true;
+
+        System.Windows.Automation.AutomationProperties.SetName(row, title);
+        System.Windows.Automation.AutomationProperties.SetHelpText(row, description);
+        System.Windows.Automation.AutomationProperties.SetName(switchBox, title);
+        row.MouseEnter += (_, _) => row.Background = hoverBrush;
+        row.MouseLeave += (_, _) => row.Background = transparentBrush;
+        row.GotKeyboardFocus += (_, _) => row.BorderBrush = focusBrush;
+        row.LostKeyboardFocus += (_, _) => row.BorderBrush = transparentBrush;
+        row.MouseLeftButtonUp += (_, _) => Toggle();
+        row.KeyDown += (_, e) =>
+        {
+            if (e.Key is System.Windows.Input.Key.Space or System.Windows.Input.Key.Enter)
+            {
+                Toggle();
+                e.Handled = true;
+            }
+        };
+
+        return row;
+    }
+
+    private (StackPanel content, Border section, Expander? expander) CreatePreviewCollapsibleSection(string title, bool isExpanded = false)
+    {
+        if (!_blendSurfaceDemo)
+        {
+            return SettingsLayout.CreateCollapsibleSection(title, isExpanded);
+        }
+
+        var content = new StackPanel
+        {
+            Margin = new Thickness(0, 10, 0, 0),
+            Visibility = isExpanded ? Visibility.Visible : Visibility.Collapsed
+        };
+        var header = CreateBlendExpanderHeader(title, content, isExpanded);
+        var wrapper = new StackPanel();
+        wrapper.Children.Add(header);
+        wrapper.Children.Add(content);
+
+        return (content, SettingsLayout.CreateSection(wrapper), null);
+    }
+
+    private Border CreateBlendExpanderHeader(string title, UIElement content, bool isExpanded)
+    {
+        var chevron = new Path
+        {
+            Data = Geometry.Parse("M5 8 L10 13 L15 8"),
+            Stroke = (MediaBrush)FindResource("TextSecondaryBrush"),
+            StrokeThickness = 1.8,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+            StrokeLineJoin = PenLineJoin.Round,
+            Width = 15,
+            Height = 15,
+            Stretch = Stretch.Uniform,
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            RenderTransformOrigin = new System.Windows.Point(0.5, 0.5),
+            RenderTransform = new RotateTransform(isExpanded ? 180 : 0)
+        };
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(32) });
+        grid.Children.Add(new TextBlock
+        {
+            Text = title,
+            Style = (Style)FindResource("SettingsGroupTitle"),
+            Margin = new Thickness(0),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        Grid.SetColumn(chevron, 1);
+        grid.Children.Add(chevron);
+
+        var header = new Border
+        {
+            Background = (MediaBrush)FindResource("TransparentBrush"),
+            BorderBrush = (MediaBrush)FindResource("TransparentBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(8),
+            MinHeight = 42,
+            Padding = new Thickness(0),
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Focusable = true,
+            FocusVisualStyle = (Style)FindResource("ModernFocusVisual"),
+            Child = grid
+        };
+
+        var expanded = isExpanded;
+        var hoverBrush = CreateLabBrush("#F3F7FF");
+        var transparentBrush = (MediaBrush)FindResource("TransparentBrush");
+        var focusBrush = (MediaBrush)FindResource("PrimaryBrush");
+
+        void Toggle()
+        {
+            expanded = !expanded;
+            content.Visibility = expanded ? Visibility.Visible : Visibility.Collapsed;
+            ((RotateTransform)chevron.RenderTransform).Angle = expanded ? 180 : 0;
+        }
+
+        System.Windows.Automation.AutomationProperties.SetName(header, title);
+        header.MouseEnter += (_, _) => header.Background = hoverBrush;
+        header.MouseLeave += (_, _) => header.Background = transparentBrush;
+        header.GotKeyboardFocus += (_, _) => header.BorderBrush = focusBrush;
+        header.LostKeyboardFocus += (_, _) => header.BorderBrush = transparentBrush;
+        header.MouseLeftButtonUp += (_, _) => Toggle();
+        header.KeyDown += (_, e) =>
+        {
+            if (e.Key is System.Windows.Input.Key.Space or System.Windows.Input.Key.Enter)
+            {
+                Toggle();
+                e.Handled = true;
+            }
+        };
+
+        return header;
     }
 
     private ComboBox CreateCombo(params string[] items)

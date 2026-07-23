@@ -124,8 +124,11 @@ public partial class CaptureOverlay
         System.Drawing.Bitmap crop,
         System.Threading.CancellationToken cancellationToken)
     {
+        var targetLanguage = STool.Modules.Translation.TranslationManager.ResolveTargetLanguage(
+            string.Join("\n", rawLines.Select(line => line.Text)),
+            translationManager.GetConfiguredTranslationMode());
         var selectedLines = rawLines
-            .Where(line => IsLikelyTranslatableContent(line, crop.Width, crop.Height))
+            .Where(line => IsLikelyTranslatableContent(line, crop.Width, crop.Height, targetLanguage))
             .ToList();
 
         if (selectedLines.Count == 0)
@@ -153,7 +156,10 @@ public partial class CaptureOverlay
             rawLines.Count,
             paragraphs.Count);
 
-        var translated = await translationManager.TranslateBlocksAsync(paragraphs.Select(p => p.Text).ToArray(), cancellationToken: cancellationToken);
+        var translated = await translationManager.TranslateBlocksAsync(
+            paragraphs.Select(p => p.Text).ToArray(),
+            targetLanguage: targetLanguage,
+            cancellationToken: cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         if (!translated.Success || translated.TranslatedBlocks.Count != paragraphs.Count)
         {
@@ -702,7 +708,11 @@ public partial class CaptureOverlay
         return line.Box.Width <= line.Box.Height * 1.2;
     }
 
-    private static bool IsLikelyTranslatableContent(TranslationLine line, int cropWidth, int cropHeight)
+    internal static bool IsLikelyTranslatableContent(
+        TranslationLine line,
+        int cropWidth,
+        int cropHeight,
+        string targetLanguage)
     {
         var text = line.Text.Trim();
         if (string.IsNullOrWhiteSpace(text))
@@ -715,7 +725,9 @@ public partial class CaptureOverlay
         if (IsUrlLike(text) ||
             IsTimestampLike(text) ||
             IsMostlySymbols(text) ||
-            IsPureNumberLike(text))
+            IsPureNumberLike(text) ||
+            IsLikelyAccountMetadata(text) ||
+            IsLikelyActionRow(text))
         {
             return false;
         }
@@ -728,6 +740,9 @@ public partial class CaptureOverlay
         if (!HasNaturalLanguageSignal(text))
             return false;
 
+        if (!HasSourceLanguageSignal(text, targetLanguage))
+            return false;
+
         if (visualChars <= 5 && !LooksLikeSentenceText(text))
             return false;
 
@@ -735,6 +750,50 @@ public partial class CaptureOverlay
             return false;
 
         return true;
+    }
+
+    private static bool HasSourceLanguageSignal(string text, string targetLanguage)
+    {
+        var latin = text.Count(ch => ch is >= 'A' and <= 'Z' or >= 'a' and <= 'z');
+        var cjk = text.Count(IsCjk);
+
+        return targetLanguage.ToLowerInvariant() switch
+        {
+            "zh" or "zh-cn" => latin >= 4 || text.Any(ch => ch is >= '\u3040' and <= '\u30ff' or >= '\uac00' and <= '\ud7af'),
+            "en" => cjk >= 2,
+            _ => latin >= 4 || cjk >= 2
+        };
+    }
+
+    private static bool IsLikelyAccountMetadata(string text)
+    {
+        var normalized = text.Trim();
+        if (LooksLikeSentenceText(normalized) && normalized.Any(ch => ch is ',' or '，' or ':' or '：' or ';' or '；'))
+            return false;
+
+        var handlePattern = @"^[A-Za-z0-9_][A-Za-z0-9_.-]{2,30}(?:\s*[•·.]?\s*(?:\d+\s*)?(?:秒|分钟|小时|天|周|月|年|s|m|h|d|w|mo|y)?前?)?$";
+        return System.Text.RegularExpressions.Regex.IsMatch(
+            normalized,
+            handlePattern,
+            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+    }
+
+    private static bool IsLikelyActionRow(string text)
+    {
+        var normalized = System.Text.RegularExpressions.Regex.Replace(text.Trim(), @"\s+", " ");
+        var actionWords = new[]
+        {
+            "reply", "award", "share", "more", "like", "comment", "save",
+            "回复", "奖励", "分享", "更多", "点赞", "评论", "收藏"
+        };
+        var matches = actionWords.Count(word =>
+            System.Text.RegularExpressions.Regex.IsMatch(
+                normalized,
+                $@"(?<![A-Za-z]){System.Text.RegularExpressions.Regex.Escape(word)}(?![A-Za-z])",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase));
+
+        return matches >= 2 ||
+               (matches == 1 && CountVisualCharacters(normalized) <= 8);
     }
 
     private static int CountVisualCharacters(string text)
@@ -825,7 +884,24 @@ public partial class CaptureOverlay
         translationBlockCanvas.Visibility = Visibility.Collapsed;
         translationBlockCanvas.Children.Clear();
         _translationRenderBlocks.Clear();
+        translationLoadingIndicator.Visibility = Visibility.Collapsed;
+        translationOverlayScroll.Visibility = Visibility.Visible;
         translationOverlayText.Text = text;
+        translationOverlay.Visibility = Visibility.Visible;
+        Panel.SetZIndex(translationOverlay, 35);
+        Panel.SetZIndex(selectionBorder, 40);
+        UpdateVisuals();
+        ApplyTranslationOverlayLayout();
+    }
+
+    private void ShowTranslationLoading()
+    {
+        translationBlockCanvas.Visibility = Visibility.Collapsed;
+        translationBlockCanvas.Children.Clear();
+        _translationRenderBlocks.Clear();
+        translationOverlayText.Text = string.Empty;
+        translationOverlayScroll.Visibility = Visibility.Collapsed;
+        translationLoadingIndicator.Visibility = Visibility.Visible;
         translationOverlay.Visibility = Visibility.Visible;
         Panel.SetZIndex(translationOverlay, 35);
         Panel.SetZIndex(selectionBorder, 40);
@@ -839,6 +915,8 @@ public partial class CaptureOverlay
         translationBlockCanvas.Children.Clear();
         _translationRenderBlocks.Clear();
         translationOverlay.Visibility = Visibility.Collapsed;
+        translationLoadingIndicator.Visibility = Visibility.Collapsed;
+        translationOverlayScroll.Visibility = Visibility.Visible;
         translationOverlayText.Text = string.Empty;
     }
 
@@ -939,7 +1017,7 @@ public partial class CaptureOverlay
         base.OnClosed(e);
     }
 
-    private sealed record TranslationLine(string Text, System.Drawing.Rectangle Box);
+    internal sealed record TranslationLine(string Text, System.Drawing.Rectangle Box);
 
     private sealed record TranslationParagraph(string Text, System.Drawing.Rectangle Box, int MedianLineHeight);
 

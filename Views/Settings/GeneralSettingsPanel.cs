@@ -1,7 +1,6 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Media.Animation;
 using Microsoft.Win32;
 using Serilog;
 using STool.Core;
@@ -17,7 +16,6 @@ public class GeneralSettingsPanel : StackPanel
     private System.Windows.Controls.TextBox _txtTranslationHotkey = null!;
     private System.Windows.Controls.TextBox _txtClipboardHotkey = null!;
     private System.Windows.Controls.TextBox _txtSettingsHotkey = null!;
-    private TextBlock _savedIndicator = null!;
 
     public GeneralSettingsPanel(ConfigManager configManager)
     {
@@ -31,12 +29,7 @@ public class GeneralSettingsPanel : StackPanel
         Margin = new Thickness(0);
 
         // ── 启动与托盘 ──
-        var launchSection = new StackPanel();
-        launchSection.Children.Add(new TextBlock
-        {
-            Text = "启动与托盘",
-            Style = (Style)FindResource("SettingsGroupTitle")
-        });
+        var launchSection = SettingsLayout.CreateSectionContent("启动与托盘");
 
         _chkAutoStart = SettingsLayout.CreateSwitch();
         launchSection.Children.Add(SettingsLayout.CreateSwitchRow(
@@ -66,46 +59,33 @@ public class GeneralSettingsPanel : StackPanel
         Children.Add(WrapSection(launchSection));
 
         // ── 快捷键设置(紧凑双列) ──
-        var hotkeysSection = new StackPanel();
-        hotkeysSection.Children.Add(new TextBlock
-        {
-            Text = "快捷键设置",
-            Style = (Style)FindResource("SettingsGroupTitle")
-        });
-        var hotkeyGrid = new Grid();
-        hotkeyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(SettingsLayout.HotkeyLabelWidth) });
-        hotkeyGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var hotkeysSection = SettingsLayout.CreateSectionContent("快捷键设置");
+        _txtScreenshotHotkey = CreateHotkeyBox();
+        hotkeysSection.Children.Add(SettingsLayout.CreateInlineField("截图", _txtScreenshotHotkey, SettingsLayout.HotkeyLabelWidth));
 
-        _txtScreenshotHotkey = AddHotkeyRow(hotkeyGrid, 0, "截图");
-        _txtTranslationHotkey = AddHotkeyRow(hotkeyGrid, 1, "翻译");
-        _txtClipboardHotkey = AddHotkeyRow(hotkeyGrid, 2, "剪贴板");
-        _txtSettingsHotkey = AddHotkeyRow(hotkeyGrid, 3, "设置", isLast: true);
+        _txtTranslationHotkey = CreateHotkeyBox();
+        hotkeysSection.Children.Add(SettingsLayout.CreateInlineField("翻译", _txtTranslationHotkey, SettingsLayout.HotkeyLabelWidth));
+
+        _txtClipboardHotkey = CreateHotkeyBox();
+        hotkeysSection.Children.Add(SettingsLayout.CreateInlineField("剪贴板", _txtClipboardHotkey, SettingsLayout.HotkeyLabelWidth));
+
+        _txtSettingsHotkey = CreateHotkeyBox();
+        hotkeysSection.Children.Add(SettingsLayout.CreateInlineField("设置", _txtSettingsHotkey, SettingsLayout.HotkeyLabelWidth, isLast: true));
 
         // 即时保存:快捷键录制完(失焦)自动校验并保存
         foreach (var box in new[] { _txtScreenshotHotkey, _txtTranslationHotkey, _txtClipboardHotkey, _txtSettingsHotkey })
         {
             box.LostKeyboardFocus += (_, _) => CommitHotkeysIfChanged();
         }
-
-        hotkeysSection.Children.Add(hotkeyGrid);
-
         var hotkeyHint = SettingsLayout.CreateHint("点击后直接按快捷键组合");
-        hotkeyHint.Margin = new Thickness(SettingsLayout.HotkeyLabelWidth, SettingsLayout.InputHintSpacing, 0, 0);
+        hotkeyHint.Margin = new Thickness(
+            24 + SettingsLayout.HotkeyLabelWidth + SettingsLayout.FormTextInset,
+            -SettingsLayout.SpacingXS,
+            24,
+            16);
         hotkeysSection.Children.Add(hotkeyHint);
 
         Children.Add(WrapSection(hotkeysSection));
-
-        // ── 即时保存反馈:成功后右下角轻闪,随后淡出 ──
-        _savedIndicator = new TextBlock
-        {
-            Text = "✓ 已保存",
-            FontSize = SettingsLayout.BodyFontSize,
-            Foreground = (System.Windows.Media.Brush)FindResource("SuccessBrush"),
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Right,
-            Margin = new Thickness(0, SettingsLayout.SpacingSM, 2, 0),
-            Opacity = 0
-        };
-        Children.Add(_savedIndicator);
 
         Children.Add(new Border { Height = 12 });
     }
@@ -115,40 +95,14 @@ public class GeneralSettingsPanel : StackPanel
         return SettingsLayout.CreateSection(section);
     }
 
-    private System.Windows.Controls.TextBox AddHotkeyRow(Grid grid, int row, string label, bool isLast = false)
+    private System.Windows.Controls.TextBox CreateHotkeyBox()
     {
-        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        var bottomSpacing = isLast ? 0 : SettingsLayout.SpacingMD;
-
-        var lbl = new TextBlock
-        {
-            Text = label,
-            Style = (Style)FindResource("FieldLabel"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0)
-        };
-        var labelHost = new Border
-        {
-            Height = SettingsLayout.InputHeight,
-            Margin = new Thickness(0, 0, 0, bottomSpacing),
-            Child = lbl
-        };
-        Grid.SetRow(labelHost, row);
-        Grid.SetColumn(labelHost, 0);
-        grid.Children.Add(labelHost);
-
-        var box = new HotkeyBox
+        return new HotkeyBox
         {
             Style = (Style)FindResource("HotkeyTextBox"),
             Height = SettingsLayout.InputHeight,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
-            Margin = new Thickness(0, 0, 0, bottomSpacing)
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
         };
-        Grid.SetRow(box, row);
-        Grid.SetColumn(box, 1);
-        grid.Children.Add(box);
-
-        return box;
     }
 
     private void LoadSettings()
@@ -215,19 +169,13 @@ public class GeneralSettingsPanel : StackPanel
         }
     }
 
-    /// <summary>即时保存成功后的轻量反馈:显示"已保存"并淡出。</summary>
+    /// <summary>即时保存成功后在设置窗口中下部显示轻量提示。</summary>
     private void FlashSaved()
     {
-        _savedIndicator.BeginAnimation(OpacityProperty, null);
-        _savedIndicator.Opacity = 1;
-        _savedIndicator.BeginAnimation(OpacityProperty, new DoubleAnimation
-        {
-            From = 1,
-            To = 0,
-            BeginTime = TimeSpan.FromSeconds(1.1),
-            Duration = TimeSpan.FromSeconds(0.7),
-            FillBehavior = FillBehavior.HoldEnd
-        });
+        ToastNotification.Show(
+            "设置已保存",
+            type: ToastNotification.ToastType.Success,
+            duration: 1600);
     }
 
     private static bool ValidateHotkey(string hotkey, string label)

@@ -29,7 +29,7 @@
                         Style="{StaticResource IconButton}"
                         Click="BtnRectangle_Click"
                         ToolTip="矩形">
-                    <Viewbox Width="18" Height="18">
+                    <Viewbox Style="{StaticResource ToolIconLarge}">
                         <Canvas Width="24" Height="24">
                                 <Path Data="{StaticResource IconRectangle}"
                                       Stroke="{StaticResource TextPrimaryBrush}"
@@ -45,7 +45,7 @@
                         Click="BtnEllipse_Click"
                         Margin="3,0,0,0"
                         ToolTip="椭圆">
-                    <Viewbox Width="18" Height="18">
+                    <Viewbox Style="{StaticResource ToolIconLarge}">
                         <Canvas Width="24" Height="24">
                                 <Path Data="{StaticResource IconCircle}"
                                       Stroke="{StaticResource TextPrimaryBrush}"
@@ -60,7 +60,7 @@
                         Click="BtnArrow_Click"
                         Margin="3,0,0,0"
                         ToolTip="箭头">
-                    <Viewbox Width="18" Height="18">
+                    <Viewbox Style="{StaticResource ToolIconLarge}">
                         <Canvas Width="24" Height="24">
                                 <Path Data="{StaticResource IconArrowUpRight}"
                                       Stroke="{StaticResource TextPrimaryBrush}"
@@ -77,7 +77,7 @@
                         Click="BtnPen_Click"
                         Margin="3,0,0,0"
                         ToolTip="画笔">
-                    <Viewbox Width="18" Height="18">
+                    <Viewbox Style="{StaticResource ToolIconLarge}">
                         <Canvas Width="24" Height="24">
                                 <Path Data="{StaticResource IconPenLine}"
                                       Stroke="{StaticResource TextPrimaryBrush}"
@@ -90,13 +90,13 @@
                     </Viewbox>
                 </Button>
 
-                <Rectangle Width="0.5" Height="20" Fill="{StaticResource BorderBrush}" Margin="7,0"/>
+                <Rectangle Style="{StaticResource ToolbarSeparator}"/>
 
                 <Button x:Name="btnUndo"
                         Style="{StaticResource IconButton}"
                         Click="BtnUndo_Click"
                         ToolTip="撤销">
-                    <Viewbox Width="18" Height="18">
+                    <Viewbox Style="{StaticResource ToolIconLarge}">
                         <Canvas Width="24" Height="24">
                                 <Path Data="{StaticResource IconUndo2}"
                                       Stroke="{StaticResource TextPrimaryBrush}"
@@ -113,7 +113,7 @@
                         Click="BtnRedo_Click"
                         Margin="3,0,0,0"
                         ToolTip="重做">
-                    <Viewbox Width="18" Height="18">
+                    <Viewbox Style="{StaticResource ToolIconLarge}">
                         <Canvas Width="24" Height="24">
                                 <Path Data="{StaticResource IconRedo2}"
                                       Stroke="{StaticResource TextPrimaryBrush}"
@@ -125,16 +125,15 @@
                     </Viewbox>
                 </Button>
 
-                <Rectangle Width="0.5" Height="20" Fill="{StaticResource BorderBrush}" Margin="7,0"/>
+                <Rectangle Style="{StaticResource ToolbarSeparator}"/>
 
                 <Button x:Name="btnDone"
                         Style="{StaticResource ModernButton}"
                         Click="BtnDone_Click"
                         Padding="14,7">
                     <StackPanel Orientation="Horizontal">
-                        <Viewbox Width="16" Height="16"
-                                 Margin="0,0,7,0"
-                                 VerticalAlignment="Center">
+                        <Viewbox Style="{StaticResource ToolIconMedium}"
+                                 Margin="0,0,7,0">
                             <Canvas Width="24" Height="24">
                                 <Path Data="{StaticResource IconCheck}"
                                       Stroke="{StaticResource OnPrimaryBrush}"
@@ -153,7 +152,7 @@
                         Click="BtnCancel_Click"
                         Margin="6,0,0,0"
                         ToolTip="取消">
-                    <Viewbox Width="18" Height="18">
+                    <Viewbox Style="{StaticResource ToolIconLarge}">
                         <Canvas Width="24" Height="24">
                             <Path Data="{StaticResource IconX}"
                                   Stroke="{StaticResource ErrorBrush}"

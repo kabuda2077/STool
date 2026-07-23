@@ -10,7 +10,6 @@ using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
-using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using STool.Core;
@@ -39,7 +38,6 @@ public partial class ClipboardPanel : Window
     private Tab _tab = Tab.All;
     private string _searchText = string.Empty;
     private readonly IntPtr _targetHwnd;
-    private const double TabSegmentWidth = 58d;
 
     // D: ViewModel 按 Id 缓存,切分类/搜索时复用,避免重复造 VM 与重复解码
     private readonly Dictionary<string, ClipboardItemViewModel> _vmCache = new();
@@ -63,6 +61,8 @@ public partial class ClipboardPanel : Window
             _searchDebounce.Stop();
             ApplyFilter();
         };
+        Loaded += (_, _) => UpdateTabSlider();
+        tabSegmentGrid.SizeChanged += (_, _) => UpdateTabSlider();
 
         LoadRecent();
     }
@@ -109,7 +109,7 @@ public partial class ClipboardPanel : Window
         emptySearchIcon.Visibility = hasSearch ? Visibility.Visible : Visibility.Collapsed;
         emptyTitle.Text = hasSearch ? "没有匹配结果" : "暂无记录";
         emptyDescription.Text = hasSearch ? "试试更短的关键词，或切换分类查看" : "复制内容会自动保存到剪贴板历史中";
-        btnClearAll.ToolTip = GetClearActionText();
+        btnClearAll.ToolTip = GetClearButtonTooltip();
     }
 
     private bool MatchesSearch(ClipboardItem item)
@@ -169,36 +169,28 @@ public partial class ClipboardPanel : Window
         tabImage.Tag = _tab == Tab.Image ? "on" : null;
         tabFile.Tag = _tab == Tab.File ? "on" : null;
         tabFavorite.Tag = _tab == Tab.Favorite ? "on" : null;
-        btnClearAll.ToolTip = GetClearActionText();
+        btnClearAll.ToolTip = GetClearButtonTooltip();
         UpdateTabSlider();
     }
 
     private void UpdateTabSlider()
     {
-        var target = _tab switch
+        var selectedButton = _tab switch
         {
-            Tab.Text => TabSegmentWidth,
-            Tab.Image => TabSegmentWidth * 2,
-            Tab.File => TabSegmentWidth * 3,
-            Tab.Favorite => TabSegmentWidth * 4,
-            _ => 0d
+            Tab.Text => tabText,
+            Tab.Image => tabImage,
+            Tab.File => tabFile,
+            Tab.Favorite => tabFavorite,
+            _ => tabAll
         };
-
-        if (!IsLoaded)
-        {
-            tabSliderTransform.X = target;
-            return;
-        }
-
-        var animation = new DoubleAnimationUsingKeyFrames
-        {
-            Duration = TimeSpan.FromMilliseconds(220)
-        };
-        animation.KeyFrames.Add(new SplineDoubleKeyFrame(
+        var target = selectedButton.TranslatePoint(new System.Windows.Point(0, 0), tabSegmentGrid).X;
+        SegmentedSliderMotion.MoveTo(
+            tabSlider,
+            tabSliderTransform,
+            tabSliderScale,
             target,
-            KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(220)),
-            new KeySpline(0.2, 0.8, 0.2, 1.0)));
-        tabSliderTransform.BeginAnimation(TranslateTransform.XProperty, animation);
+            selectedButton.ActualWidth,
+            IsLoaded);
     }
 
     // 单击复制不关闭;双击复制、关闭面板并尝试粘贴到原前台文本框
@@ -260,9 +252,11 @@ public partial class ClipboardPanel : Window
         var id = IdFromMenu(sender);
         if (id != null)
         {
+            var item = _allRaw.FirstOrDefault(i => i.Id == id);
             _manager.Delete(id);
             _vmCache.Remove(id);
             LoadRecent();
+            ToastNotification.Show("已删除剪贴板记录", item == null ? "" : $"已删除{GetItemKindText(item)}记录");
         }
     }
 
@@ -312,16 +306,15 @@ public partial class ClipboardPanel : Window
     {
         if (_tab == Tab.Favorite)
         {
-            ToastNotification.Show("收藏只能右键删除", type: ToastNotification.ToastType.Info);
+            ToastNotification.Show("收藏需逐条删除", "请在收藏条目上右键选择删除。", ToastNotification.ToastType.Info);
             return;
         }
 
-        var action = GetClearActionText();
         var confirmed = ConfirmDialog.Show(
             this,
-            action,
-            $"确定{action}吗？收藏条目会保留，只能右键删除。",
-            "清空",
+            GetClearConfirmTitle(),
+            GetClearConfirmMessage(),
+            _tab == Tab.All ? "清空全部" : "清空分类",
             "取消");
 
         if (confirmed)
@@ -343,7 +336,7 @@ public partial class ClipboardPanel : Window
             }
 
             LoadRecent();
-            ToastNotification.Show("已清理");
+            ToastNotification.Show(GetClearSuccessTitle(), GetClearSuccessMessage());
         }
     }
 
@@ -354,8 +347,60 @@ public partial class ClipboardPanel : Window
             Tab.Text => "清空文本",
             Tab.Image => "清空图像",
             Tab.File => "清空文件",
-            Tab.Favorite => "清空收藏",
+            Tab.Favorite => "收藏需逐条删除",
             _ => "清空全部"
+        };
+    }
+
+    private string GetClearButtonTooltip()
+    {
+        return _tab == Tab.Favorite
+            ? "收藏条目请右键逐条删除"
+            : GetClearActionText();
+    }
+
+    private string GetClearConfirmTitle()
+    {
+        return _tab == Tab.All ? "清空全部剪贴板历史" : $"清空{GetCurrentCategoryName()}分类";
+    }
+
+    private string GetClearConfirmMessage()
+    {
+        return _tab == Tab.All
+            ? "将删除全部非收藏剪贴板记录。收藏条目会保留，如需删除收藏，请在条目右键菜单中删除。"
+            : $"将删除{GetCurrentCategoryName()}分类中的非收藏记录。其他分类和收藏条目会保留。";
+    }
+
+    private string GetClearSuccessTitle()
+    {
+        return _tab == Tab.All ? "已清空全部" : $"已清空{GetCurrentCategoryName()}分类";
+    }
+
+    private string GetClearSuccessMessage()
+    {
+        return _tab == Tab.All
+            ? "已删除全部非收藏剪贴板记录。"
+            : $"已删除{GetCurrentCategoryName()}分类中的非收藏记录。";
+    }
+
+    private string GetCurrentCategoryName()
+    {
+        return _tab switch
+        {
+            Tab.Text => "文本",
+            Tab.Image => "图像",
+            Tab.File => "文件",
+            _ => "全部"
+        };
+    }
+
+    private static string GetItemKindText(ClipboardItem item)
+    {
+        return item.Type switch
+        {
+            ClipboardItemType.Image => "图像",
+            ClipboardItemType.File => "文件",
+            _ => "文本"
         };
     }
 

@@ -60,7 +60,7 @@ public class TranslationManagerTests
     public void PackBlocks_OpenAi_IncludesInstructionLine()
     {
         var packed = TranslationManager.PackBlocks(new[] { "x" }, TranslationProvider.OpenAI);
-        Assert.Contains("<<<STOOL_001>>>", packed);
+        Assert.Contains("[[STOOL-001]]", packed);
         Assert.Contains("Translate each marked item", packed);
     }
 
@@ -68,7 +68,7 @@ public class TranslationManagerTests
     public void PackBlocks_Tencent_OmitsInstructionLine()
     {
         var packed = TranslationManager.PackBlocks(new[] { "x" }, TranslationProvider.Tencent);
-        Assert.Contains("<<<STOOL_001>>>", packed);
+        Assert.Contains("[[STOOL-001]]", packed);
         Assert.DoesNotContain("Translate each marked item", packed);
     }
 
@@ -121,5 +121,26 @@ public class TranslationManagerTests
     {
         var text = "<<<STOOL_001>>> A\n<<<STOOL_002>>>   ";
         Assert.Null(TranslationManager.TryUnpackBlocks(text, 2));
+    }
+
+    [Fact]
+    public void TryUnpackBlocks_HtmlEncodedLegacyMarkers_AreDecoded()
+    {
+        var text = "&lt;&lt;&lt;STOOL_001&gt;&gt;&gt; A\n&amp;lt;&amp;lt;&amp;lt;STOOL_002&amp;gt;&amp;gt;&amp;gt; B";
+
+        var unpacked = TranslationManager.TryUnpackBlocks(text, 2);
+
+        Assert.NotNull(unpacked);
+        Assert.Equal(new[] { "A", "B" }, unpacked);
+    }
+
+    [Fact]
+    public void TryUnpackBlocks_LooseLines_StripsMarkers()
+    {
+        var text = "[[STOOL-001]] A\n[[STOOL-002]] B";
+
+        var unpacked = TranslationManager.TryUnpackBlocks(text, 2);
+
+        Assert.Equal(new[] { "A", "B" }, unpacked);
     }
 }

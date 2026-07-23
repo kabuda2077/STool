@@ -18,8 +18,10 @@
         </Grid.ColumnDefinitions>
 
         <Border Grid.Column="0"
-                Background="{StaticResource SurfaceBrush}"
-                Padding="10,44,10,12">
+                Background="{StaticResource SettingsSidebarBrush}"
+                BorderBrush="{StaticResource SettingsSectionBorderBrush}"
+                BorderThickness="0,0,0.5,0"
+                Padding="8,56,8,16">
             <StackPanel>
                 <Button x:Name="btnGeneralSettings"
                         Click="BtnGeneralSettings_Click"
@@ -29,22 +31,31 @@
                 <Button x:Name="btnOcrSettings"
                         Click="BtnOcrSettings_Click"
                         Style="{StaticResource NavigationButton}"
-                        Margin="0,2,0,0"
+                        Margin="0,6,0,0"
                         Content="OCR"/>
 
                 <Button x:Name="btnTranslationSettings"
                         Click="BtnTranslationSettings_Click"
                         Style="{StaticResource NavigationButton}"
-                        Margin="0,2,0,0"
+                        Margin="0,6,0,0"
                         Content="翻译"/>
             </StackPanel>
         </Border>
 
         <Border Grid.Column="1"
-                Background="{StaticResource SurfaceAltBrush}">
+                Background="{StaticResource SettingsContentBrush}">
             <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="58"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Border BorderBrush="{StaticResource SettingsSectionBorderBrush}"
+                        BorderThickness="0"/>
+
                 <ScrollViewer x:Name="contentScroll"
-                              Margin="0,46,0,0"
+                              Grid.Row="1"
+                              Margin="0"
                               VerticalScrollBarVisibility="Hidden"
                               Background="{StaticResource TransparentBrush}"
                               FocusVisualStyle="{x:Null}"
@@ -58,10 +69,11 @@
                 </ScrollViewer>
 
                 <ScrollBar x:Name="contentScrollBar"
+                           Grid.Row="1"
                            Orientation="Vertical"
                            Width="6"
                            MinWidth="6"
-                           Margin="0,48,2,4"
+                           Margin="0,4,2,4"
                            HorizontalAlignment="Right"
                            VerticalAlignment="Stretch"
                            Visibility="Collapsed"

@@ -58,8 +58,12 @@
                                Style="{StaticResource HintText}"
                                Margin="0,0,0,12"/>
 
-                    <UniformGrid Columns="3"
+                    <UniformGrid Columns="4"
                                  Margin="0,0,0,14">
+                        <Button Content="左右"
+                                Style="{StaticResource SecondaryButton}"
+                                Margin="0,0,6,0"
+                                Click="BlendPreset_Click"/>
                         <Button Content="紧凑"
                                 Style="{StaticResource SecondaryButton}"
                                 Margin="0,0,6,0"

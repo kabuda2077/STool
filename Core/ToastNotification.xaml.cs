@@ -45,19 +45,29 @@ namespace STool.Core
                 Top = workArea.Bottom - ActualHeight - 44;
             }
 
+            if (MotionSettings.ShouldReduceMotion)
+            {
+                rootBorder.Opacity = 1;
+                if (rootBorder.RenderTransform is TranslateTransform transform)
+                {
+                    transform.Y = 0;
+                }
+                return;
+            }
+
             // Entry animation (Fade-In + Slide-Up)
             var sb = new System.Windows.Media.Animation.Storyboard();
             
-            var fadeIn = new System.Windows.Media.Animation.DoubleAnimation(0, 1, TimeSpan.FromMilliseconds(200))
+            var fadeIn = new System.Windows.Media.Animation.DoubleAnimation(0, 1, MotionSettings.EnterDuration)
             {
-                EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
+                EasingFunction = MotionSettings.EaseOut
             };
             System.Windows.Media.Animation.Storyboard.SetTarget(fadeIn, rootBorder);
             System.Windows.Media.Animation.Storyboard.SetTargetProperty(fadeIn, new PropertyPath(UIElement.OpacityProperty));
             
-            var slideUp = new System.Windows.Media.Animation.DoubleAnimation(20, 0, TimeSpan.FromMilliseconds(200))
+            var slideUp = new System.Windows.Media.Animation.DoubleAnimation(20, 0, MotionSettings.EnterDuration)
             {
-                EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
+                EasingFunction = MotionSettings.EaseOut
             };
             System.Windows.Media.Animation.Storyboard.SetTarget(slideUp, rootBorder);
             System.Windows.Media.Animation.Storyboard.SetTargetProperty(slideUp, new PropertyPath("(UIElement.RenderTransform).(TranslateTransform.Y)"));
@@ -79,18 +89,24 @@ namespace STool.Core
                 _timer = null;
             }
 
+            if (MotionSettings.ShouldReduceMotion)
+            {
+                base.Close();
+                return;
+            }
+
             var sb = new System.Windows.Media.Animation.Storyboard();
 
-            var fadeOut = new System.Windows.Media.Animation.DoubleAnimation(rootBorder.Opacity, 0, TimeSpan.FromMilliseconds(150))
+            var fadeOut = new System.Windows.Media.Animation.DoubleAnimation(rootBorder.Opacity, 0, MotionSettings.ExitDuration)
             {
-                EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn }
+                EasingFunction = MotionSettings.EaseIn
             };
             System.Windows.Media.Animation.Storyboard.SetTarget(fadeOut, rootBorder);
             System.Windows.Media.Animation.Storyboard.SetTargetProperty(fadeOut, new PropertyPath(UIElement.OpacityProperty));
 
-            var slideUpFurther = new System.Windows.Media.Animation.DoubleAnimation(0, -15, TimeSpan.FromMilliseconds(150))
+            var slideUpFurther = new System.Windows.Media.Animation.DoubleAnimation(0, -15, MotionSettings.ExitDuration)
             {
-                EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn }
+                EasingFunction = MotionSettings.EaseIn
             };
             System.Windows.Media.Animation.Storyboard.SetTarget(slideUpFurther, rootBorder);
             System.Windows.Media.Animation.Storyboard.SetTargetProperty(slideUpFurther, new PropertyPath("(UIElement.RenderTransform).(TranslateTransform.Y)"));

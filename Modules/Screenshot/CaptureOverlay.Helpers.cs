@@ -53,12 +53,6 @@ public partial class CaptureOverlay
         if (mosaicAnnotations.Count > 0)
             ApplyMosaicAnnotations(crop, mosaicAnnotations);
 
-        if (hasBlockTranslation && _translationRenderBlocks.Count > 0)
-        {
-            ApplyTranslationRenderBlocks(crop, _translationRenderBlocks);
-            hasBlockTranslation = false;
-        }
-
         // 合成标注层
         var baseSource = ToBitmapSource(crop);
         var rtb = new RenderTargetBitmap(pw, ph, 96, 96, PixelFormats.Pbgra32);

@@ -139,6 +139,16 @@
                             <Setter TargetName="PART_TitleText" Property="FontSize" Value="{StaticResource FontSizeTitle}"/>
                             <Setter TargetName="PART_TitleText" Property="Margin" Value="18,2,140,0"/>
                             <Setter TargetName="PART_CaptionButtons" Property="Margin" Value="0,10,10,12"/>
+                            <Setter TargetName="PART_TitleText" Property="RenderTransform">
+                                <Setter.Value>
+                                    <TranslateTransform Y="-3"/>
+                                </Setter.Value>
+                            </Setter>
+                            <Setter TargetName="PART_CaptionButtons" Property="RenderTransform">
+                                <Setter.Value>
+                                    <TranslateTransform Y="-3"/>
+                                </Setter.Value>
+                            </Setter>
                         </Trigger>
                         <!-- 最大化时去掉 1px 外边框(WindowChrome 会自动将最大化尺寸约束到工作区) -->
                         <Trigger Property="WindowState" Value="Maximized">
@@ -189,7 +199,7 @@
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
         <Setter Property="BorderThickness" Value="0"/>
         <Setter Property="Padding" Value="0"/>
-        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeContent}"/>
         <Setter Property="CaretBrush" Value="{StaticResource PrimaryBrush}"/>
         <Setter Property="SelectionBrush" Value="{StaticResource PrimaryBrush}"/>
         <Setter Property="SelectionOpacity" Value="0.35"/>
@@ -205,15 +215,15 @@
         </Setter>
     </Style>
 
-    <!-- Settings pages use flatter sections than floating tool panels. -->
+    <!-- Settings pages use quiet bordered sections for a flatter, more precise surface. -->
     <Style x:Key="SettingsFlatSection" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-        <Setter Property="BorderThickness" Value="0"/>
-        <Setter Property="CornerRadius" Value="8"/>
-        <Setter Property="Padding" Value="14"/>
-        <Setter Property="Margin" Value="0,0,0,12"/>
-        <Setter Property="Effect" Value="{StaticResource PaneShadow}"/>
+        <Setter Property="Background" Value="{StaticResource SettingsSectionBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource SettingsSectionBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0.5"/>
+        <Setter Property="CornerRadius" Value="14"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Margin" Value="0"/>
+        <Setter Property="Effect" Value="{x:Null}"/>
     </Style>
 
     <Style x:Key="SettingsPageTitle" TargetType="TextBlock">
@@ -224,10 +234,10 @@
     </Style>
 
     <Style x:Key="SettingsGroupTitle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="{StaticResource FontSizeSubtitle}"/>
-        <Setter Property="FontWeight" Value="{StaticResource FontWeightStrong}"/>
-        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-        <Setter Property="Margin" Value="0,0,0,10"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightNormal}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="Margin" Value="0,0,0,8"/>
     </Style>
 
     <!-- 表单字段标签:Caption 字号,次要色,用于输入框/下拉框前的字段名 -->
@@ -250,14 +260,19 @@
                         <ToggleButton IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
                                       Content="{TemplateBinding Header}"
                                       Cursor="Hand"
-                                      Focusable="False"
+                                      Focusable="True"
                                       HorizontalAlignment="Stretch"
                                       HorizontalContentAlignment="Stretch"
-                                      FocusVisualStyle="{x:Null}">
+                                      FocusVisualStyle="{StaticResource ModernFocusVisual}">
                             <ToggleButton.Template>
                                 <ControlTemplate TargetType="ToggleButton">
-                                    <Border Margin="-8">
-                                        <Border x:Name="HeaderBg" Background="{StaticResource TransparentBrush}" CornerRadius="8" Padding="12">
+                                    <Border x:Name="HeaderBg"
+                                            Background="{StaticResource TransparentBrush}"
+                                            BorderBrush="{StaticResource SettingsSectionBorderBrush}"
+                                            BorderThickness="0"
+                                            CornerRadius="14"
+                                            MinHeight="50"
+                                            Padding="20,0,12,0">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
@@ -279,7 +294,6 @@
                                                   Stretch="Uniform"
                                                   HorizontalAlignment="Center"
                                                   VerticalAlignment="Center"
-                                                  Margin="0"
                                                   RenderTransformOrigin="0.5,0.5">
                                                 <Path.RenderTransform>
                                                     <RotateTransform Angle="0"/>
@@ -287,10 +301,12 @@
                                             </Path>
                                         </Grid>
                                     </Border>
-                                    </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="HeaderBg" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+                                            <Setter TargetName="HeaderBg" Property="Background" Value="{StaticResource SettingsItemHoverBrush}"/>
+                                        </Trigger>
+                                        <Trigger Property="IsKeyboardFocused" Value="True">
+                                            <Setter TargetName="HeaderBg" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
                                         </Trigger>
                                         <Trigger Property="IsChecked" Value="True">
                                             <Setter TargetName="Chevron" Property="RenderTransform">
@@ -309,7 +325,7 @@
                             <Border.LayoutTransform>
                                 <ScaleTransform ScaleY="0"/>
                             </Border.LayoutTransform>
-                            <ContentPresenter Margin="0,12,0,0"/>
+                            <ContentPresenter Margin="0,0,0,10"/>
                         </Border>
                     </StackPanel>
                     <ControlTemplate.Triggers>
@@ -320,7 +336,7 @@
                                         <DoubleAnimation Storyboard.TargetName="ExpandSite"
                                                          Storyboard.TargetProperty="(FrameworkElement.LayoutTransform).(ScaleTransform.ScaleY)"
                                                          To="1"
-                                                         Duration="0:0:0.2">
+                                                         Duration="{core:MotionDuration State}">
                                             <DoubleAnimation.EasingFunction>
                                                 <CubicEase EasingMode="EaseOut"/>
                                             </DoubleAnimation.EasingFunction>
@@ -334,7 +350,7 @@
                                         <DoubleAnimation Storyboard.TargetName="ExpandSite"
                                                          Storyboard.TargetProperty="(FrameworkElement.LayoutTransform).(ScaleTransform.ScaleY)"
                                                          To="0"
-                                                         Duration="0:0:0.15">
+                                                         Duration="{core:MotionDuration Exit}">
                                             <DoubleAnimation.EasingFunction>
                                                 <CubicEase EasingMode="EaseIn"/>
                                             </DoubleAnimation.EasingFunction>

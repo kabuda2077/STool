@@ -16,25 +16,36 @@ public partial class ConfirmDialog : Window
 
     private void ConfirmDialog_Loaded(object sender, RoutedEventArgs e)
     {
+        if (MotionSettings.ShouldReduceMotion)
+        {
+            dialogBorder.Opacity = 1;
+            if (dialogBorder.RenderTransform is System.Windows.Media.ScaleTransform transform)
+            {
+                transform.ScaleX = 1;
+                transform.ScaleY = 1;
+            }
+            return;
+        }
+
         var sb = new System.Windows.Media.Animation.Storyboard();
 
-        var fadeIn = new System.Windows.Media.Animation.DoubleAnimation(0, 1, System.TimeSpan.FromMilliseconds(200))
+        var fadeIn = new System.Windows.Media.Animation.DoubleAnimation(0, 1, MotionSettings.EnterDuration)
         {
-            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
+            EasingFunction = MotionSettings.EaseOut
         };
         System.Windows.Media.Animation.Storyboard.SetTarget(fadeIn, dialogBorder);
         System.Windows.Media.Animation.Storyboard.SetTargetProperty(fadeIn, new PropertyPath(UIElement.OpacityProperty));
 
-        var scaleX = new System.Windows.Media.Animation.DoubleAnimation(0.95, 1.0, System.TimeSpan.FromMilliseconds(200))
+        var scaleX = new System.Windows.Media.Animation.DoubleAnimation(0.95, 1.0, MotionSettings.EnterDuration)
         {
-            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
+            EasingFunction = MotionSettings.EaseOut
         };
         System.Windows.Media.Animation.Storyboard.SetTarget(scaleX, dialogBorder);
         System.Windows.Media.Animation.Storyboard.SetTargetProperty(scaleX, new PropertyPath("(UIElement.RenderTransform).(ScaleTransform.ScaleX)"));
 
-        var scaleY = new System.Windows.Media.Animation.DoubleAnimation(0.95, 1.0, System.TimeSpan.FromMilliseconds(200))
+        var scaleY = new System.Windows.Media.Animation.DoubleAnimation(0.95, 1.0, MotionSettings.EnterDuration)
         {
-            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseOut }
+            EasingFunction = MotionSettings.EaseOut
         };
         System.Windows.Media.Animation.Storyboard.SetTarget(scaleY, dialogBorder);
         System.Windows.Media.Animation.Storyboard.SetTargetProperty(scaleY, new PropertyPath("(UIElement.RenderTransform).(ScaleTransform.ScaleY)"));
@@ -61,25 +72,31 @@ public partial class ConfirmDialog : Window
         if (_isClosing) return;
         _isClosing = true;
 
+        if (MotionSettings.ShouldReduceMotion)
+        {
+            DialogResult = result;
+            return;
+        }
+
         var sb = new System.Windows.Media.Animation.Storyboard();
 
-        var fadeOut = new System.Windows.Media.Animation.DoubleAnimation(dialogBorder.Opacity, 0, System.TimeSpan.FromMilliseconds(150))
+        var fadeOut = new System.Windows.Media.Animation.DoubleAnimation(dialogBorder.Opacity, 0, MotionSettings.ExitDuration)
         {
-            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn }
+            EasingFunction = MotionSettings.EaseIn
         };
         System.Windows.Media.Animation.Storyboard.SetTarget(fadeOut, dialogBorder);
         System.Windows.Media.Animation.Storyboard.SetTargetProperty(fadeOut, new PropertyPath(UIElement.OpacityProperty));
 
-        var scaleX = new System.Windows.Media.Animation.DoubleAnimation(1.0, 0.95, System.TimeSpan.FromMilliseconds(150))
+        var scaleX = new System.Windows.Media.Animation.DoubleAnimation(1.0, 0.95, MotionSettings.ExitDuration)
         {
-            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn }
+            EasingFunction = MotionSettings.EaseIn
         };
         System.Windows.Media.Animation.Storyboard.SetTarget(scaleX, dialogBorder);
         System.Windows.Media.Animation.Storyboard.SetTargetProperty(scaleX, new PropertyPath("(UIElement.RenderTransform).(ScaleTransform.ScaleX)"));
 
-        var scaleY = new System.Windows.Media.Animation.DoubleAnimation(1.0, 0.95, System.TimeSpan.FromMilliseconds(150))
+        var scaleY = new System.Windows.Media.Animation.DoubleAnimation(1.0, 0.95, MotionSettings.ExitDuration)
         {
-            EasingFunction = new System.Windows.Media.Animation.CubicEase { EasingMode = System.Windows.Media.Animation.EasingMode.EaseIn }
+            EasingFunction = MotionSettings.EaseIn
         };
         System.Windows.Media.Animation.Storyboard.SetTarget(scaleY, dialogBorder);
         System.Windows.Media.Animation.Storyboard.SetTargetProperty(scaleY, new PropertyPath("(UIElement.RenderTransform).(ScaleTransform.ScaleY)"));

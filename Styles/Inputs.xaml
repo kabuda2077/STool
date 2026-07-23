@@ -14,6 +14,8 @@
         <Setter Property="BorderThickness" Value="1"/>
         <Setter Property="Padding" Value="5,4"/>
         <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+        <Setter Property="TextAlignment" Value="Left"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="CaretBrush" Value="{StaticResource PrimaryBrush}"/>
         <Setter Property="SelectionBrush" Value="{StaticResource PrimaryBrush}"/>
@@ -55,6 +57,7 @@
         <Setter Property="Padding" Value="5,4"/>
         <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
         <Setter Property="MinHeight" Value="32"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
         <Setter Property="VerticalContentAlignment" Value="Center"/>
         <Setter Property="CaretBrush" Value="{StaticResource PrimaryBrush}"/>
         <Setter Property="SelectionBrush" Value="{StaticResource PrimaryBrush}"/>
@@ -151,6 +154,7 @@
         <Setter Property="Padding" Value="10,6"/>
         <Setter Property="MinHeight" Value="32"/>
         <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+        <Setter Property="HorizontalContentAlignment" Value="Left"/>
         <Setter Property="SnapsToDevicePixels" Value="True"/>
         <Setter Property="Template">
             <Setter.Value>
@@ -170,7 +174,7 @@
                                           Content="{TemplateBinding SelectionBoxItem}"
                                           ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
                                           ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
-                                          Margin="8,0,32,0"
+                                          Margin="12,0,32,0"
                                           VerticalAlignment="Center"
                                           HorizontalAlignment="Left"/>
 
@@ -180,8 +184,9 @@
                                  Foreground="{TemplateBinding Foreground}"
                                  BorderThickness="0"
                                  Padding="0"
-                                 Margin="8,0,32,0"
+                                 Margin="12,0,32,0"
                                  HorizontalAlignment="Stretch"
+                                 TextAlignment="Left"
                                  VerticalAlignment="Center"
                                  VerticalContentAlignment="Center"
                                  IsReadOnly="{TemplateBinding IsReadOnly}"
@@ -234,23 +239,50 @@
 
     <Style x:Key="ModernComboBox" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}"/>
 
-    <!-- ===== 无框"凹陷"输入(色块分层方向:灰填充 + 悬停 + 聚焦环,无静止边框)===== -->
+    <!-- ===== 精简输入:柔灰填充 + 细边界 + 聚焦环，降低大面积灰块的重量 ===== -->
     <Style x:Key="SunkenTextBox" TargetType="TextBox" BasedOn="{StaticResource ModernTextBox}">
-        <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
-        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Background" Value="{StaticResource SettingsInputBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource SettingsSectionBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0.5"/>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
                 <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
             </Trigger>
         </Style.Triggers>
     </Style>
 
     <Style x:Key="HotkeyTextBox" TargetType="core:HotkeyBox" BasedOn="{StaticResource ModernTextBox}">
-        <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Background" Value="{StaticResource SettingsInputBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource SettingsSectionBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0.5"/>
         <Setter Property="SelectionBrush" Value="{StaticResource PrimaryBrush}"/>
         <Setter Property="SelectionOpacity" Value="0.18"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="core:HotkeyBox">
+                    <Border x:Name="Root"
+                            Background="{TemplateBinding Background}"
+                            BorderBrush="{TemplateBinding BorderBrush}"
+                            BorderThickness="{TemplateBinding BorderThickness}"
+                            CornerRadius="{StaticResource CornerRadiusMedium}">
+                        <ScrollViewer x:Name="PART_ContentHost"
+                                      Margin="{TemplateBinding Padding}"
+                                      VerticalAlignment="{TemplateBinding VerticalContentAlignment}"/>
+                    </Border>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource PrimarySoftBrush}"/>
+                        </Trigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
                 <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
@@ -258,26 +290,33 @@
             <Trigger Property="IsKeyboardFocused" Value="True">
                 <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
                 <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
-                <Setter Property="BorderThickness" Value="1"/>
             </Trigger>
         </Style.Triggers>
     </Style>
 
     <Style x:Key="SunkenPasswordBox" TargetType="PasswordBox" BasedOn="{StaticResource {x:Type PasswordBox}}">
-        <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
-        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Background" Value="{StaticResource SettingsInputBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource SettingsSectionBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0.5"/>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
                 <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
             </Trigger>
         </Style.Triggers>
     </Style>
 
     <Style x:Key="SunkenComboBox" TargetType="ComboBox" BasedOn="{StaticResource {x:Type ComboBox}}">
-        <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
-        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Background" Value="{StaticResource SettingsInputBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource SettingsSectionBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0.5"/>
         <Style.Triggers>
             <Trigger Property="IsMouseOver" Value="True">
+                <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+            </Trigger>
+            <Trigger Property="IsKeyboardFocused" Value="True">
                 <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
             </Trigger>
         </Style.Triggers>

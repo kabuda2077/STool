@@ -4,8 +4,8 @@ using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
-using System.Windows.Media.Animation;
 using System.Windows.Threading;
+using STool.Core;
 using STool.Models;
 
 namespace STool.Modules.Translation;
@@ -30,6 +30,7 @@ public partial class TranslationPanel : Window
         LoadTranslationMode();
         UpdateProviderButtons();
         Loaded += TranslationPanel_Loaded;
+        providerSegmentGrid.SizeChanged += (_, _) => UpdateProviderSlider();
 
         // 回车翻译;Shift+Enter 换行
         txtSource.PreviewKeyDown += (_, e) =>
@@ -44,6 +45,7 @@ public partial class TranslationPanel : Window
 
     private void TranslationPanel_Loaded(object sender, RoutedEventArgs e)
     {
+        UpdateProviderSlider();
         Dispatcher.BeginInvoke(new Action(() =>
         {
             Activate();
@@ -79,28 +81,20 @@ public partial class TranslationPanel : Window
 
     private void UpdateProviderSlider()
     {
-        var target = _provider switch
+        var selectedButton = _provider switch
         {
-            TranslationProvider.Tencent => 82d,
-            TranslationProvider.OpenAI => 164d,
-            _ => 0d
+            TranslationProvider.Tencent => btnProviderTencent,
+            TranslationProvider.OpenAI => btnProviderAi,
+            _ => btnProviderGoogle
         };
-
-        if (!IsLoaded)
-        {
-            providerSliderTransform.X = target;
-            return;
-        }
-
-        var animation = new DoubleAnimationUsingKeyFrames
-        {
-            Duration = TimeSpan.FromMilliseconds(220)
-        };
-        animation.KeyFrames.Add(new SplineDoubleKeyFrame(
+        var target = selectedButton.TranslatePoint(new System.Windows.Point(0, 0), providerSegmentGrid).X;
+        SegmentedSliderMotion.MoveTo(
+            providerSlider,
+            providerSliderTransform,
+            providerSliderScale,
             target,
-            KeyTime.FromTimeSpan(TimeSpan.FromMilliseconds(220)),
-            new KeySpline(0.2, 0.8, 0.2, 1.0)));
-        providerSliderTransform.BeginAnimation(System.Windows.Media.TranslateTransform.XProperty, animation);
+            selectedButton.ActualWidth,
+            IsLoaded);
     }
 
     private void LoadTranslationMode()

@@ -12,6 +12,7 @@ namespace STool.Views.Settings;
 public class TranslationSettingsPanel : StackPanel
 {
     private readonly ConfigManager _configManager;
+    private SettingsAutoSaveController _autoSave = null!;
     private System.Windows.Controls.ComboBox _cmbProvider = null!;
     private System.Windows.Controls.ComboBox _cmbTranslationMode = null!;
     private System.Windows.Controls.ComboBox _cmbScreenshotMode = null!;
@@ -27,6 +28,7 @@ public class TranslationSettingsPanel : StackPanel
     // AI
     private System.Windows.Controls.ComboBox _cmbAiPlatform = null!;
     private System.Windows.Controls.TextBox _txtAiApiUrl = null!;
+    private TextBlock _txtAiApiUrlHint = null!;
     private SecurePasswordField _pwdAiApiKey = null!;
     private System.Windows.Controls.ComboBox _cmbAiModel = null!;
 
@@ -35,6 +37,7 @@ public class TranslationSettingsPanel : StackPanel
         _configManager = configManager;
         InitializeUI();
         LoadSettings();
+        EnableAutoSave();
     }
 
     private void InitializeUI()
@@ -42,40 +45,30 @@ public class TranslationSettingsPanel : StackPanel
         Margin = new Thickness(0);
 
         // ── 翻译提供商 ──
-        var providerSection = new StackPanel();
-        providerSection.Children.Add(new TextBlock
-        {
-            Text = "翻译提供商",
-            Style = (Style)FindResource("SettingsGroupTitle")
-        });
+        var providerSection = SettingsLayout.CreateSectionContent("翻译提供商");
         _cmbProvider = SettingsLayout.CreateComboBox();
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "谷歌翻译", Tag = TranslationProvider.Google });
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "腾讯云翻译", Tag = TranslationProvider.Tencent });
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "AI 翻译", Tag = TranslationProvider.OpenAI });
         _cmbProvider.SelectionChanged += CmbProvider_SelectionChanged;
-        providerSection.Children.Add(SettingsLayout.CreateInlineField("当前引擎", _cmbProvider));
+        providerSection.Children.Add(SettingsLayout.CreateInlineField("当前引擎", _cmbProvider, isLast: true));
         Children.Add(WrapSection(providerSection));
 
         // ── 默认策略 ──
-        var strategySection = new StackPanel();
-        strategySection.Children.Add(new TextBlock
-        {
-            Text = "默认策略",
-            Style = (Style)FindResource("SettingsGroupTitle")
-        });
+        var strategySection = SettingsLayout.CreateSectionContent("默认策略");
 
         _cmbTranslationMode = SettingsLayout.CreateComboBox();
-        _cmbTranslationMode.Items.Add(CreateLanguageModeItem("中文", "IconArrowLeftRight", "英文", "zh-en"));
-        _cmbTranslationMode.Items.Add(CreateLanguageModeItem("自动", "IconArrowRight", "中文", "auto-zh"));
-        _cmbTranslationMode.Items.Add(CreateLanguageModeItem("自动", "IconArrowRight", "英文", "auto-en"));
-        _cmbTranslationMode.Items.Add(CreateLanguageModeItem("自动", "IconArrowRight", "日文", "auto-ja"));
-        _cmbTranslationMode.Items.Add(CreateLanguageModeItem("自动", "IconArrowRight", "韩文", "auto-ko"));
+        _cmbTranslationMode.Items.Add(CreateLanguageModeItem("中文", "英文", "zh-en", bidirectional: true));
+        _cmbTranslationMode.Items.Add(CreateLanguageModeItem("自动", "中文", "auto-zh"));
+        _cmbTranslationMode.Items.Add(CreateLanguageModeItem("自动", "英文", "auto-en"));
+        _cmbTranslationMode.Items.Add(CreateLanguageModeItem("自动", "日文", "auto-ja"));
+        _cmbTranslationMode.Items.Add(CreateLanguageModeItem("自动", "韩文", "auto-ko"));
         strategySection.Children.Add(SettingsLayout.CreateInlineField("翻译策略", _cmbTranslationMode));
 
         _cmbScreenshotMode = SettingsLayout.CreateComboBox();
         _cmbScreenshotMode.Items.Add(new ComboBoxItem { Content = "快速：本地规则识别", Tag = ScreenshotTranslationMode.Fast });
         _cmbScreenshotMode.Items.Add(new ComboBoxItem { Content = "智能：AI 识别并翻译", Tag = ScreenshotTranslationMode.Smart });
-        strategySection.Children.Add(SettingsLayout.CreateInlineFieldWithHint("截图翻译", _cmbScreenshotMode, "智能模式使用 AI，失败回退快速模式。"));
+        strategySection.Children.Add(SettingsLayout.CreateInlineFieldWithHint("截图翻译", _cmbScreenshotMode, "智能模式使用 AI，失败回退快速模式。", isLast: true));
         Children.Add(WrapSection(strategySection));
 
         // ── 腾讯云设置(可折叠,行内布局) ──
@@ -86,7 +79,7 @@ public class TranslationSettingsPanel : StackPanel
         tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret ID", _txtTencentSecretId));
 
         _pwdTencentSecretKey = SettingsLayout.CreatePasswordField();
-        tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret Key", _pwdTencentSecretKey));
+        tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret Key", _pwdTencentSecretKey, isLast: true));
 
         Children.Add(tencentCard);
 
@@ -103,85 +96,95 @@ public class TranslationSettingsPanel : StackPanel
         aiContent.Children.Add(SettingsLayout.CreateInlineField("平台", _cmbAiPlatform));
 
         _txtAiApiUrl = SettingsLayout.CreateTextBox();
-        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("API URL", _txtAiApiUrl, "OpenAI 兼容地址，自定义需手动填写。"));
+        _txtAiApiUrlHint = SettingsLayout.CreateHint(string.Empty, inline: false);
+        _txtAiApiUrl.TextChanged += (_, _) => UpdateApiUrlPreview();
+        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("API URL", _txtAiApiUrl, _txtAiApiUrlHint));
 
         _pwdAiApiKey = SettingsLayout.CreatePasswordField();
         aiContent.Children.Add(SettingsLayout.CreateInlineField("API Key", _pwdAiApiKey));
 
         _cmbAiModel = SettingsLayout.CreateEditableComboBox();
-        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", _cmbAiModel, "可获取列表，也可手动输入。"));
+        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", _cmbAiModel, "可获取列表，也可手动输入。", isLast: true));
 
-        var aiActions = new StackPanel
-        {
-            Orientation = System.Windows.Controls.Orientation.Horizontal,
-            Margin = SettingsLayout.ActionRowMargin
-        };
-        var btnFetchModels = new System.Windows.Controls.Button
-        {
-            Content = "获取模型",
-            Style = (Style)FindResource("SecondaryButton"),
-            Padding = new Thickness(14, 7, 14, 7)
-        };
+        var btnFetchModels = SettingsLayout.CreateSecondaryActionButton("获取模型");
         btnFetchModels.Click += BtnFetchModels_Click;
-        var btnTestAi = new System.Windows.Controls.Button
-        {
-            Content = "测试",
-            Style = (Style)FindResource("SecondaryButton"),
-            Padding = new Thickness(14, 7, 14, 7),
-            Margin = new Thickness(SettingsLayout.SpacingSM, 0, 0, 0)
-        };
+        var btnTestAi = SettingsLayout.CreateSecondaryActionButton("测试");
         btnTestAi.Click += BtnTestAi_Click;
-        aiActions.Children.Add(btnFetchModels);
-        aiActions.Children.Add(btnTestAi);
-        aiContent.Children.Add(aiActions);
+        aiContent.Children.Add(SettingsLayout.CreateActionRow(btnFetchModels, btnTestAi));
 
         Children.Add(aiCard);
 
-        // ── 保存按钮 ──
-        var btnSave = SettingsLayout.CreateSaveButton();
-        btnSave.Click += BtnSave_Click;
-        Children.Add(btnSave);
     }
 
-    private ComboBoxItem CreateLanguageModeItem(string source, string iconKey, string target, string tag)
+    private ComboBoxItem CreateLanguageModeItem(string source, string target, string tag, bool bidirectional = false)
     {
         var textBrush = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush");
+        var iconBrush = (System.Windows.Media.Brush)FindResource("TextSecondaryBrush");
+        var iconBackground = (System.Windows.Media.Brush)FindResource("SurfaceAltBrush");
         var transparentBrush = (System.Windows.Media.Brush)FindResource("TransparentBrush");
-        var panel = new StackPanel { Orientation = System.Windows.Controls.Orientation.Horizontal };
-        System.Windows.Documents.TextElement.SetForeground(panel, textBrush);
-        panel.Children.Add(new TextBlock { Text = source });
-        panel.Children.Add(new Viewbox
+
+        var content = new StackPanel
         {
-            Width = 13,
-            Height = 13,
-            Margin = new Thickness(5, 0, 5, 0),
-            VerticalAlignment = VerticalAlignment.Center,
-            Child = new System.Windows.Controls.Canvas
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        content.Children.Add(new TextBlock
+        {
+            Text = source,
+            Foreground = textBrush,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        content.Children.Add(new Border
+        {
+            Width = 22,
+            Height = 22,
+            Margin = new Thickness(7, 0, 7, 0),
+            Background = iconBackground,
+            CornerRadius = new CornerRadius(11),
+            Child = new Viewbox
             {
-                Width = 24,
-                Height = 24,
-                Children =
+                Width = 11,
+                Height = 11,
+                HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Child = new Canvas
                 {
-                    new Path
+                    Width = 24,
+                    Height = 24,
+                    Children =
                     {
-                        Data = (Geometry)FindResource(iconKey),
-                        Stroke = textBrush,
-                        StrokeThickness = 2,
-                        StrokeStartLineCap = PenLineCap.Round,
-                        StrokeEndLineCap = PenLineCap.Round,
-                        StrokeLineJoin = PenLineJoin.Round,
-                        Fill = transparentBrush
+                        new Path
+                        {
+                            Data = (Geometry)FindResource(bidirectional ? "IconArrowLeftRight" : "IconArrowRight"),
+                            Stroke = iconBrush,
+                            StrokeThickness = 1.7,
+                            StrokeStartLineCap = PenLineCap.Round,
+                            StrokeEndLineCap = PenLineCap.Round,
+                            StrokeLineJoin = PenLineJoin.Round,
+                            Fill = transparentBrush
+                        }
                     }
                 }
             }
         });
-        panel.Children.Add(new TextBlock { Text = target });
-
-        return new ComboBoxItem
+        content.Children.Add(new TextBlock
         {
-            Content = panel,
+            Text = target,
+            Foreground = textBrush,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        var accessibleName = bidirectional
+            ? $"{source}和{target}互译"
+            : $"自动识别，译为{target}";
+        var item = new ComboBoxItem
+        {
+            Content = content,
             Tag = tag
         };
+        System.Windows.Automation.AutomationProperties.SetName(item, accessibleName);
+        TextSearch.SetText(item, accessibleName);
+        return item;
     }
 
     private Border WrapSection(StackPanel section)
@@ -236,52 +239,64 @@ public class TranslationSettingsPanel : StackPanel
 
     private async void BtnFetchModels_Click(object sender, RoutedEventArgs e)
     {
-        try
+        if (sender is not System.Windows.Controls.Button button)
+            return;
+
+        await UiBusyState.RunWithBusyStateAsync(button, "获取中...", async () =>
         {
-            var models = await AiTranslationService.FetchModelsAsync(_txtAiApiUrl.Text, _pwdAiApiKey.Password);
-            var currentModel = GetAiModel();
-
-            _cmbAiModel.Items.Clear();
-            foreach (var model in models)
+            try
             {
-                _cmbAiModel.Items.Add(model);
-            }
+                var models = await AiTranslationService.FetchModelsAsync(_txtAiApiUrl.Text, _pwdAiApiKey.Password);
+                var currentModel = GetAiModel();
 
-            if (!string.IsNullOrWhiteSpace(currentModel))
-            {
-                _cmbAiModel.Text = currentModel;
-            }
-            else if (models.Count > 0)
-            {
-                _cmbAiModel.Text = models[0];
-            }
+                _cmbAiModel.Items.Clear();
+                foreach (var model in models)
+                {
+                    _cmbAiModel.Items.Add(model);
+                }
 
-            ToastNotification.Show("模型已获取", $"共 {models.Count} 个模型", ToastNotification.ToastType.Success);
-        }
-        catch (Exception ex)
-        {
-            ToastNotification.Show("获取模型失败", ex.Message, ToastNotification.ToastType.Error);
-        }
+                if (!string.IsNullOrWhiteSpace(currentModel))
+                {
+                    _cmbAiModel.Text = currentModel;
+                }
+                else if (models.Count > 0)
+                {
+                    _cmbAiModel.Text = models[0];
+                }
+
+                ToastNotification.Show("模型已获取", $"共 {models.Count} 个模型", ToastNotification.ToastType.Success);
+            }
+            catch (Exception ex)
+            {
+                ToastNotification.Show("获取模型失败", ex.Message, ToastNotification.ToastType.Error);
+            }
+        });
     }
 
     private async void BtnTestAi_Click(object sender, RoutedEventArgs e)
     {
-        try
+        if (sender is not System.Windows.Controls.Button button)
+            return;
+
+        await UiBusyState.RunWithBusyStateAsync(button, "测试中...", async () =>
         {
-            var result = await AiTranslationService.TestAsync(_txtAiApiUrl.Text, _pwdAiApiKey.Password, GetAiModel());
-            if (result.Success)
+            try
             {
-                ToastNotification.Show("测试成功", result.TranslatedText, ToastNotification.ToastType.Success);
+                var result = await AiTranslationService.TestAsync(_txtAiApiUrl.Text, _pwdAiApiKey.Password, GetAiModel());
+                if (result.Success)
+                {
+                    ToastNotification.Show("测试成功", result.TranslatedText, ToastNotification.ToastType.Success);
+                }
+                else
+                {
+                    ToastNotification.Show("测试失败", result.ErrorMessage ?? "未知错误", ToastNotification.ToastType.Error);
+                }
             }
-            else
+            catch (Exception ex)
             {
-                ToastNotification.Show("测试失败", result.ErrorMessage ?? "未知错误", ToastNotification.ToastType.Error);
+                ToastNotification.Show("测试失败", ex.Message, ToastNotification.ToastType.Error);
             }
-        }
-        catch (Exception ex)
-        {
-            ToastNotification.Show("测试失败", ex.Message, ToastNotification.ToastType.Error);
-        }
+        });
     }
 
     private TranslationAiPlatform GetSelectedAiPlatform()
@@ -363,54 +378,110 @@ public class TranslationSettingsPanel : StackPanel
             _pwdAiApiKey.Password = SecureStorage.Decrypt(config.AiApiKeyEncrypted);
         }
         _cmbAiModel.Text = config.AiModel ?? "";
+        UpdateApiUrlPreview();
     }
 
-    private void BtnSave_Click(object sender, RoutedEventArgs e)
+    private void UpdateApiUrlPreview()
     {
-        SaveSettings();
-    }
+        var apiUrl = _txtAiApiUrl?.Text.Trim() ?? string.Empty;
+        if (string.IsNullOrEmpty(apiUrl))
+        {
+            _txtAiApiUrlHint.Text = "输入域名或完整的 Chat Completions 地址";
+            return;
+        }
 
-    public void SaveSettings()
-    {
         try
         {
-            var config = _configManager.Get();
-
-            config.Translation.Provider = (TranslationProvider)(_cmbProvider.SelectedItem as ComboBoxItem)!.Tag;
-            config.Translation.TranslationMode = (string)(_cmbTranslationMode.SelectedItem as ComboBoxItem)!.Tag;
-            config.Translation.ScreenshotMode = (ScreenshotTranslationMode)(_cmbScreenshotMode.SelectedItem as ComboBoxItem)!.Tag;
-            config.Translation.SourceLanguage = "auto";
-            config.Translation.TargetLanguage = TranslationManager.ResolveTargetLanguage(string.Empty, config.Translation.TranslationMode);
-
-            // 腾讯云（加密保存）
-            if (!string.IsNullOrWhiteSpace(_txtTencentSecretId.Text))
-            {
-                config.Translation.TencentSecretIdEncrypted = SecureStorage.Encrypt(_txtTencentSecretId.Text);
-            }
-            if (!string.IsNullOrWhiteSpace(_pwdTencentSecretKey.Password))
-            {
-                config.Translation.TencentSecretKeyEncrypted = SecureStorage.Encrypt(_pwdTencentSecretKey.Password);
-            }
-
-            // AI（加密保存）
-            config.Translation.AiPlatform = GetSelectedAiPlatform();
-            if (!string.IsNullOrWhiteSpace(_txtAiApiUrl.Text))
-            {
-                config.Translation.AiApiUrlEncrypted = SecureStorage.Encrypt(_txtAiApiUrl.Text);
-            }
-            if (!string.IsNullOrWhiteSpace(_pwdAiApiKey.Password))
-            {
-                config.Translation.AiApiKeyEncrypted = SecureStorage.Encrypt(_pwdAiApiKey.Password);
-            }
-            config.Translation.AiModel = GetAiModel();
-
-            _configManager.Save(config);
-
-            ToastNotification.Show("设置已保存", "翻译设置已更新", ToastNotification.ToastType.Success);
+            _txtAiApiUrlHint.Text = $"实际请求：{AiApiEndpointResolver.ResolvePrimaryChatCompletionUrl(apiUrl)}";
         }
-        catch (Exception ex)
+        catch (InvalidOperationException ex)
         {
-            ToastNotification.Show("保存失败", ex.Message, ToastNotification.ToastType.Error);
+            _txtAiApiUrlHint.Text = ex.Message;
         }
+    }
+
+    private void EnableAutoSave()
+    {
+        _autoSave = new SettingsAutoSaveController(this, SaveSettings);
+        _autoSave.TrackImmediate(_cmbProvider);
+        _autoSave.TrackImmediate(_cmbTranslationMode);
+        _autoSave.TrackImmediate(_cmbScreenshotMode);
+        _autoSave.TrackImmediate(_cmbAiPlatform);
+        _autoSave.TrackDebounced(_txtTencentSecretId);
+        _autoSave.TrackDebounced(_pwdTencentSecretKey);
+        _autoSave.TrackDebounced(_txtAiApiUrl);
+        _autoSave.TrackDebounced(_pwdAiApiKey);
+        _autoSave.TrackDebounced(_cmbAiModel);
+        Children.Add(new Border { Height = 12 });
+    }
+
+    private bool SaveSettings()
+    {
+        var config = _configManager.Get();
+        var provider = (TranslationProvider)(_cmbProvider.SelectedItem as ComboBoxItem)!.Tag;
+        var translationMode = (string)(_cmbTranslationMode.SelectedItem as ComboBoxItem)!.Tag;
+        var screenshotMode = (ScreenshotTranslationMode)(_cmbScreenshotMode.SelectedItem as ComboBoxItem)!.Tag;
+        var aiPlatform = GetSelectedAiPlatform();
+        var tencentSecretId = _txtTencentSecretId.Text.Trim();
+        var tencentSecretKey = _pwdTencentSecretKey.Password.Trim();
+        var aiApiUrl = _txtAiApiUrl.Text.Trim();
+        var aiApiKey = _pwdAiApiKey.Password.Trim();
+        var aiModel = GetAiModel();
+
+        if (config.Translation.Provider == provider &&
+            config.Translation.TranslationMode == translationMode &&
+            config.Translation.ScreenshotMode == screenshotMode &&
+            config.Translation.AiPlatform == aiPlatform &&
+            DecryptOrEmpty(config.Translation.TencentSecretIdEncrypted) == tencentSecretId &&
+            DecryptOrEmpty(config.Translation.TencentSecretKeyEncrypted) == tencentSecretKey &&
+            DecryptOrEmpty(config.Translation.AiApiUrlEncrypted) == aiApiUrl &&
+            DecryptOrEmpty(config.Translation.AiApiKeyEncrypted) == aiApiKey &&
+            (config.Translation.AiModel ?? string.Empty) == aiModel)
+        {
+            return false;
+        }
+
+        config.Translation.Provider = provider;
+        config.Translation.TranslationMode = translationMode;
+        config.Translation.ScreenshotMode = screenshotMode;
+        config.Translation.SourceLanguage = "auto";
+        config.Translation.TargetLanguage = TranslationManager.ResolveTargetLanguage(string.Empty, config.Translation.TranslationMode);
+
+        config.Translation.TencentSecretIdEncrypted = EncryptIfChangedOrClear(
+            tencentSecretId,
+            config.Translation.TencentSecretIdEncrypted);
+        config.Translation.TencentSecretKeyEncrypted = EncryptIfChangedOrClear(
+            tencentSecretKey,
+            config.Translation.TencentSecretKeyEncrypted);
+
+        config.Translation.AiPlatform = aiPlatform;
+        config.Translation.AiApiUrlEncrypted = EncryptIfChangedOrClear(
+            aiApiUrl,
+            config.Translation.AiApiUrlEncrypted);
+        config.Translation.AiApiKeyEncrypted = EncryptIfChangedOrClear(
+            aiApiKey,
+            config.Translation.AiApiKeyEncrypted);
+        config.Translation.AiModel = aiModel;
+
+        _configManager.Save(config);
+        return true;
+    }
+
+    private static string DecryptOrEmpty(string? encrypted)
+    {
+        return string.IsNullOrWhiteSpace(encrypted) ? string.Empty : SecureStorage.Decrypt(encrypted);
+    }
+
+    private static string? EncryptIfChangedOrClear(string value, string? currentEncrypted)
+    {
+        var normalized = value.Trim();
+        if (string.IsNullOrEmpty(normalized))
+        {
+            return null;
+        }
+
+        return SecureStorage.Decrypt(currentEncrypted ?? string.Empty) == normalized
+            ? currentEncrypted
+            : SecureStorage.Encrypt(normalized);
     }
 }

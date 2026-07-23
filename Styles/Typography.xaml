@@ -19,7 +19,13 @@
     <sys:Double x:Key="FontSizeSubtitle">15</sys:Double>
     <sys:Double x:Key="FontSizeBody">12</sys:Double>
     <sys:Double x:Key="FontSizeCaption">12</sys:Double>
+    <sys:Double x:Key="FontSizeContent">13</sys:Double>
     <sys:Double x:Key="FontSizeHint">10.5</sys:Double>
+
+    <!-- ===== Icon sizing ===== -->
+    <sys:Double x:Key="ToolIconSizeSmall">14</sys:Double>
+    <sys:Double x:Key="ToolIconSizeMedium">16</sys:Double>
+    <sys:Double x:Key="ToolIconSizeLarge">18</sys:Double>
 
     <FontWeight x:Key="FontWeightNormal">Normal</FontWeight>
     <FontWeight x:Key="FontWeightStrong">SemiBold</FontWeight>

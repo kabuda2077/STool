@@ -16,17 +16,17 @@ internal sealed class SettingsLayoutMetrics
 {
     public double SpacingXS { get; init; } = 4;
     public double SpacingSM { get; init; } = 8;
-    public double SpacingMD { get; init; } = 6;
-    public double SpacingLG { get; init; } = 14;
-    public double InlineLabelWidth { get; init; } = 84;
-    public double HotkeyLabelWidth { get; init; } = 84;
-    public double InputHeight { get; init; } = 32;
-    public double SectionPadding { get; init; } = 14;
-    public double SectionSpacing { get; init; } = 8;
-    public double SectionBorderThickness { get; init; } = 0;
-    public bool SectionShadow { get; init; } = true;
-    public double ContentHorizontalMargin { get; init; } = 10;
-    public double ContentTopMargin { get; init; } = 2;
+    public double SpacingMD { get; init; } = 8;
+    public double SpacingLG { get; init; } = 16;
+    public double InlineLabelWidth { get; init; } = 112;
+    public double HotkeyLabelWidth { get; init; } = 112;
+    public double InputHeight { get; init; } = 34;
+    public double SectionPadding { get; init; } = 0;
+    public double SectionSpacing { get; init; } = 18;
+    public double SectionBorderThickness { get; init; } = 0.5;
+    public bool SectionShadow { get; init; } = false;
+    public double ContentHorizontalMargin { get; init; } = 24;
+    public double ContentTopMargin { get; init; } = 12;
     public double NavigationButtonVerticalPadding { get; init; } = 10;
 
     public static SettingsLayoutMetrics Default { get; } = new();
@@ -38,6 +38,7 @@ internal sealed class SettingsLayoutMetrics
         double? inputHeight = null,
         double? sectionPadding = null,
         double? sectionSpacing = null,
+        double? sectionBorderThickness = null,
         double? contentHorizontalMargin = null,
         double? contentTopMargin = null,
         double? navigationButtonVerticalPadding = null,
@@ -54,7 +55,7 @@ internal sealed class SettingsLayoutMetrics
             InputHeight = inputHeight ?? InputHeight,
             SectionPadding = sectionPadding ?? SectionPadding,
             SectionSpacing = sectionSpacing ?? SectionSpacing,
-            SectionBorderThickness = SectionBorderThickness,
+            SectionBorderThickness = sectionBorderThickness ?? SectionBorderThickness,
             SectionShadow = sectionShadow ?? SectionShadow,
             ContentHorizontalMargin = contentHorizontalMargin ?? ContentHorizontalMargin,
             ContentTopMargin = contentTopMargin ?? ContentTopMargin,
@@ -91,13 +92,14 @@ internal static class SettingsLayout
     public static double ContentTopMargin => _metrics.ContentTopMargin;
     public static double NavigationButtonVerticalPadding => _metrics.NavigationButtonVerticalPadding;
     public static double InputHintSpacing => 5;
+    public static double FormTextInset => 12;
 
     // ── 常用 Margin ──
-    public static Thickness FieldSpacing => new(0, 0, 0, SpacingMD);
-    public static Thickness HintMargin => new(0, 3, 0, 0);
-    public static Thickness InlineHintMargin => new(InlineLabelWidth, 3, 0, 0);
-    public static Thickness SaveButtonMargin => new(0, SpacingXS, 0, 0);
-    public static Thickness ActionRowMargin => new(InlineLabelWidth, SpacingXS, 0, 0);
+    public static Thickness FieldSpacing => new(24, 0, 24, 0);
+    public static Thickness HintMargin => new(FormTextInset, 3, 0, 0);
+    public static Thickness InlineHintMargin => new(InlineLabelWidth + FormTextInset, 3, 0, 0);
+    public static Thickness SaveButtonMargin => new(0, SpacingSM, 0, 0);
+    public static Thickness ActionRowMargin => new(24 + InlineLabelWidth, SpacingSM, 24, 16);
 
     public static SettingsLayoutMetrics CurrentMetrics => _metrics;
 
@@ -115,10 +117,14 @@ internal static class SettingsLayout
 
     /// <summary>创建 Label(左) + Input(右) 同行布局。</summary>
     public static Grid CreateInlineField(string label, FrameworkElement input,
-        double? labelWidth = null)
+        double? labelWidth = null, bool isLast = false)
     {
         var resolvedLabelWidth = labelWidth ?? InlineLabelWidth;
-        var grid = new Grid { Margin = FieldSpacing };
+        var grid = new Grid
+        {
+            Margin = FieldSpacing,
+            MinHeight = 58
+        };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(resolvedLabelWidth) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
@@ -132,18 +138,31 @@ internal static class SettingsLayout
         Grid.SetColumn(lbl, 0);
         grid.Children.Add(lbl);
 
+        input.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(input, 1);
         grid.Children.Add(input);
 
+        AddRowDivider(grid, isLast);
         return grid;
     }
 
     /// <summary>创建 Label(左) + [Input + Hint](右) 同行布局，使提示紧贴输入框并对其对齐。</summary>
     public static Grid CreateInlineFieldWithHint(string label, FrameworkElement input, string hint,
-        double? labelWidth = null)
+        double? labelWidth = null, bool isLast = false)
+    {
+        return CreateInlineFieldWithHint(label, input, CreateHint(hint, inline: false), labelWidth, isLast);
+    }
+
+    /// <summary>创建可动态更新提示文本的行内字段。</summary>
+    public static Grid CreateInlineFieldWithHint(string label, FrameworkElement input, TextBlock hintBlock,
+        double? labelWidth = null, bool isLast = false)
     {
         var resolvedLabelWidth = labelWidth ?? InlineLabelWidth;
-        var grid = new Grid { Margin = FieldSpacing };
+        var grid = new Grid
+        {
+            Margin = FieldSpacing,
+            MinHeight = 72
+        };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(resolvedLabelWidth) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -153,24 +172,48 @@ internal static class SettingsLayout
         {
             Text = label,
             Style = (Style)Application.Current.FindResource("FieldLabel"),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0)
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 14, 0, 0)
         };
         Grid.SetRow(lbl, 0);
         Grid.SetColumn(lbl, 0);
         grid.Children.Add(lbl);
 
+        input.VerticalAlignment = VerticalAlignment.Top;
+        input.Margin = new Thickness(0, 12, 0, 0);
         Grid.SetRow(input, 0);
         Grid.SetColumn(input, 1);
         grid.Children.Add(input);
 
-        var hintBlock = CreateHint(hint, inline: false);
-        hintBlock.Margin = new Thickness(0, InputHintSpacing, 0, 0);
+        hintBlock.Margin = new Thickness(FormTextInset, InputHintSpacing, 0, 12);
         Grid.SetRow(hintBlock, 1);
         Grid.SetColumn(hintBlock, 1);
         grid.Children.Add(hintBlock);
 
+        AddRowDivider(grid, isLast);
         return grid;
+    }
+
+    private static void AddRowDivider(Grid grid, bool isLast)
+    {
+        if (isLast)
+        {
+            return;
+        }
+
+        var divider = new Border
+        {
+            Height = 0.5,
+            Background = (System.Windows.Media.Brush)Application.Current.FindResource("SettingsSectionBorderBrush"),
+            VerticalAlignment = VerticalAlignment.Bottom,
+            SnapsToDevicePixels = true
+        };
+        Grid.SetColumnSpan(divider, Math.Max(1, grid.ColumnDefinitions.Count));
+        if (grid.RowDefinitions.Count > 0)
+        {
+            Grid.SetRowSpan(divider, grid.RowDefinitions.Count);
+        }
+        grid.Children.Add(divider);
     }
 
     /// <summary>创建标准 TextBox。</summary>
@@ -180,7 +223,10 @@ internal static class SettingsLayout
         {
             Style = (Style)Application.Current.FindResource("SunkenTextBox"),
             Height = InputHeight,
+            MinHeight = InputHeight,
             FontSize = BodyFontSize,
+            TextAlignment = TextAlignment.Left,
+            HorizontalContentAlignment = HorizontalAlignment.Left,
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
     }
@@ -192,7 +238,9 @@ internal static class SettingsLayout
         {
             Style = (Style)Application.Current.FindResource("SunkenComboBox"),
             Height = InputHeight,
+            MinHeight = InputHeight,
             FontSize = BodyFontSize,
+            HorizontalContentAlignment = HorizontalAlignment.Left,
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
     }
@@ -222,6 +270,7 @@ internal static class SettingsLayout
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(12, 0, 0, 0),
+            Focusable = false,
             IsHitTestVisible = false
         };
     }
@@ -231,13 +280,19 @@ internal static class SettingsLayout
     {
         var row = new Border
         {
-            Background = (System.Windows.Media.Brush)Application.Current.FindResource("SurfaceAltBrush"),
-            CornerRadius = (CornerRadius)Application.Current.FindResource("CornerRadiusMedium"),
-            MinHeight = 48,
-            Padding = new Thickness(12, 8, 10, 8),
-            Margin = new Thickness(0, 0, 0, isLast ? SpacingXS : SpacingMD),
-            Cursor = System.Windows.Input.Cursors.Hand
+            Background = (System.Windows.Media.Brush)Application.Current.FindResource("TransparentBrush"),
+            CornerRadius = new CornerRadius(0),
+            MinHeight = 60,
+            Padding = new Thickness(24, 10, 20, 10),
+            Margin = new Thickness(0),
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Focusable = true,
+            FocusVisualStyle = (Style)Application.Current.FindResource("ModernFocusVisual"),
+            BorderBrush = (System.Windows.Media.Brush)Application.Current.FindResource("SettingsSectionBorderBrush"),
+            BorderThickness = new Thickness(0, 0, 0, isLast ? 0 : _metrics.SectionBorderThickness)
         };
+        System.Windows.Automation.AutomationProperties.SetName(row, title);
+        System.Windows.Automation.AutomationProperties.SetHelpText(row, description);
 
         var grid = new Grid();
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -271,18 +326,41 @@ internal static class SettingsLayout
         grid.Children.Add(switchBox);
         row.Child = grid;
 
-        var normalBrush = (System.Windows.Media.Brush)Application.Current.FindResource("SurfaceAltBrush");
-        var hoverBrush = (System.Windows.Media.Brush)Application.Current.FindResource("PrimarySoftBrush");
-        row.MouseEnter += (_, _) => row.Background = hoverBrush;
-        row.MouseLeave += (_, _) => row.Background = normalBrush;
-        row.MouseLeftButtonUp += (_, _) =>
-        {
-            var enabled = switchBox.IsChecked != true;
-            switchBox.IsChecked = enabled;
-            onChanged?.Invoke(enabled);
-        };
+        WireSwitchHost(row, switchBox, title, onChanged);
 
         return row;
+    }
+
+    private static void WireSwitchHost(Border host, CheckBox switchBox, string title, Action<bool>? onChanged)
+    {
+        var normalBrush = (System.Windows.Media.Brush)Application.Current.FindResource("TransparentBrush");
+        var hoverBrush = (System.Windows.Media.Brush)Application.Current.FindResource("SettingsItemHoverBrush");
+        var focusBrush = (System.Windows.Media.Brush)Application.Current.FindResource("PrimaryBrush");
+
+        void SetChecked(bool enabled)
+        {
+            switchBox.IsChecked = enabled;
+            System.Windows.Automation.AutomationProperties.SetName(switchBox, title);
+            onChanged?.Invoke(enabled);
+        }
+
+        void Toggle() => SetChecked(switchBox.IsChecked != true);
+
+        System.Windows.Automation.AutomationProperties.SetName(switchBox, title);
+
+        host.MouseEnter += (_, _) => host.Background = hoverBrush;
+        host.MouseLeave += (_, _) => host.Background = normalBrush;
+        host.GotKeyboardFocus += (_, _) => host.BorderBrush = focusBrush;
+        host.LostKeyboardFocus += (_, _) => host.BorderBrush = (System.Windows.Media.Brush)Application.Current.FindResource("SettingsSectionBorderBrush");
+        host.MouseLeftButtonUp += (_, _) => Toggle();
+        host.KeyDown += (_, e) =>
+        {
+            if (e.Key is System.Windows.Input.Key.Space or System.Windows.Input.Key.Enter)
+            {
+                Toggle();
+                e.Handled = true;
+            }
+        };
     }
 
     /// <summary>创建行内布尔偏好字段,用于表单区域里的开关项。</summary>
@@ -291,8 +369,12 @@ internal static class SettingsLayout
         var grid = new Grid
         {
             Margin = new Thickness(0, 0, 0, isLast ? 0 : SpacingMD),
-            Cursor = System.Windows.Input.Cursors.Hand
+            Cursor = System.Windows.Input.Cursors.Hand,
+            Focusable = true,
+            FocusVisualStyle = (Style)Application.Current.FindResource("ModernFocusVisual")
         };
+        System.Windows.Automation.AutomationProperties.SetName(grid, title);
+        System.Windows.Automation.AutomationProperties.SetHelpText(grid, description);
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(InlineLabelWidth) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         if (!string.IsNullOrWhiteSpace(description))
@@ -323,10 +405,12 @@ internal static class SettingsLayout
 
         var valueHost = new Border
         {
-            Background = (System.Windows.Media.Brush)Application.Current.FindResource("SurfaceAltBrush"),
+            Background = (System.Windows.Media.Brush)Application.Current.FindResource("SettingsInputBrush"),
             CornerRadius = (CornerRadius)Application.Current.FindResource("CornerRadiusMedium"),
             Height = InputHeight,
-            Padding = new Thickness(10, 0, 10, 0)
+            Padding = new Thickness(10, 0, 10, 0),
+            BorderBrush = (System.Windows.Media.Brush)Application.Current.FindResource("SettingsSectionBorderBrush"),
+            BorderThickness = new Thickness(_metrics.SectionBorderThickness)
         };
 
         var titleBlock = new TextBlock
@@ -349,17 +433,37 @@ internal static class SettingsLayout
         if (!string.IsNullOrWhiteSpace(description))
         {
             var hintBlock = CreateHint(description);
-            hintBlock.Margin = new Thickness(0, InputHintSpacing, 0, 0);
+            hintBlock.Margin = new Thickness(FormTextInset, InputHintSpacing, 0, 0);
             Grid.SetRow(hintBlock, 1);
             Grid.SetColumn(hintBlock, 1);
             grid.Children.Add(hintBlock);
         }
 
-        grid.MouseLeftButtonUp += (_, _) =>
+        var normalBrush = (System.Windows.Media.Brush)Application.Current.FindResource("SettingsInputBrush");
+        var hoverBrush = (System.Windows.Media.Brush)Application.Current.FindResource("PrimarySoftBrush");
+        var focusBrush = (System.Windows.Media.Brush)Application.Current.FindResource("PrimaryBrush");
+
+        void Toggle()
         {
             var enabled = switchBox.IsChecked != true;
             switchBox.IsChecked = enabled;
+            System.Windows.Automation.AutomationProperties.SetName(switchBox, title);
             onChanged?.Invoke(enabled);
+        }
+
+        System.Windows.Automation.AutomationProperties.SetName(switchBox, title);
+        grid.MouseEnter += (_, _) => valueHost.Background = hoverBrush;
+        grid.MouseLeave += (_, _) => valueHost.Background = normalBrush;
+        grid.GotKeyboardFocus += (_, _) => valueHost.BorderBrush = focusBrush;
+        grid.LostKeyboardFocus += (_, _) => valueHost.BorderBrush = (System.Windows.Media.Brush)Application.Current.FindResource("SettingsSectionBorderBrush");
+        grid.MouseLeftButtonUp += (_, _) => Toggle();
+        grid.KeyDown += (_, e) =>
+        {
+            if (e.Key is System.Windows.Input.Key.Space or System.Windows.Input.Key.Enter)
+            {
+                Toggle();
+                e.Handled = true;
+            }
         };
 
         return grid;
@@ -382,19 +486,83 @@ internal static class SettingsLayout
     }
 
     /// <summary>创建设置页轻量分组容器。</summary>
+    public static StackPanel CreateSectionContent(string title)
+    {
+        return new StackPanel
+        {
+            Tag = title
+        };
+    }
+
+    /// <summary>创建设置页轻量分组容器。</summary>
     public static Border CreateSection(UIElement content)
+    {
+        if (content is StackPanel { Tag: string title } titledContent)
+        {
+            var wrapper = new StackPanel();
+            wrapper.Children.Add(new TextBlock
+            {
+                Text = title,
+                Style = (Style)Application.Current.FindResource("SettingsGroupTitle")
+            });
+            wrapper.Children.Add(CreateSectionPanel(titledContent, includeMargin: false));
+
+            return new Border
+            {
+                Background = (System.Windows.Media.Brush)Application.Current.FindResource("TransparentBrush"),
+                Margin = new Thickness(0, 0, 0, _metrics.SectionSpacing),
+                Child = wrapper
+            };
+        }
+
+        return CreateSectionPanel(content);
+    }
+
+    private static Border CreateSectionPanel(UIElement content, bool includeMargin = true)
     {
         return new Border
         {
             Style = (Style)Application.Current.FindResource("SettingsFlatSection"),
             Padding = new Thickness(_metrics.SectionPadding),
-            Margin = new Thickness(0, 0, 0, _metrics.SectionSpacing),
+            Margin = new Thickness(0, 0, 0, includeMargin ? _metrics.SectionSpacing : 0),
             BorderThickness = new Thickness(_metrics.SectionBorderThickness),
             Effect = _metrics.SectionShadow
                 ? (System.Windows.Media.Effects.Effect)Application.Current.FindResource("PaneShadow")
                 : null,
             Child = content
         };
+    }
+
+    /// <summary>设置页次级操作按钮,用于获取模型、测试等行内动作。</summary>
+    public static Button CreateSecondaryActionButton(string content)
+    {
+        return new Button
+        {
+            Content = content,
+            Style = (Style)Application.Current.FindResource("SettingsActionButton")
+        };
+    }
+
+    /// <summary>设置页字段后的行内操作区,左边缘与输入控件对齐。</summary>
+    public static StackPanel CreateActionRow(params Button[] buttons)
+    {
+        var row = new StackPanel
+        {
+            Orientation = System.Windows.Controls.Orientation.Horizontal,
+            Margin = ActionRowMargin
+        };
+
+        for (var i = 0; i < buttons.Length; i++)
+        {
+            if (i > 0)
+            {
+                buttons[i].Margin = new Thickness(SpacingSM, 0, 0, 0);
+            }
+
+            row.Children.Add(buttons[i]);
+        }
+
+        return row;
     }
 
     /// <summary>创建可折叠的设置页轻量分组。</summary>
@@ -412,6 +580,14 @@ internal static class SettingsLayout
         return (content, CreateSection(expander), expander);
     }
 
+    /// <summary>创建更紧凑的折叠分组,用于仅显示标题的高级配置区。</summary>
+    public static (StackPanel content, Border section, Expander expander) CreateCompactCollapsibleSection(string title, bool isExpanded = false)
+    {
+        var result = CreateCollapsibleSection(title, isExpanded);
+        result.section.Padding = new Thickness(0);
+        return result;
+    }
+
     /// <summary>设置页主保存按钮。</summary>
     public static Button CreateSaveButton(string content = "保存设置")
     {
@@ -419,6 +595,8 @@ internal static class SettingsLayout
         {
             Content = content,
             Style = (Style)Application.Current.FindResource("ModernButton"),
+            MinHeight = 38,
+            MinWidth = 96,
             Padding = new Thickness(18, 8, 18, 8),
             Margin = SaveButtonMargin,
             HorizontalAlignment = HorizontalAlignment.Right
@@ -441,6 +619,8 @@ public class SecurePasswordField : Grid
     // 使用定长 16 个圆点作为象征性遮罩，防止溢出裁切，同时更美观和安全
     private const string MaskPlaceholder = "••••••••••••••••";
 
+    public event EventHandler? PasswordChanged;
+
     public string Password
     {
         get => _realPassword;
@@ -462,6 +642,7 @@ public class SecurePasswordField : Grid
             Height = SettingsLayout.InputHeight,
             FontSize = SettingsLayout.BodyFontSize,
             HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Left,
             Padding = new Thickness(5, 3, 38, 3)
         };
 
@@ -471,6 +652,8 @@ public class SecurePasswordField : Grid
             Height = SettingsLayout.InputHeight,
             FontSize = SettingsLayout.BodyFontSize,
             HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Left,
+            TextAlignment = TextAlignment.Left,
             Padding = new Thickness(5, 3, 38, 3),
             Visibility = Visibility.Collapsed
         };
@@ -520,7 +703,10 @@ public class SecurePasswordField : Grid
             {
                 _realPassword = newText;
             }
+            _isSyncing = true;
             _txt.Text = _realPassword;
+            _isSyncing = false;
+            PasswordChanged?.Invoke(this, EventArgs.Empty);
         };
 
         _txt.TextChanged += (s, e) =>
@@ -537,6 +723,7 @@ public class SecurePasswordField : Grid
                 _pwd.Password = string.IsNullOrEmpty(_realPassword) ? "" : MaskPlaceholder;
             }
             _isSyncing = false;
+            PasswordChanged?.Invoke(this, EventArgs.Empty);
         };
 
         _pwd.GotFocus += (s, e) => _pwd.SelectAll();

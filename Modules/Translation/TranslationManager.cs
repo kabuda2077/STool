@@ -19,6 +19,8 @@ public class TranslationManager : IDisposable
     private readonly ConfigManager _configManager;
     private ITranslationService? _service;
     private string? _serviceSignature;
+    private ScreenContentSelector? _contentSelector;
+    private string? _contentSelectorSignature;
 
     public TranslationManager(ConfigManager configManager)
     {
@@ -261,14 +263,14 @@ public class TranslationManager : IDisposable
         var sb = new StringBuilder();
         if (provider == TranslationProvider.OpenAI)
         {
-            sb.AppendLine("Translate each marked item. Keep every <<<STOOL_###>>> marker exactly once and in the same order. Return only the translated marked items, one item per line.");
+            sb.AppendLine("Translate each marked item. Keep every [[STOOL-###]] marker exactly once and in the same order. Return only the translated marked items, one item per line.");
         }
 
         for (var i = 0; i < blocks.Count; i++)
         {
-            sb.Append("<<<STOOL_");
+            sb.Append("[[STOOL-");
             sb.Append((i + 1).ToString("D3"));
-            sb.Append(">>> ");
+            sb.Append("]] ");
             sb.AppendLine(blocks[i]);
         }
 
@@ -277,14 +279,15 @@ public class TranslationManager : IDisposable
 
     internal static IReadOnlyList<string>? TryUnpackBlocks(string text, int expectedCount)
     {
+        var decoded = DecodeHtmlEntities(text);
         var markerPattern = @"(?:\[\[STOOL-(\d{3})\]\]|<<<STOOL_(\d{3})>>>)";
-        var matches = Regex.Matches(text, markerPattern, RegexOptions.Singleline);
+        var matches = Regex.Matches(decoded, markerPattern, RegexOptions.Singleline);
 
         if (matches.Count != expectedCount)
         {
-            var looseLines = text
+            var looseLines = decoded
                 .Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
-                .Select(line => line.Trim())
+                .Select(StripBlockMarker)
                 .Where(line => !string.IsNullOrWhiteSpace(line))
                 .ToArray();
 
@@ -304,8 +307,8 @@ public class TranslationManager : IDisposable
                 return null;
 
             var start = match.Index + match.Length;
-            var end = i + 1 < matches.Count ? matches[i + 1].Index : text.Length;
-            var value = text[start..end].Trim();
+            var end = i + 1 < matches.Count ? matches[i + 1].Index : decoded.Length;
+            var value = decoded[start..end].Trim();
             if (string.IsNullOrWhiteSpace(value))
                 return null;
 
@@ -313,6 +316,32 @@ public class TranslationManager : IDisposable
         }
 
         return results.Any(string.IsNullOrWhiteSpace) ? null : results;
+    }
+
+    private static string StripBlockMarker(string line)
+    {
+        return Regex.Replace(
+            line.Trim(),
+            @"^(?:\[\[STOOL-\d{3}\]\]|<<<STOOL_\d{3}>>>)\s*",
+            string.Empty,
+            RegexOptions.IgnoreCase);
+    }
+
+    private static string DecodeHtmlEntities(string text)
+    {
+        var decoded = text;
+        for (var i = 0; i < 3; i++)
+        {
+            var next = System.Net.WebUtility.HtmlDecode(decoded);
+            if (next == decoded)
+            {
+                break;
+            }
+
+            decoded = next;
+        }
+
+        return decoded;
     }
 
     private ITranslationService? CreateTencentService(TranslationConfig config)
@@ -335,6 +364,9 @@ public class TranslationManager : IDisposable
             string.IsNullOrEmpty(config.AiApiKeyEncrypted) ||
             string.IsNullOrEmpty(config.AiModel))
         {
+            _contentSelector?.Dispose();
+            _contentSelector = null;
+            _contentSelectorSignature = null;
             return null;
         }
 
@@ -355,12 +387,21 @@ public class TranslationManager : IDisposable
             return null;
         }
 
-        var selector = new ScreenContentSelector(
+        var signature = string.Join("|", config.AiApiUrlEncrypted, config.AiApiKeyEncrypted, config.AiModel);
+        if (_contentSelector != null && _contentSelectorSignature == signature)
+        {
+            return _contentSelector;
+        }
+
+        _contentSelector?.Dispose();
+        _contentSelector = new ScreenContentSelector(
             config.AiApiUrlEncrypted,
             config.AiApiKeyEncrypted,
-            config.AiModel);
+            config.AiModel,
+            HttpDefaults.Shared);
+        _contentSelectorSignature = signature;
 
-        return selector.IsAvailable() ? selector : null;
+        return _contentSelector.IsAvailable() ? _contentSelector : null;
     }
 
     private ITranslationService? GetOrCreateService(TranslationProvider provider, TranslationConfig config)
@@ -398,6 +439,7 @@ public class TranslationManager : IDisposable
     public void Dispose()
     {
         _service?.Dispose();
+        _contentSelector?.Dispose();
     }
 }
 

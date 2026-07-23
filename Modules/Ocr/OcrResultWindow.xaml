@@ -59,10 +59,8 @@
                     Style="{StaticResource ToolPanelSecondaryButton}"
                     Click="BtnClose_Click">
                 <StackPanel Orientation="Horizontal">
-                    <Viewbox Width="14"
-                             Height="14"
-                             Margin="0,0,6,0"
-                             VerticalAlignment="Center">
+                    <Viewbox Style="{StaticResource ToolIconSmall}"
+                             Margin="0,0,6,0">
                         <Canvas Width="24" Height="24">
                             <Path Data="{StaticResource IconX}"
                                   Stroke="{StaticResource TextPrimaryBrush}"
@@ -81,10 +79,8 @@
                     Click="BtnCopy_Click"
                     Margin="6,0,0,0">
                 <StackPanel Orientation="Horizontal">
-                    <Viewbox Width="14"
-                             Height="14"
-                             Margin="0,0,6,0"
-                             VerticalAlignment="Center">
+                    <Viewbox Style="{StaticResource ToolIconSmall}"
+                             Margin="0,0,6,0">
                         <Canvas Width="24" Height="24">
                             <Path Data="{StaticResource IconCopy}"
                                   Stroke="{StaticResource OnPrimaryBrush}"

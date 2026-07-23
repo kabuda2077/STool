@@ -29,6 +29,7 @@ public class OcrManager : IDisposable
     public async Task<OcrResult> RecognizeAsync(Bitmap image, CancellationToken cancellationToken = default)
     {
         var config = _configManager.Get().Ocr;
+        OcrResult? primaryFailure = null;
 
         var primaryService = GetOrCreatePrimaryService(config);
 
@@ -44,6 +45,7 @@ public class OcrManager : IDisposable
                 return result;
             }
 
+            primaryFailure = result;
             Log.Warning($"OCR failed with provider {config.Provider}: {result.ErrorMessage}");
         }
 
@@ -65,14 +67,28 @@ public class OcrManager : IDisposable
                 }
 
                 Log.Warning($"Windows local OCR also failed: {result.ErrorMessage}");
+                return new OcrResult
+                {
+                    Success = false,
+                    ErrorMessage = primaryFailure == null
+                        ? result.ErrorMessage
+                        : $"{primaryFailure.ErrorMessage} Windows 本地 OCR 也未能识别：{result.ErrorMessage}",
+                    Provider = primaryFailure == null
+                        ? result.Provider
+                        : $"{primaryFailure.Provider} / {result.Provider}"
+                };
             }
         }
 
-        // 所有服务都失败
+        if (primaryFailure != null)
+        {
+            return primaryFailure;
+        }
+
         return new OcrResult
         {
             Success = false,
-            ErrorMessage = "All OCR services failed",
+            ErrorMessage = "当前 OCR 服务未配置完整或不可用。",
             Provider = "None"
         };
     }

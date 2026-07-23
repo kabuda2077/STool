@@ -79,6 +79,7 @@ public partial class CaptureOverlay
                       || (b == btnPen && _currentTool == AnnotationTool.Pen)
                       || (b == btnMosaic && _currentTool == AnnotationTool.Mosaic);
             b.Background = active ? ResourceBrush("PrimarySoftBrush") : ResourceBrush("TransparentBrush");
+            b.Foreground = active ? ResourceBrush("PrimaryBrush") : ResourceBrush("TextPrimaryBrush");
         }
     }
 
@@ -171,19 +172,32 @@ public partial class CaptureOverlay
         var cancellationToken = currentTranslationCts.Token;
 
         var bmp = RenderSelectionBitmap();
-        ShowTranslationOverlay("翻译中...");
+        ShowTranslationLoading();
         var ocr = ((App)System.Windows.Application.Current).GetService<STool.Modules.Ocr.OcrManager>();
         var tr = ((App)System.Windows.Application.Current).GetService<STool.Modules.Translation.TranslationManager>();
         if (ocr == null || tr == null) { Core.ToastNotification.Show("翻译不可用", "服务未初始化", Core.ToastNotification.ToastType.Error); HideTranslationOverlay(); bmp.Dispose(); return; }
         try
         {
+            var translationTimer = System.Diagnostics.Stopwatch.StartNew();
             var o = await ocr.RecognizeAsync(bmp, cancellationToken);
+            Log.Information(
+                "[ScreenshotTranslate] OCR completed in {Ms}ms success={Success} provider={Provider}",
+                translationTimer.ElapsedMilliseconds,
+                o.Success,
+                o.Provider);
             cancellationToken.ThrowIfCancellationRequested();
             if (!o.Success || string.IsNullOrWhiteSpace(o.FullText))
             { Core.ToastNotification.Show("OCR 失败", o.ErrorMessage ?? "未识别到文字", Core.ToastNotification.ToastType.Warning); HideTranslationOverlay(); return; }
 
+            var blockStart = translationTimer.ElapsedMilliseconds;
             if (await TryShowBlockTranslationAsync(o, tr, bmp, cancellationToken))
+            {
+                Log.Information(
+                    "[ScreenshotTranslate] Overlay completed in {TotalMs}ms after OCR={AfterOcrMs}ms",
+                    translationTimer.ElapsedMilliseconds,
+                    translationTimer.ElapsedMilliseconds - blockStart);
                 return;
+            }
 
             var t = await tr.TranslateAsync(o.FullText, cancellationToken: cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();

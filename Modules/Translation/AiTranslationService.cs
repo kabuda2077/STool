@@ -61,19 +61,22 @@ public class AiTranslationService : ITranslationService
             throw new InvalidOperationException("请先填写 API Key");
         }
 
-        var httpClient = HttpDefaults.Shared;
-        using var request = new HttpRequestMessage(HttpMethod.Get, BuildModelsUrl(apiUrl.Trim()));
-        request.Headers.Add("Authorization", $"Bearer {apiKey.Trim()}");
-
-        using var response = await httpClient.SendAsync(request);
-        var responseJson = await response.Content.ReadAsStringAsync();
+        var response = await AiApiRequestSender.SendAsync(
+            HttpDefaults.Shared,
+            AiApiEndpointResolver.ResolveModelsCandidates(apiUrl),
+            endpoint =>
+            {
+                var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
+                request.Headers.Add("Authorization", $"Bearer {apiKey.Trim()}");
+                return request;
+            });
 
         if (!response.IsSuccessStatusCode)
         {
-            throw new InvalidOperationException($"获取模型失败：{response.StatusCode} - {responseJson}");
+            throw new InvalidOperationException($"获取模型失败：{response.StatusCode} - {response.Body}");
         }
 
-        using var jsonDoc = JsonDocument.Parse(responseJson);
+        using var jsonDoc = JsonDocument.Parse(response.Body);
         if (!jsonDoc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
         {
             throw new InvalidOperationException("模型接口返回格式不正确");
@@ -110,26 +113,6 @@ public class AiTranslationService : ITranslationService
             model.Trim());
 
         return await service.TranslateAsync("你好", "zh", "en");
-    }
-
-    private static string BuildModelsUrl(string apiUrl)
-    {
-        var uri = new Uri(apiUrl);
-        var builder = new UriBuilder(uri);
-        var path = builder.Path.TrimEnd('/');
-
-        if (path.EndsWith("/chat/completions", StringComparison.OrdinalIgnoreCase))
-        {
-            path = path[..^"/chat/completions".Length] + "/models";
-        }
-        else if (!path.EndsWith("/models", StringComparison.OrdinalIgnoreCase))
-        {
-            path += "/models";
-        }
-
-        builder.Path = path;
-        builder.Query = string.Empty;
-        return builder.Uri.ToString();
     }
 
     public async Task<TranslationResult> TranslateAsync(string text, string sourceLanguage, string targetLanguage, CancellationToken cancellationToken = default)
@@ -170,27 +153,32 @@ public class AiTranslationService : ITranslationService
             var payloadJson = JsonSerializer.Serialize(payload);
 
             // 发送请求
-            var request = new HttpRequestMessage(HttpMethod.Post, _apiUrl)
-            {
-                Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
-            };
-            request.Headers.Add("Authorization", $"Bearer {_apiKey}");
-
-            var response = await _httpClient.SendAsync(request, cancellationToken);
-            var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
+            var response = await AiApiRequestSender.SendAsync(
+                _httpClient,
+                AiApiEndpointResolver.ResolveChatCompletionCandidates(_apiUrl),
+                endpoint =>
+                {
+                    var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                    {
+                        Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
+                    };
+                    request.Headers.Add("Authorization", $"Bearer {_apiKey}");
+                    return request;
+                },
+                cancellationToken);
 
             if (!response.IsSuccessStatusCode)
             {
                 return new TranslationResult
                 {
                     Success = false,
-                    ErrorMessage = $"API error: {response.StatusCode} - {responseJson}",
+                    ErrorMessage = $"API error: {response.StatusCode} - {response.Body}",
                     Provider = "AI Translation"
                 };
             }
 
             // 解析响应
-            var jsonDoc = JsonDocument.Parse(responseJson);
+            using var jsonDoc = JsonDocument.Parse(response.Body);
             var root = jsonDoc.RootElement;
 
             if (root.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0)

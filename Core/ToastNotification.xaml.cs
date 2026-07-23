@@ -37,12 +37,84 @@ namespace STool.Core
             {
                 Left = owner.Left + (owner.ActualWidth - ActualWidth) / 2;
                 Top = owner.Top + owner.ActualHeight - ActualHeight - 44;
+            }
+            else
+            {
+                var workArea = SystemParameters.WorkArea;
+                Left = workArea.Left + (workArea.Width - ActualWidth) / 2;
+                Top = workArea.Bottom - ActualHeight - 44;
+            }
+
+            if (MotionSettings.ShouldReduceMotion)
+            {
+                rootBorder.Opacity = 1;
+                if (rootBorder.RenderTransform is TranslateTransform transform)
+                {
+                    transform.Y = 0;
+                }
                 return;
             }
 
-            var workArea = SystemParameters.WorkArea;
-            Left = workArea.Left + (workArea.Width - ActualWidth) / 2;
-            Top = workArea.Bottom - ActualHeight - 44;
+            // Entry animation (Fade-In + Slide-Up)
+            var sb = new System.Windows.Media.Animation.Storyboard();
+            
+            var fadeIn = new System.Windows.Media.Animation.DoubleAnimation(0, 1, MotionSettings.EnterDuration)
+            {
+                EasingFunction = MotionSettings.EaseOut
+            };
+            System.Windows.Media.Animation.Storyboard.SetTarget(fadeIn, rootBorder);
+            System.Windows.Media.Animation.Storyboard.SetTargetProperty(fadeIn, new PropertyPath(UIElement.OpacityProperty));
+            
+            var slideUp = new System.Windows.Media.Animation.DoubleAnimation(20, 0, MotionSettings.EnterDuration)
+            {
+                EasingFunction = MotionSettings.EaseOut
+            };
+            System.Windows.Media.Animation.Storyboard.SetTarget(slideUp, rootBorder);
+            System.Windows.Media.Animation.Storyboard.SetTargetProperty(slideUp, new PropertyPath("(UIElement.RenderTransform).(TranslateTransform.Y)"));
+            
+            sb.Children.Add(fadeIn);
+            sb.Children.Add(slideUp);
+            sb.Begin();
+        }
+
+        private bool _isClosing = false;
+        public new void Close()
+        {
+            if (_isClosing) return;
+            _isClosing = true;
+
+            if (_timer != null)
+            {
+                _timer.Stop();
+                _timer = null;
+            }
+
+            if (MotionSettings.ShouldReduceMotion)
+            {
+                base.Close();
+                return;
+            }
+
+            var sb = new System.Windows.Media.Animation.Storyboard();
+
+            var fadeOut = new System.Windows.Media.Animation.DoubleAnimation(rootBorder.Opacity, 0, MotionSettings.ExitDuration)
+            {
+                EasingFunction = MotionSettings.EaseIn
+            };
+            System.Windows.Media.Animation.Storyboard.SetTarget(fadeOut, rootBorder);
+            System.Windows.Media.Animation.Storyboard.SetTargetProperty(fadeOut, new PropertyPath(UIElement.OpacityProperty));
+
+            var slideUpFurther = new System.Windows.Media.Animation.DoubleAnimation(0, -15, MotionSettings.ExitDuration)
+            {
+                EasingFunction = MotionSettings.EaseIn
+            };
+            System.Windows.Media.Animation.Storyboard.SetTarget(slideUpFurther, rootBorder);
+            System.Windows.Media.Animation.Storyboard.SetTargetProperty(slideUpFurther, new PropertyPath("(UIElement.RenderTransform).(TranslateTransform.Y)"));
+
+            sb.Children.Add(fadeOut);
+            sb.Children.Add(slideUpFurther);
+            sb.Completed += (s, e) => base.Close();
+            sb.Begin();
         }
 
         public static void Show(string title, string message = "", ToastType type = ToastType.Success, int duration = DEFAULT_DURATION)

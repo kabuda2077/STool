@@ -131,10 +131,24 @@
                         <Trigger Property="core:ModernWindowChrome.ShowTopmostButton" Value="True">
                             <Setter TargetName="PART_TopmostButton" Property="Visibility" Value="Visible"/>
                         </Trigger>
+                        <Trigger Property="core:ModernWindowChrome.HideTitleText" Value="True">
+                            <Setter TargetName="PART_TitleText" Property="Visibility" Value="Collapsed"/>
+                        </Trigger>
                         <Trigger Property="core:ModernWindowChrome.TitleBarExtraTopPadding" Value="True">
-                            <Setter TargetName="PART_TitleBar" Property="Height" Value="62"/>
+                            <Setter TargetName="PART_TitleBar" Property="Height" Value="60"/>
+                            <Setter TargetName="PART_TitleText" Property="FontSize" Value="{StaticResource FontSizeTitle}"/>
                             <Setter TargetName="PART_TitleText" Property="Margin" Value="18,2,140,0"/>
-                            <Setter TargetName="PART_CaptionButtons" Property="Margin" Value="0,11,10,13"/>
+                            <Setter TargetName="PART_CaptionButtons" Property="Margin" Value="0,10,10,12"/>
+                            <Setter TargetName="PART_TitleText" Property="RenderTransform">
+                                <Setter.Value>
+                                    <TranslateTransform Y="-3"/>
+                                </Setter.Value>
+                            </Setter>
+                            <Setter TargetName="PART_CaptionButtons" Property="RenderTransform">
+                                <Setter.Value>
+                                    <TranslateTransform Y="-3"/>
+                                </Setter.Value>
+                            </Setter>
                         </Trigger>
                         <!-- 最大化时去掉 1px 外边框(WindowChrome 会自动将最大化尺寸约束到工作区) -->
                         <Trigger Property="WindowState" Value="Maximized">
@@ -165,6 +179,53 @@
         <Setter Property="Effect" Value="{StaticResource PaneShadow}"/>
     </Style>
 
+    <!-- Floating tool panels: translation, clipboard and OCR result windows share this visual language. -->
+    <Style x:Key="ToolPanelPane" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="Padding" Value="14"/>
+        <Setter Property="Effect" Value="{StaticResource PaneShadow}"/>
+    </Style>
+
+    <Style x:Key="ToolPanelToolbarSurface" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusMedium}"/>
+        <Setter Property="Padding" Value="2"/>
+        <Setter Property="Effect" Value="{StaticResource PaneShadow}"/>
+    </Style>
+
+    <Style x:Key="ToolPanelTextBox" TargetType="TextBox">
+        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeContent}"/>
+        <Setter Property="CaretBrush" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="SelectionBrush" Value="{StaticResource PrimaryBrush}"/>
+        <Setter Property="SelectionOpacity" Value="0.35"/>
+        <Setter Property="VerticalContentAlignment" Value="Top"/>
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="TextBox">
+                    <ScrollViewer x:Name="PART_ContentHost"
+                                  Background="{TemplateBinding Background}"
+                                  Focusable="False"/>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
+    <!-- Settings pages use quiet bordered sections for a flatter, more precise surface. -->
+    <Style x:Key="SettingsFlatSection" TargetType="Border">
+        <Setter Property="Background" Value="{StaticResource SettingsSectionBrush}"/>
+        <Setter Property="BorderBrush" Value="{StaticResource SettingsSectionBorderBrush}"/>
+        <Setter Property="BorderThickness" Value="0.5"/>
+        <Setter Property="CornerRadius" Value="14"/>
+        <Setter Property="Padding" Value="0"/>
+        <Setter Property="Margin" Value="0"/>
+        <Setter Property="Effect" Value="{x:Null}"/>
+    </Style>
+
     <Style x:Key="SettingsPageTitle" TargetType="TextBlock">
         <Setter Property="FontSize" Value="{StaticResource FontSizeTitle}"/>
         <Setter Property="FontWeight" Value="{StaticResource FontWeightStrong}"/>
@@ -173,14 +234,25 @@
     </Style>
 
     <Style x:Key="SettingsGroupTitle" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="{StaticResource FontSizeSubtitle}"/>
-        <Setter Property="FontWeight" Value="{StaticResource FontWeightStrong}"/>
-        <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightNormal}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
         <Setter Property="Margin" Value="0,0,0,8"/>
+    </Style>
+
+    <!-- 表单字段标签:Caption 字号,次要色,用于输入框/下拉框前的字段名 -->
+    <Style x:Key="FieldLabel" TargetType="TextBlock">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+        <Setter Property="FontWeight" Value="{StaticResource FontWeightNormal}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="Opacity" Value="0.9"/>
+        <Setter Property="Margin" Value="0,7,0,4"/>
     </Style>
 
     <!-- 可折叠分组:标题行点击展开/收起,右侧 chevron 旋转 -->
     <Style x:Key="SettingsExpander" TargetType="Expander">
+        <Setter Property="Margin" Value="0"/>
+        <Setter Property="Padding" Value="0"/>
         <Setter Property="Template">
             <Setter.Value>
                 <ControlTemplate TargetType="Expander">
@@ -188,18 +260,23 @@
                         <ToggleButton IsChecked="{Binding IsExpanded, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
                                       Content="{TemplateBinding Header}"
                                       Cursor="Hand"
-                                      Focusable="False"
+                                      Focusable="True"
                                       HorizontalAlignment="Stretch"
                                       HorizontalContentAlignment="Stretch"
-                                      FocusVisualStyle="{x:Null}">
+                                      FocusVisualStyle="{StaticResource ModernFocusVisual}">
                             <ToggleButton.Template>
                                 <ControlTemplate TargetType="ToggleButton">
-                                    <Border Margin="-10">
-                                        <Border x:Name="HeaderBg" Background="{StaticResource TransparentBrush}" CornerRadius="8" Padding="10,14">
+                                    <Border x:Name="HeaderBg"
+                                            Background="{StaticResource TransparentBrush}"
+                                            BorderBrush="{StaticResource SettingsSectionBorderBrush}"
+                                            BorderThickness="0"
+                                            CornerRadius="14"
+                                            MinHeight="50"
+                                            Padding="20,0,12,0">
                                         <Grid>
                                             <Grid.ColumnDefinitions>
                                                 <ColumnDefinition Width="*"/>
-                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="32"/>
                                             </Grid.ColumnDefinitions>
                                             <ContentPresenter TextElement.FontSize="{StaticResource FontSizeSubtitle}"
                                                               TextElement.FontWeight="{StaticResource FontWeightStrong}"
@@ -215,6 +292,7 @@
                                                   StrokeLineJoin="Round"
                                                   Width="15" Height="15"
                                                   Stretch="Uniform"
+                                                  HorizontalAlignment="Center"
                                                   VerticalAlignment="Center"
                                                   RenderTransformOrigin="0.5,0.5">
                                                 <Path.RenderTransform>
@@ -223,10 +301,12 @@
                                             </Path>
                                         </Grid>
                                     </Border>
-                                    </Border>
                                     <ControlTemplate.Triggers>
                                         <Trigger Property="IsMouseOver" Value="True">
-                                            <Setter TargetName="HeaderBg" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+                                            <Setter TargetName="HeaderBg" Property="Background" Value="{StaticResource SettingsItemHoverBrush}"/>
+                                        </Trigger>
+                                        <Trigger Property="IsKeyboardFocused" Value="True">
+                                            <Setter TargetName="HeaderBg" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
                                         </Trigger>
                                         <Trigger Property="IsChecked" Value="True">
                                             <Setter TargetName="Chevron" Property="RenderTransform">
@@ -239,11 +319,45 @@
                                 </ControlTemplate>
                             </ToggleButton.Template>
                         </ToggleButton>
-                        <ContentPresenter x:Name="ExpandSite" Visibility="Collapsed" Margin="0,8,0,0"/>
+                        <!-- 折叠态用 ScaleY=0 收起布局高度; Margin 放在内部 ContentPresenter 上,
+                             让外层 Border 的 LayoutTransform 连同 Margin 一起缩放为零 -->
+                        <Border x:Name="ExpandSite">
+                            <Border.LayoutTransform>
+                                <ScaleTransform ScaleY="0"/>
+                            </Border.LayoutTransform>
+                            <ContentPresenter Margin="0,0,0,10"/>
+                        </Border>
                     </StackPanel>
                     <ControlTemplate.Triggers>
                         <Trigger Property="IsExpanded" Value="True">
-                            <Setter TargetName="ExpandSite" Property="Visibility" Value="Visible"/>
+                            <Trigger.EnterActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="ExpandSite"
+                                                         Storyboard.TargetProperty="(FrameworkElement.LayoutTransform).(ScaleTransform.ScaleY)"
+                                                         To="1"
+                                                         Duration="{core:MotionDuration State}">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseOut"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.EnterActions>
+                            <Trigger.ExitActions>
+                                <BeginStoryboard>
+                                    <Storyboard>
+                                        <DoubleAnimation Storyboard.TargetName="ExpandSite"
+                                                         Storyboard.TargetProperty="(FrameworkElement.LayoutTransform).(ScaleTransform.ScaleY)"
+                                                         To="0"
+                                                         Duration="{core:MotionDuration Exit}">
+                                            <DoubleAnimation.EasingFunction>
+                                                <CubicEase EasingMode="EaseIn"/>
+                                            </DoubleAnimation.EasingFunction>
+                                        </DoubleAnimation>
+                                    </Storyboard>
+                                </BeginStoryboard>
+                            </Trigger.ExitActions>
                         </Trigger>
                     </ControlTemplate.Triggers>
                 </ControlTemplate>
@@ -258,8 +372,9 @@
     </Style>
 
     <Style x:Key="HintText" TargetType="TextBlock">
-        <Setter Property="FontSize" Value="{StaticResource FontSizeMicro}"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeHint}"/>
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="Opacity" Value="0.78"/>
         <Setter Property="TextWrapping" Value="Wrap"/>
     </Style>
 

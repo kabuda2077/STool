@@ -43,9 +43,7 @@
                         <Button.Template>
                             <ControlTemplate TargetType="Button">
                                 <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="17">
-                                    <Viewbox Width="15" Height="15"
-                                             HorizontalAlignment="Center"
-                                             VerticalAlignment="Center">
+                                    <Viewbox Style="{StaticResource ToolIconMedium}">
                                         <Canvas Width="24" Height="24">
                                             <Path x:Name="pinIcon"
                                                   Data="{StaticResource IconPin}"
@@ -78,9 +76,7 @@
                         <Button.Template>
                             <ControlTemplate TargetType="Button">
                                 <Border x:Name="bg" Background="{TemplateBinding Background}" CornerRadius="17">
-                                    <Viewbox Width="14" Height="14"
-                                             HorizontalAlignment="Center"
-                                             VerticalAlignment="Center">
+                                    <Viewbox Style="{StaticResource ToolIconSmall}">
                                         <Canvas Width="24" Height="24">
                                             <Path Data="{StaticResource IconX}"
                                                   Stroke="{TemplateBinding Foreground}"

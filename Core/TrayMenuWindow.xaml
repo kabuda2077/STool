@@ -29,7 +29,7 @@
                     <ControlTemplate TargetType="Button">
                         <Border x:Name="Root"
                                 Background="{TemplateBinding Background}"
-                                CornerRadius="7"
+                                CornerRadius="{StaticResource CornerRadiusMedium}"
                                 Padding="10,0">
                             <ContentPresenter VerticalAlignment="Center"
                                               TextElement.Foreground="{TemplateBinding Foreground}"/>
@@ -54,7 +54,7 @@
 
     <Border Background="{StaticResource SurfaceBrush}"
             BorderThickness="0"
-            CornerRadius="8"
+            CornerRadius="{StaticResource CornerRadiusMedium}"
             Padding="6"
             Margin="0">
         <StackPanel x:Name="menuPanel"/>

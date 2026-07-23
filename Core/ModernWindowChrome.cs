@@ -20,6 +20,23 @@ public static class ModernWindowChrome
             typeof(ModernWindowChrome),
             new PropertyMetadata(false));
 
+    public static readonly DependencyProperty HideTitleTextProperty =
+        DependencyProperty.RegisterAttached(
+            "HideTitleText",
+            typeof(bool),
+            typeof(ModernWindowChrome),
+            new PropertyMetadata(false));
+
+    public static void SetHideTitleText(DependencyObject element, bool value)
+    {
+        element.SetValue(HideTitleTextProperty, value);
+    }
+
+    public static bool GetHideTitleText(DependencyObject element)
+    {
+        return (bool)element.GetValue(HideTitleTextProperty);
+    }
+
     public static readonly DependencyProperty TitleBarExtraTopPaddingProperty =
         DependencyProperty.RegisterAttached(
             "TitleBarExtraTopPadding",

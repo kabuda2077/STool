@@ -12,13 +12,19 @@
         UseLayoutRounding="True"
         SnapsToDevicePixels="True">
 
-    <Border Background="{StaticResource SurfaceBrush}"
+    <Border x:Name="rootBorder"
+            Background="{StaticResource SurfaceBrush}"
             BorderThickness="0"
             CornerRadius="8"
             Padding="14,8"
             Margin="20"
             MinWidth="96"
-            MaxWidth="360">
+            MaxWidth="360"
+            Opacity="0"
+            RenderTransformOrigin="0.5,0.5">
+        <Border.RenderTransform>
+            <TranslateTransform Y="20"/>
+        </Border.RenderTransform>
         <Border.Effect>
             <StaticResource ResourceKey="MenuShadow"/>
         </Border.Effect>
@@ -27,7 +33,7 @@
             <TextBlock x:Name="iconText"
                        Text="&#xE73E;"
                        FontFamily="Segoe MDL2 Assets"
-                       FontSize="13"
+                       FontSize="{StaticResource FontSizeBody}"
                        Foreground="{StaticResource SuccessBrush}"
                        Margin="0,0,7,0"
                        HorizontalAlignment="Center"
@@ -35,7 +41,7 @@
             <StackPanel VerticalAlignment="Center">
                 <TextBlock x:Name="titleText"
                            Text="操作成功"
-                           FontSize="13"
+                           FontSize="{StaticResource FontSizeBody}"
                            FontWeight="{StaticResource FontWeightStrong}"
                            Foreground="{StaticResource TextPrimaryBrush}"
                            TextWrapping="Wrap"/>

@@ -18,24 +18,34 @@ namespace STool.Modules.Translation;
 ///
 /// 依赖 AI（OpenAI 兼容）通道；未配置或失败时返回 null，由调用方回退到整块翻译。
 /// </summary>
-public class ScreenContentSelector
+public class ScreenContentSelector : IDisposable
 {
     private readonly string _apiUrl;
     private readonly string _apiKey;
     private readonly string _model;
     private readonly HttpClient _httpClient;
+    private readonly IReadOnlyList<string> _endpoints;
+    private readonly bool _ownsHttpClient;
 
-    public ScreenContentSelector(string apiUrlEncrypted, string apiKeyEncrypted, string model)
+    public ScreenContentSelector(
+        string apiUrlEncrypted,
+        string apiKeyEncrypted,
+        string model,
+        HttpClient? httpClient = null)
     {
         _apiUrl = SecureStorage.Decrypt(apiUrlEncrypted);
         _apiKey = SecureStorage.Decrypt(apiKeyEncrypted);
         _model = model;
-        _httpClient = HttpDefaults.CreateClient();
+        _httpClient = httpClient ?? HttpDefaults.Shared;
+        _ownsHttpClient = httpClient != null && !ReferenceEquals(httpClient, HttpDefaults.Shared);
+        _endpoints = string.IsNullOrWhiteSpace(_apiUrl)
+            ? Array.Empty<string>()
+            : AiApiEndpointResolver.ResolveChatCompletionCandidates(_apiUrl);
     }
 
     public bool IsAvailable()
     {
-        return !string.IsNullOrEmpty(_apiUrl) && !string.IsNullOrEmpty(_apiKey) && !string.IsNullOrEmpty(_model);
+        return _endpoints.Count > 0 && !string.IsNullOrEmpty(_apiKey) && !string.IsNullOrEmpty(_model);
     }
 
     /// <summary>
@@ -49,11 +59,11 @@ public class ScreenContentSelector
         try
         {
             var prompt = BuildPrompt(lines);
-            var content = await SendPromptAsync(prompt, 400, cancellationToken);
-            if (content == null)
+            var completion = await SendPromptAsync(prompt, 400, cancellationToken);
+            if (completion == null)
                 return null;
 
-            return TryParseIndices(content, lines.Count);
+            return TryParseIndices(completion.Content, lines.Count);
         }
         catch (Exception ex)
         {
@@ -76,12 +86,23 @@ public class ScreenContentSelector
         try
         {
             var prompt = BuildTranslatePrompt(lines, targetLanguage);
-            var maxTokens = Math.Clamp(lines.Sum(line => line.Text.Length) * 2 + 500, 800, 3000);
-            var content = await SendPromptAsync(prompt, maxTokens, cancellationToken);
-            if (content == null)
+            var maxTokens = CalculateTranslateMaxTokens(lines);
+            var completion = await SendPromptAsync(prompt, maxTokens, cancellationToken);
+            if (completion == null)
                 return null;
 
-            return TryParseTranslations(content, lines.Select(line => line.Index).ToHashSet());
+            var translated = TryParseTranslations(
+                completion.Content,
+                lines.Select(line => line.Index).ToHashSet());
+            if (translated == null || translated.Count == 0)
+            {
+                Log.Warning(
+                    "[ContentSelector] invalid translation output finishReason={FinishReason} content={Content}",
+                    completion.FinishReason ?? "unknown",
+                    TruncateForLog(completion.Content));
+            }
+
+            return translated;
         }
         catch (Exception ex)
         {
@@ -112,33 +133,40 @@ public class ScreenContentSelector
     internal static string BuildTranslatePrompt(IReadOnlyList<ScreenContentLine> lines, string targetLanguage)
     {
         var sb = new StringBuilder();
-        sb.AppendLine("You are translating OCR lines from a screenshot for in-place replacement.");
-        sb.AppendLine("Decide which lines are real readable body content, then translate only those lines.");
-        sb.AppendLine("Discard UI chrome: usernames/handles, timestamps, button labels, menu items, status bar, counts, URLs, icons, isolated numbers/symbols.");
-        sb.AppendLine("Preserve meaning and keep translations concise enough to fit roughly in the original area.");
-        sb.AppendLine($"Translate selected content to {GetLanguageName(targetLanguage)}.");
-        sb.AppendLine("Return ONLY a JSON array. Each item must be {\"i\": lineIndex, \"t\": \"translation\"}. No prose.");
-        sb.AppendLine("Example: [{\"i\":2,\"t\":\"你好\"}]");
-        sb.AppendLine();
-        sb.AppendLine("Lines:");
+        sb.Append("Translate screenshot body text to ");
+        sb.Append(GetLanguageName(targetLanguage));
+        sb.AppendLine(" for in-place replacement.");
+        sb.AppendLine("Keep readable sentences/messages; skip UI chrome, names, timestamps, buttons, menus, counts, URLs, icons and isolated symbols.");
+        sb.AppendLine("Keep meaning and translations concise.");
+        sb.AppendLine("Return ONLY a valid JSON array in this exact shape: [{\"i\":2,\"t\":\"translated text\"}]");
+        sb.AppendLine("Use each input index at most once. Do not return Markdown, explanations, analysis, comments, or extra keys.");
+        sb.AppendLine("If no row should be translated, return [].");
+        sb.AppendLine("Input rows are [i,x,y,w,h,text]:");
 
         foreach (var line in lines)
         {
+            sb.Append('[');
             sb.Append(line.Index);
-            sb.Append(": ");
-            sb.Append("[x=");
+            sb.Append(',');
             sb.Append(line.X);
-            sb.Append(", y=");
+            sb.Append(',');
             sb.Append(line.Y);
-            sb.Append(", w=");
+            sb.Append(',');
             sb.Append(line.Width);
-            sb.Append(", h=");
+            sb.Append(',');
             sb.Append(line.Height);
-            sb.Append("] ");
-            sb.AppendLine(line.Text.ReplaceLineEndings(" "));
+            sb.Append(',');
+            sb.Append(JsonSerializer.Serialize(line.Text.ReplaceLineEndings(" ")));
+            sb.AppendLine("]");
         }
 
         return sb.ToString();
+    }
+
+    internal static int CalculateTranslateMaxTokens(IReadOnlyList<ScreenContentLine> lines)
+    {
+        var textLength = lines.Sum(line => line.Text.Length);
+        return Math.Clamp(textLength * 2 + lines.Count * 20 + 160, 384, 2200);
     }
 
     /// <summary>
@@ -224,7 +252,7 @@ public class ScreenContentSelector
         }
     }
 
-    private async Task<string?> SendPromptAsync(string prompt, int maxTokens, CancellationToken cancellationToken)
+    private async Task<ScreenCompletion?> SendPromptAsync(string prompt, int maxTokens, CancellationToken cancellationToken)
     {
         var payload = new
         {
@@ -234,22 +262,36 @@ public class ScreenContentSelector
             max_tokens = maxTokens
         };
 
-        using var request = new HttpRequestMessage(HttpMethod.Post, _apiUrl)
-        {
-            Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
-        };
-        request.Headers.Add("Authorization", $"Bearer {_apiKey}");
+        var response = await AiApiRequestSender.SendAsync(
+            _httpClient,
+            _endpoints,
+            endpoint =>
+            {
+                var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+                {
+                    Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
+                };
+                request.Headers.Add("Authorization", $"Bearer {_apiKey}");
+                return request;
+            },
+            cancellationToken);
 
-        using var response = await _httpClient.SendAsync(request, cancellationToken);
-        var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
+        Log.Information(
+            "[ContentSelector] model={Model} promptChars={PromptChars} maxTokens={MaxTokens} headers={HeadersMs}ms total={TotalMs}ms status={Status}",
+            _model,
+            prompt.Length,
+            maxTokens,
+            response.HeadersElapsedMilliseconds,
+            response.TotalElapsedMilliseconds,
+            (int)response.StatusCode);
 
         if (!response.IsSuccessStatusCode)
         {
-            Log.Warning("[ContentSelector] API error {Status}: {Body}", response.StatusCode, TruncateForLog(responseJson));
+            Log.Warning("[ContentSelector] API error {Status}: {Body}", response.StatusCode, TruncateForLog(response.Body));
             return null;
         }
 
-        return ExtractMessageContent(responseJson);
+        return ExtractCompletion(response.Body);
     }
 
     private static bool TryReadIndex(JsonElement item, out int index)
@@ -284,7 +326,7 @@ public class ScreenContentSelector
         return !string.IsNullOrWhiteSpace(translation);
     }
 
-    private static string? ExtractMessageContent(string responseJson)
+    private static ScreenCompletion? ExtractCompletion(string responseJson)
     {
         try
         {
@@ -295,7 +337,18 @@ public class ScreenContentSelector
                 choices[0].TryGetProperty("message", out var message) &&
                 message.TryGetProperty("content", out var contentElement))
             {
-                return contentElement.GetString();
+                var content = contentElement.ValueKind == JsonValueKind.String
+                    ? contentElement.GetString()
+                    : null;
+                var finishReason = choices[0].TryGetProperty("finish_reason", out var finishReasonElement) &&
+                                   finishReasonElement.ValueKind == JsonValueKind.String
+                    ? finishReasonElement.GetString()
+                    : null;
+
+                if (!string.IsNullOrWhiteSpace(content))
+                {
+                    return new ScreenCompletion(content, finishReason);
+                }
             }
         }
         catch (JsonException)
@@ -322,8 +375,18 @@ public class ScreenContentSelector
         var normalized = text.ReplaceLineEndings(" ");
         return normalized.Length <= 200 ? normalized : normalized[..200] + "...";
     }
+
+    public void Dispose()
+    {
+        if (_ownsHttpClient)
+        {
+            _httpClient.Dispose();
+        }
+    }
 }
 
 public sealed record ScreenContentLine(int Index, string Text, int X, int Y, int Width, int Height);
 
 public sealed record ScreenTranslationItem(int Index, string Translation);
+
+internal sealed record ScreenCompletion(string Content, string? FinishReason);

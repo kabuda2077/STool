@@ -1,4 +1,4 @@
-# STool 便携版构建脚本
+﻿# STool 便携版构建脚本
 # 生成框架依赖的单文件 exe（需要用户安装 .NET 9 Desktop Runtime）
 
 param(

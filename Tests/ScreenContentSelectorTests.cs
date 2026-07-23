@@ -1,4 +1,5 @@
 using STool.Modules.Translation;
+using STool.Modules.Screenshot;
 using Xunit;
 
 namespace STool.Tests;
@@ -119,9 +120,41 @@ public class ScreenContentSelectorTests
             new[] { new ScreenContentLine(4, "hello", 10, 20, 30, 40) },
             "zh");
 
-        Assert.Contains("Translate selected content to Chinese", prompt);
-        Assert.Contains("4: [x=10, y=20, w=30, h=40] hello", prompt);
+        Assert.Contains("to Chinese", prompt);
+        Assert.Contains("[4,10,20,30,40,\"hello\"]", prompt);
         Assert.Contains("\"i\"", prompt);
         Assert.Contains("\"t\"", prompt);
+    }
+
+    [Theory]
+    [InlineData(1, 10, 384)]
+    [InlineData(10, 100, 560)]
+    [InlineData(50, 2000, 2200)]
+    public void CalculateTranslateMaxTokens_UsesBoundedDynamicBudget(int lineCount, int textLength, int expected)
+    {
+        var textPerLine = new string('x', textLength / lineCount);
+        var lines = Enumerable.Range(0, lineCount)
+            .Select(index => new ScreenContentLine(index, textPerLine, 0, 0, 10, 10))
+            .ToArray();
+
+        Assert.Equal(expected, ScreenContentSelector.CalculateTranslateMaxTokens(lines));
+    }
+
+    [Theory]
+    [InlineData("This actress cut her hair and wore a full wig.", "zh", true)]
+    [InlineData("Primary-Ad-7788", "zh", false)]
+    [InlineData("207 Reply Award Share", "zh", false)]
+    [InlineData("回复 奖励 分享", "en", false)]
+    [InlineData("这位女演员本季剪了头发。", "zh", false)]
+    [InlineData("这位女演员本季剪了头发。", "en", true)]
+    public void FastFilter_KeepsSourceContentAndDropsUiMetadata(string text, string targetLanguage, bool expected)
+    {
+        var line = new CaptureOverlay.TranslationLine(
+            text,
+            new System.Drawing.Rectangle(100, 100, 500, 30));
+
+        var result = CaptureOverlay.IsLikelyTranslatableContent(line, 1200, 800, targetLanguage);
+
+        Assert.Equal(expected, result);
     }
 }

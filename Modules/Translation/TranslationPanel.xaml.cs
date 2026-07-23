@@ -5,6 +5,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using STool.Core;
 using STool.Models;
 
 namespace STool.Modules.Translation;
@@ -29,6 +30,7 @@ public partial class TranslationPanel : Window
         LoadTranslationMode();
         UpdateProviderButtons();
         Loaded += TranslationPanel_Loaded;
+        providerSegmentGrid.SizeChanged += (_, _) => UpdateProviderSlider();
 
         // 回车翻译;Shift+Enter 换行
         txtSource.PreviewKeyDown += (_, e) =>
@@ -43,6 +45,7 @@ public partial class TranslationPanel : Window
 
     private void TranslationPanel_Loaded(object sender, RoutedEventArgs e)
     {
+        UpdateProviderSlider();
         Dispatcher.BeginInvoke(new Action(() =>
         {
             Activate();
@@ -73,6 +76,25 @@ public partial class TranslationPanel : Window
         btnProviderGoogle.Tag = _provider == TranslationProvider.Google ? "on" : null;
         btnProviderTencent.Tag = _provider == TranslationProvider.Tencent ? "on" : null;
         btnProviderAi.Tag = _provider == TranslationProvider.OpenAI ? "on" : null;
+        UpdateProviderSlider();
+    }
+
+    private void UpdateProviderSlider()
+    {
+        var selectedButton = _provider switch
+        {
+            TranslationProvider.Tencent => btnProviderTencent,
+            TranslationProvider.OpenAI => btnProviderAi,
+            _ => btnProviderGoogle
+        };
+        var target = selectedButton.TranslatePoint(new System.Windows.Point(0, 0), providerSegmentGrid).X;
+        SegmentedSliderMotion.MoveTo(
+            providerSlider,
+            providerSliderTransform,
+            providerSliderScale,
+            target,
+            selectedButton.ActualWidth,
+            IsLoaded);
     }
 
     private void LoadTranslationMode()
@@ -131,7 +153,8 @@ public partial class TranslationPanel : Window
         try
         {
             _busy = true;
-            txtTarget.Text = "翻译中…";
+            txtTarget.Text = string.Empty;
+            loadingIndicator.Visibility = Visibility.Visible;
 
             var sourceLang = "auto";
             var targetLang = TranslationManager.ResolveTargetLanguage(sourceText, GetTranslationMode());
@@ -150,6 +173,7 @@ public partial class TranslationPanel : Window
         finally
         {
             _busy = false;
+            loadingIndicator.Visibility = Visibility.Collapsed;
             tgtWatermark.Visibility = string.IsNullOrEmpty(txtTarget.Text) ? Visibility.Visible : Visibility.Collapsed;
         }
     }
@@ -211,5 +235,43 @@ public partial class TranslationPanel : Window
             Close();
         };
         timer.Start();
+    }
+
+    private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        // Ctrl+Enter: 翻译
+        if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            _ = TranslateAsync();
+        }
+        // Ctrl+Shift+C: 复制结果并隐藏
+        else if (e.Key == Key.C && (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) == (ModifierKeys.Control | ModifierKeys.Shift))
+        {
+            e.Handled = true;
+            CopyText();
+            Close();
+        }
+        // Ctrl+L: 循环切换语言/翻译模式
+        else if (e.Key == Key.L && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
+        {
+            e.Handled = true;
+            CycleLanguageMode();
+        }
+        // Escape: 关闭
+        else if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            Close();
+        }
+    }
+
+    private void CycleLanguageMode()
+    {
+        if (cmbMode.Items.Count > 0)
+        {
+            int nextIndex = (cmbMode.SelectedIndex + 1) % cmbMode.Items.Count;
+            cmbMode.SelectedIndex = nextIndex;
+        }
     }
 }

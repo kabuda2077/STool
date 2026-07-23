@@ -44,7 +44,7 @@
                 </Grid.ColumnDefinitions>
 
                 <TextBlock x:Name="txtProvider"
-                           FontSize="{StaticResource FontSizeMicro}"
+                           FontSize="{StaticResource FontSizeHint}"
                            Foreground="{StaticResource TextSecondaryBrush}"
                            VerticalAlignment="Center"/>
 
@@ -53,7 +53,7 @@
                         Style="{StaticResource IconButton}"
                         ToolTip="复制译文"
                         Click="BtnCopy_Click">
-                    <Viewbox Width="15" Height="15">
+                    <Viewbox Style="{StaticResource ToolIconMedium}">
                         <Canvas Width="24" Height="24">
                             <Path Data="{StaticResource IconCopy}"
                                   Stroke="{StaticResource TextPrimaryBrush}"
@@ -72,7 +72,7 @@
                         ToolTip="关闭 (Esc)"
                         Click="BtnClose_Click"
                         Margin="4,0,0,0">
-                    <Viewbox Width="14" Height="14">
+                    <Viewbox Style="{StaticResource ToolIconSmall}">
                         <Canvas Width="24" Height="24">
                             <Path Data="{StaticResource IconX}"
                                   Stroke="{StaticResource ErrorBrush}"

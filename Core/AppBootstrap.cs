@@ -82,6 +82,9 @@ public class AppBootstrap : IDisposable
         // 截图窗用专用预热构造:跳过抓屏(CaptureAllScreens),只付 BAML/模板的一次性成本
         dispatcher.BeginInvoke(DispatcherPriorityBackground, new Action(() => WarmUp("Screenshot",
             () => STool.Modules.Screenshot.CaptureOverlay.CreateForWarmUp())));
+
+        dispatcher.BeginInvoke(DispatcherPriorityBackground,
+            new Action(() => MemoryDiagnostics.LogCheckpoint("StartupReady")));
     }
 
     private const System.Windows.Threading.DispatcherPriority DispatcherPriorityBackground
@@ -89,20 +92,41 @@ public class AppBootstrap : IDisposable
 
     private static void WarmUp(string name, Func<System.Windows.Window?> factory)
     {
+        System.Windows.Window? window = null;
+        var windowsBefore = System.Windows.Application.Current?.Windows.Count ?? 0;
         try
         {
             var sw = System.Diagnostics.Stopwatch.StartNew();
-            // 仅构造以触发初始化;不 Show。从未显示的窗口不能 Close,直接丢弃由 GC 回收。
-            var window = factory();
+            // 仅构造以触发初始化;不 Show。完成后显式 Close,避免实例留在 Application.Windows。
+            window = factory();
             if (window != null)
             {
-                window.Visibility = System.Windows.Visibility.Hidden;
-                Log.Information("[WarmUp] {Name} prewarmed in {Ms}ms", name, sw.ElapsedMilliseconds);
+                Log.Information(
+                    "[WarmUp] {Name} prewarmed in {Ms}ms windowsBefore={WindowsBefore}",
+                    name,
+                    sw.ElapsedMilliseconds,
+                    windowsBefore);
             }
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "[WarmUp] {Name} prewarm failed (non-fatal)", name);
+        }
+        finally
+        {
+            try
+            {
+                window?.Close();
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "[WarmUp] {Name} window cleanup failed (non-fatal)", name);
+            }
+
+            Log.Information(
+                "[WarmUp] {Name} cleanup completed windowsAfter={WindowsAfter}",
+                name,
+                System.Windows.Application.Current?.Windows.Count ?? 0);
         }
     }
 

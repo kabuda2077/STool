@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using STool.Core;
 using STool.Modules.Screenshot.Annotations;
 
 namespace STool.Modules.Screenshot;
@@ -76,7 +77,10 @@ public partial class AnnotationEditor : Window
     {
         // 合成标注到截图
         var annotatedBitmap = RenderAnnotatedBitmap();
-        AnnotationCompleted?.Invoke(this, annotatedBitmap);
+        if (AnnotationCompleted != null)
+            AnnotationCompleted.Invoke(this, annotatedBitmap);
+        else
+            annotatedBitmap.Dispose();
         Close();
     }
 
@@ -132,12 +136,18 @@ public partial class AnnotationEditor : Window
         encoder.Save(memoryStream);
         memoryStream.Position = 0;
 
-        return new Bitmap(memoryStream);
+        using var streamBitmap = new Bitmap(memoryStream);
+        return new Bitmap(streamBitmap);
     }
 
     protected override void OnClosed(EventArgs e)
     {
+        _annotationManager.Clear();
+        screenshotImage.Source = null;
         _screenshot?.Dispose();
+        AnnotationCompleted = null;
+        AnnotationCancelled = null;
+        MemoryDiagnostics.LogCheckpoint("AnnotationEditorClosed");
         base.OnClosed(e);
     }
 }

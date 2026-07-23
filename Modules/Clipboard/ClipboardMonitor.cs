@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.IO;
 using System.Linq;
 using System.Windows;
@@ -17,6 +18,9 @@ namespace STool.Modules.Clipboard;
 public class ClipboardMonitor : IDisposable
 {
     private const int WM_CLIPBOARDUPDATE = 0x031D;
+    private const int WS_POPUP = unchecked((int)0x80000000);
+    private const int WS_EX_TOOLWINDOW = 0x00000080;
+    private const int WS_EX_NOACTIVATE = 0x08000000;
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool AddClipboardFormatListener(IntPtr hwnd);
@@ -30,61 +34,69 @@ public class ClipboardMonitor : IDisposable
     [DllImport("user32.dll")]
     private static extern int GetWindowThreadProcessId(IntPtr hwnd, out int processId);
 
-    private readonly Window _listenerWindow;
     private HwndSource? _hwndSource;
     private bool _isMonitoring;
     private bool _suppressNextUpdate;
+    private bool _disposed;
 
     public event EventHandler<ClipboardItem>? ClipboardChanged;
 
-    public ClipboardMonitor()
-    {
-        // 创建一个隐藏窗口用于接收剪贴板消息
-        _listenerWindow = new Window
-        {
-            Width = 0,
-            Height = 0,
-            WindowStyle = WindowStyle.None,
-            ShowInTaskbar = false,
-            Visibility = Visibility.Hidden
-        };
-
-        _listenerWindow.Show();
-        _listenerWindow.Hide();
-    }
-
     public void Start()
     {
+        RunOnDispatcher(StartCore);
+    }
+
+    private void StartCore()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (_isMonitoring)
             return;
 
-        var windowHandle = new WindowInteropHelper(_listenerWindow).Handle;
-        _hwndSource = HwndSource.FromHwnd(windowHandle);
-
-        if (_hwndSource != null)
+        var parameters = new HwndSourceParameters("SToolClipboardListener")
         {
-            _hwndSource.AddHook(WndProc);
-            AddClipboardFormatListener(windowHandle);
-            _isMonitoring = true;
-            Log.Information("Clipboard monitoring started");
+            Width = 0,
+            Height = 0,
+            WindowStyle = WS_POPUP,
+            ExtendedWindowStyle = WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE
+        };
+
+        _hwndSource = new HwndSource(parameters);
+        _hwndSource.AddHook(WndProc);
+
+        if (!AddClipboardFormatListener(_hwndSource.Handle))
+        {
+            var error = new Win32Exception(Marshal.GetLastWin32Error());
+            _hwndSource.RemoveHook(WndProc);
+            _hwndSource.Dispose();
+            _hwndSource = null;
+            Log.Error(error, "Failed to register clipboard listener");
+            return;
         }
+
+        _isMonitoring = true;
+        Log.Information("Clipboard monitoring started");
     }
 
     public void Stop()
     {
-        if (!_isMonitoring)
+        RunOnDispatcher(StopCore);
+    }
+
+    private void StopCore()
+    {
+        if (_hwndSource == null)
             return;
 
-        var windowHandle = new WindowInteropHelper(_listenerWindow).Handle;
-        RemoveClipboardFormatListener(windowHandle);
-
-        if (_hwndSource != null)
+        if (_isMonitoring)
         {
-            _hwndSource.RemoveHook(WndProc);
+            RemoveClipboardFormatListener(_hwndSource.Handle);
+            _isMonitoring = false;
+            Log.Information("Clipboard monitoring stopped");
         }
 
-        _isMonitoring = false;
-        Log.Information("Clipboard monitoring stopped");
+        _hwndSource.RemoveHook(WndProc);
+        _hwndSource.Dispose();
+        _hwndSource = null;
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -293,7 +305,25 @@ public class ClipboardMonitor : IDisposable
 
     public void Dispose()
     {
-        Stop();
-        _listenerWindow?.Close();
+        if (_disposed)
+            return;
+
+        RunOnDispatcher(() =>
+        {
+            StopCore();
+            _disposed = true;
+        });
+    }
+
+    private static void RunOnDispatcher(Action action)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        if (dispatcher != null && !dispatcher.CheckAccess())
+        {
+            dispatcher.Invoke(action);
+            return;
+        }
+
+        action();
     }
 }

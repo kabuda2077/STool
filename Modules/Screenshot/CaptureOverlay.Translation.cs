@@ -992,10 +992,11 @@ public partial class CaptureOverlay
     {
         var encoder = new PngBitmapEncoder();
         encoder.Frames.Add(BitmapFrame.Create(src));
-        var ms = new MemoryStream();
+        using var ms = new MemoryStream();
         encoder.Save(ms);
         ms.Position = 0;
-        return new System.Drawing.Bitmap(ms);
+        using var streamBitmap = new System.Drawing.Bitmap(ms);
+        return new System.Drawing.Bitmap(streamBitmap);
     }
 
     private void CloseOverlay()
@@ -1008,12 +1009,27 @@ public partial class CaptureOverlay
     protected override void OnClosed(EventArgs e)
     {
         CancelCurrentTranslation();
-        _translationCts?.Dispose();
-        _translationCts = null;
         _hwndSource?.RemoveHook(WndProc);
         _hwndSource = null;
+
+        ContentRendered -= OnContentRendered;
+        Loaded -= OnLoaded;
+        if (_firstRenderingHandler != null)
+        {
+            CompositionTarget.Rendering -= _firstRenderingHandler;
+            _firstRenderingHandler = null;
+        }
+
+        _annotation?.Clear();
+        _annotation = null;
+        translationBlockCanvas.Children.Clear();
+        _translationRenderBlocks.Clear();
+        translationOverlayText.Text = string.Empty;
+        screenshotImage.Source = null;
+
         _frozen?.Dispose();
         _frozen = null;
+        Core.MemoryDiagnostics.LogCheckpoint("ScreenshotClosed");
         base.OnClosed(e);
     }
 

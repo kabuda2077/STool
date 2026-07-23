@@ -4,6 +4,7 @@ using System.IO;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media.Imaging;
+using STool.Core;
 
 namespace STool.Modules.Screenshot;
 
@@ -110,7 +111,9 @@ public partial class PinWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        screenshotImage.Source = null;
         _screenshot?.Dispose();
+        MemoryDiagnostics.LogCheckpoint("PinWindowClosed");
         base.OnClosed(e);
     }
 }

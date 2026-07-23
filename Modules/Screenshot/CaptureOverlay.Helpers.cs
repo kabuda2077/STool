@@ -7,6 +7,7 @@ using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Serilog;
+using STool.Core;
 using STool.Modules.Screenshot.Annotations;
 
 namespace STool.Modules.Screenshot;
@@ -18,6 +19,7 @@ public partial class CaptureOverlay
 {
     private System.Drawing.Bitmap RenderSelectionBitmap()
     {
+        MemoryDiagnostics.LogCheckpoint("ScreenshotRenderStarted");
         int px = (int)Math.Round(_selection.X * _scaleX);
         int py = (int)Math.Round(_selection.Y * _scaleY);
         int pw = Math.Max(1, (int)Math.Round(_selection.Width * _scaleX));
@@ -48,50 +50,62 @@ public partial class CaptureOverlay
 
         // 无标注/译文则直接返回裁剪图
         if (!hasAnnotations && !hasTranslation && !hasBlockTranslation)
-            return crop;
-
-        if (mosaicAnnotations.Count > 0)
-            ApplyMosaicAnnotations(crop, mosaicAnnotations);
-
-        // 合成标注层
-        var baseSource = ToBitmapSource(crop);
-        var rtb = new RenderTargetBitmap(pw, ph, 96, 96, PixelFormats.Pbgra32);
-        var visual = new DrawingVisual();
-        using (var ctx = visual.RenderOpen())
         {
-            ctx.DrawImage(baseSource, new Rect(0, 0, pw, ph));
-            if (hasTranslation)
-            {
-                DrawElementSnapshot(ctx, translationOverlay, pw, ph);
-            }
-            if (hasBlockTranslation)
-            {
-                DrawElementSnapshot(ctx, translationBlockCanvas, pw, ph);
-            }
-            if (hasAnnotations)
-            {
-                var previousVisibility = mosaicAnnotations
-                    .Select(mosaic => (Mosaic: mosaic, mosaic.Visibility))
-                    .ToList();
-
-                try
-                {
-                    foreach (var mosaic in mosaicAnnotations)
-                        mosaic.Visibility = Visibility.Collapsed;
-
-                    var vb = new VisualBrush(annotationCanvas) { Stretch = Stretch.Fill };
-                    ctx.DrawRectangle(vb, null, new Rect(0, 0, pw, ph));
-                }
-                finally
-                {
-                    foreach (var item in previousVisibility)
-                        item.Mosaic.Visibility = item.Visibility;
-                }
-            }
+            MemoryDiagnostics.LogCheckpoint("ScreenshotRenderCompleted");
+            return crop;
         }
-        rtb.Render(visual);
-        crop.Dispose();
-        return BitmapSourceToBitmap(rtb);
+
+        try
+        {
+            if (mosaicAnnotations.Count > 0)
+                ApplyMosaicAnnotations(crop, mosaicAnnotations);
+
+            // 合成标注层
+            var baseSource = ToBitmapSource(crop);
+            var rtb = new RenderTargetBitmap(pw, ph, 96, 96, PixelFormats.Pbgra32);
+            var visual = new DrawingVisual();
+            using (var ctx = visual.RenderOpen())
+            {
+                ctx.DrawImage(baseSource, new Rect(0, 0, pw, ph));
+                if (hasTranslation)
+                {
+                    DrawElementSnapshot(ctx, translationOverlay, pw, ph);
+                }
+                if (hasBlockTranslation)
+                {
+                    DrawElementSnapshot(ctx, translationBlockCanvas, pw, ph);
+                }
+                if (hasAnnotations)
+                {
+                    var previousVisibility = mosaicAnnotations
+                        .Select(mosaic => (Mosaic: mosaic, mosaic.Visibility))
+                        .ToList();
+
+                    try
+                    {
+                        foreach (var mosaic in mosaicAnnotations)
+                            mosaic.Visibility = Visibility.Collapsed;
+
+                        var vb = new VisualBrush(annotationCanvas) { Stretch = Stretch.Fill };
+                        ctx.DrawRectangle(vb, null, new Rect(0, 0, pw, ph));
+                    }
+                    finally
+                    {
+                        foreach (var item in previousVisibility)
+                            item.Mosaic.Visibility = item.Visibility;
+                    }
+                }
+            }
+
+            rtb.Render(visual);
+            var result = BitmapSourceToBitmap(rtb);
+            MemoryDiagnostics.LogCheckpoint("ScreenshotRenderCompleted");
+            return result;
+        }
+        finally
+        {
+            crop.Dispose();
+        }
     }
 
     private static void DrawElementSnapshot(DrawingContext ctx, FrameworkElement element, int pixelWidth, int pixelHeight)

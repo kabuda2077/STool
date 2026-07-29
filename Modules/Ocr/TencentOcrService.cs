@@ -73,7 +73,7 @@ public class TencentOcrService : IOcrService
             var authorization = CalculateSignature(payloadJson, timestamp, date);
 
             // 发送请求
-            var request = new HttpRequestMessage(HttpMethod.Post, $"https://{Endpoint}/")
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"https://{Endpoint}/")
             {
                 Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
             };
@@ -89,11 +89,11 @@ public class TencentOcrService : IOcrService
             request.Headers.TryAddWithoutValidation("X-TC-Timestamp", timestamp.ToString());
             request.Headers.TryAddWithoutValidation("X-TC-Region", "ap-guangzhou");
 
-            var response = await _httpClient.SendAsync(request, cancellationToken);
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
             var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
 
             // 解析响应
-            var jsonDoc = JsonDocument.Parse(responseJson);
+            using var jsonDoc = JsonDocument.Parse(responseJson);
             var root = jsonDoc.RootElement;
 
             if (root.TryGetProperty("Response", out var responseElement))

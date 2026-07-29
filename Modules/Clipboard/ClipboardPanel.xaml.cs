@@ -44,6 +44,8 @@ public partial class ClipboardPanel : Window
 
     // C: 搜索去抖
     private readonly DispatcherTimer _searchDebounce;
+    private readonly DispatcherTimer _tabContentDelay;
+    private static readonly TimeSpan TabContentDelay = TimeSpan.FromMilliseconds(70);
 
     // B: 缩略图后台解码并发限流(最多 3 个同时解码)
     private static readonly SemaphoreSlim ThumbThrottle = new(3);
@@ -57,6 +59,12 @@ public partial class ClipboardPanel : Window
         _manager = manager;
         _targetHwnd = GetForegroundWindow();
         InitializeComponent();
+
+        _tabContentDelay = new DispatcherTimer(DispatcherPriority.Background)
+        {
+            Interval = TabContentDelay
+        };
+        _tabContentDelay.Tick += TabContentDelay_Tick;
 
         _searchDebounce = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(200) };
         _searchDebounce.Tick += (_, _) =>
@@ -90,6 +98,8 @@ public partial class ClipboardPanel : Window
 
     private void ApplyFilter()
     {
+        _tabContentDelay.Stop();
+
         IEnumerable<ClipboardItem> q = _allRaw;
         var hasSearch = !string.IsNullOrWhiteSpace(_searchText);
 
@@ -161,13 +171,32 @@ public partial class ClipboardPanel : Window
 
     private void Tab_Click(object sender, RoutedEventArgs e)
     {
-        _tab = ReferenceEquals(sender, tabText) ? Tab.Text
-             : ReferenceEquals(sender, tabImage) ? Tab.Image
-             : ReferenceEquals(sender, tabFile) ? Tab.File
-             : ReferenceEquals(sender, tabFavorite) ? Tab.Favorite
-             : Tab.All;
+        var nextTab = ReferenceEquals(sender, tabText) ? Tab.Text
+                    : ReferenceEquals(sender, tabImage) ? Tab.Image
+                    : ReferenceEquals(sender, tabFile) ? Tab.File
+                    : ReferenceEquals(sender, tabFavorite) ? Tab.Favorite
+                    : Tab.All;
+        if (nextTab == _tab)
+            return;
+
+        _tab = nextTab;
         UpdateTabs();
-        ApplyFilter();
+
+        _tabContentDelay.Stop();
+        if (MotionSettings.ShouldReduceMotion)
+        {
+            ApplyFilter();
+            return;
+        }
+
+        _tabContentDelay.Start();
+    }
+
+    private void TabContentDelay_Tick(object? sender, EventArgs e)
+    {
+        _tabContentDelay.Stop();
+        if (!_closing)
+            ApplyFilter();
     }
 
     private void UpdateTabs()
@@ -544,7 +573,16 @@ public partial class ClipboardPanel : Window
                 if (bmp != null)
                 {
                     cancellationToken.ThrowIfCancellationRequested();
+                    if (_closing)
+                        return;
+
                     _thumbnailCache.Set(cacheKey, bmp, EstimateImageBytes(bmp));
+                    if (_closing || cancellationToken.IsCancellationRequested)
+                    {
+                        _thumbnailCache.Remove(cacheKey);
+                        return;
+                    }
+
                     PostThumbnailResult(vm, bmp, cancellationToken);
                 }
                 else
@@ -835,6 +873,8 @@ public partial class ClipboardPanel : Window
     {
         _closing = true;
         _searchDebounce.Stop();
+        _tabContentDelay.Stop();
+        _tabContentDelay.Tick -= TabContentDelay_Tick;
         _thumbnailLifetime.Cancel();
 
         itemsList.ItemsSource = null;

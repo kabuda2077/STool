@@ -1,5 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -18,7 +19,9 @@ public partial class TranslationPanel : Window
     private readonly TranslationManager _translationManager;
     private TranslationProvider _provider = TranslationProvider.Google;
     private bool _busy;
+    private bool _closing;
     private bool _initializingLanguages = true;
+    private CancellationTokenSource? _translationCts;
     private readonly IntPtr _targetHwnd;   // 打开面板前的前台窗口("复制并输入"时切回它粘贴)
 
     public TranslationPanel(TranslationManager translationManager)
@@ -147,8 +150,11 @@ public partial class TranslationPanel : Window
     private async Task TranslateAsync()
     {
         var sourceText = txtSource.Text.Trim();
-        if (string.IsNullOrEmpty(sourceText) || _busy)
+        if (string.IsNullOrEmpty(sourceText) || _busy || _closing)
             return;
+
+        var translationCts = new CancellationTokenSource();
+        _translationCts = translationCts;
 
         try
         {
@@ -159,22 +165,42 @@ public partial class TranslationPanel : Window
             var sourceLang = "auto";
             var targetLang = TranslationManager.ResolveTargetLanguage(sourceText, GetTranslationMode());
 
-            var result = await _translationManager.TranslateAsync(sourceText, sourceLang, targetLang, _provider);
+            var result = await _translationManager.TranslateAsync(
+                sourceText,
+                sourceLang,
+                targetLang,
+                _provider,
+                translationCts.Token);
 
             // 结果与错误都直接显示在结果区,翻译完成不再弹出右下角提示
-            txtTarget.Text = result.Success
-                ? result.TranslatedText
-                : $"翻译失败：{result.ErrorMessage}";
+            if (!_closing && !translationCts.IsCancellationRequested)
+            {
+                txtTarget.Text = result.Success
+                    ? result.TranslatedText
+                    : $"翻译失败：{result.ErrorMessage}";
+            }
+        }
+        catch (OperationCanceledException) when (translationCts.IsCancellationRequested || _closing)
+        {
+            // 窗口关闭时取消请求,不把取消显示成翻译失败。
         }
         catch (Exception ex)
         {
-            txtTarget.Text = $"翻译失败：{ex.Message}";
+            if (!_closing && !translationCts.IsCancellationRequested)
+                txtTarget.Text = $"翻译失败：{ex.Message}";
         }
         finally
         {
-            _busy = false;
-            loadingIndicator.Visibility = Visibility.Collapsed;
-            tgtWatermark.Visibility = string.IsNullOrEmpty(txtTarget.Text) ? Visibility.Visible : Visibility.Collapsed;
+            if (ReferenceEquals(_translationCts, translationCts))
+                _translationCts = null;
+
+            translationCts.Dispose();
+            if (!_closing)
+            {
+                _busy = false;
+                loadingIndicator.Visibility = Visibility.Collapsed;
+                tgtWatermark.Visibility = string.IsNullOrEmpty(txtTarget.Text) ? Visibility.Visible : Visibility.Collapsed;
+            }
         }
     }
 
@@ -277,6 +303,9 @@ public partial class TranslationPanel : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        _closing = true;
+        _translationCts?.Cancel();
+        loadingIndicator.Visibility = Visibility.Collapsed;
         txtSource.Clear();
         txtTarget.Clear();
         MemoryDiagnostics.LogCheckpoint("TranslationPanelClosed");

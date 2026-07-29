@@ -68,12 +68,17 @@ public class WindowsOcrService : IOcrService
             image.Save(memoryStream, System.Drawing.Imaging.ImageFormat.Bmp);
             memoryStream.Position = 0;
 
-            var randomAccessStream = new InMemoryRandomAccessStream();
-            await memoryStream.CopyToAsync(randomAccessStream.AsStreamForWrite(), cancellationToken);
+            using var randomAccessStream = new InMemoryRandomAccessStream();
+            using (var writeStream = randomAccessStream.AsStreamForWrite())
+            {
+                await memoryStream.CopyToAsync(writeStream, cancellationToken);
+                await writeStream.FlushAsync(cancellationToken);
+            }
+
             randomAccessStream.Seek(0);
 
             var decoder = await BitmapDecoder.CreateAsync(randomAccessStream).AsTask(cancellationToken);
-            var softwareBitmap = await decoder.GetSoftwareBitmapAsync().AsTask(cancellationToken);
+            using var softwareBitmap = await decoder.GetSoftwareBitmapAsync().AsTask(cancellationToken);
 
             // 执行 OCR
             var ocrResult = await _ocrEngine.RecognizeAsync(softwareBitmap).AsTask(cancellationToken);

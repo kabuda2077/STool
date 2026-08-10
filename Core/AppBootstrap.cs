@@ -15,6 +15,7 @@ public class AppBootstrap : IDisposable
     private readonly HotkeyManager _hotkeyManager;
     private readonly ConfigManager _configManager;
     private STool.Views.SettingsWindow? _settingsWindow;
+    private STool.Modules.LanTransfer.LanTransferWindow? _lanTransferWindow;
 
     public AppBootstrap()
     {
@@ -203,6 +204,11 @@ public class AppBootstrap : IDisposable
             Log.Warning($"Failed to register settings hotkey: {config.Hotkeys.Settings}");
         }
 
+        if (!_hotkeyManager.RegisterHotkey(config.Hotkeys.LanTransfer, OnLanTransferHotkey))
+        {
+            Log.Warning($"Failed to register LAN transfer hotkey: {config.Hotkeys.LanTransfer}");
+        }
+
         Log.Information("Hotkeys initialized");
     }
 
@@ -293,6 +299,20 @@ public class AppBootstrap : IDisposable
         ShowInForeground(panel);
     }
 
+    private void OnLanTransferHotkey()
+    {
+        Log.Information("LAN transfer hotkey triggered");
+        if (_lanTransferWindow != null)
+        {
+            ShowInForeground(_lanTransferWindow);
+            return;
+        }
+
+        _lanTransferWindow = new STool.Modules.LanTransfer.LanTransferWindow(_configManager);
+        _lanTransferWindow.Closed += (_, _) => _lanTransferWindow = null;
+        ShowInForeground(_lanTransferWindow);
+    }
+
     public void ShowSettings()
     {
         // 单例:已打开则激活,避免多个设置窗口
@@ -335,6 +355,7 @@ public class AppBootstrap : IDisposable
 
     public void Dispose()
     {
+        try { _lanTransferWindow?.Close(); } catch { }
         _notifyIcon.Dispose();
         _hotkeyManager.Dispose();
         (_serviceProvider as IDisposable)?.Dispose();

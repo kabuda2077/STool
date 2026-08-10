@@ -12,6 +12,8 @@ public static class AppPaths
     public static string ClipboardThumbnailsDirectory => Path.Combine(DataDirectory, "ClipboardThumbnails");
     public static string LogsDirectory => Path.Combine(DataDirectory, "Logs");
     public static string SecureKeyPath => Path.Combine(DataDirectory, "secure.key");
+    public static string LanTransferDevicesPath => Path.Combine(DataDirectory, "lan-devices.json");
+    public static string LanTransferHistoryPath => Path.Combine(DataDirectory, "lan-transfer-history.json");
 
     public static void EnsureDataDirectory()
     {

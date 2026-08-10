@@ -120,7 +120,6 @@ public class TranslationSettingsPanel : StackPanel
     {
         var textBrush = (System.Windows.Media.Brush)FindResource("TextPrimaryBrush");
         var iconBrush = (System.Windows.Media.Brush)FindResource("TextSecondaryBrush");
-        var iconBackground = (System.Windows.Media.Brush)FindResource("SurfaceAltBrush");
         var transparentBrush = (System.Windows.Media.Brush)FindResource("TransparentBrush");
 
         var content = new StackPanel
@@ -134,35 +133,28 @@ public class TranslationSettingsPanel : StackPanel
             Foreground = textBrush,
             VerticalAlignment = VerticalAlignment.Center
         });
-        content.Children.Add(new Border
+        content.Children.Add(new Viewbox
         {
-            Width = 22,
-            Height = 22,
+            Width = 12,
+            Height = 12,
             Margin = new Thickness(7, 0, 7, 0),
-            Background = iconBackground,
-            CornerRadius = new CornerRadius(11),
-            Child = new Viewbox
+            Opacity = 0.78,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = new Canvas
             {
-                Width = 11,
-                Height = 11,
-                HorizontalAlignment = System.Windows.HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                Child = new Canvas
+                Width = 24,
+                Height = 24,
+                Children =
                 {
-                    Width = 24,
-                    Height = 24,
-                    Children =
+                    new Path
                     {
-                        new Path
-                        {
-                            Data = (Geometry)FindResource(bidirectional ? "IconArrowLeftRight" : "IconArrowRight"),
-                            Stroke = iconBrush,
-                            StrokeThickness = 1.7,
-                            StrokeStartLineCap = PenLineCap.Round,
-                            StrokeEndLineCap = PenLineCap.Round,
-                            StrokeLineJoin = PenLineJoin.Round,
-                            Fill = transparentBrush
-                        }
+                        Data = (Geometry)FindResource(bidirectional ? "IconArrowLeftRight" : "IconArrowRight"),
+                        Stroke = iconBrush,
+                        StrokeThickness = 1.5,
+                        StrokeStartLineCap = PenLineCap.Round,
+                        StrokeEndLineCap = PenLineCap.Round,
+                        StrokeLineJoin = PenLineJoin.Round,
+                        Fill = transparentBrush
                     }
                 }
             }

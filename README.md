@@ -1,6 +1,6 @@
 # STool
 
-Windows 效率工具 - 截图、翻译、剪贴板历史、OCR
+Windows 效率工具 - 截图、翻译、剪贴板历史、OCR、局域网文件传输
 
 ## 快速开始
 
@@ -9,7 +9,7 @@ Windows 效率工具 - 截图、翻译、剪贴板历史、OCR
 dotnet build && dotnet run
 
 # 发布便携版
-.\build-portable.ps1 -Version "1.0.0"
+.\build-portable.ps1 -Version "1.4"
 ```
 
 ## 功能
@@ -17,7 +17,8 @@ dotnet build && dotnet run
 - **截图** (Alt+1) - 框选截图，支持原位翻译
 - **翻译** (Alt+2) - 选中文本后按快捷键翻译
 - **剪贴板历史** (Alt+3) - 自动保存复制记录
-- **设置** (Alt+4) - 打开设置面板
+- **局域网传输** (Alt+4) - Android 浏览器与电脑双向传输文件
+- **设置** (Alt+5) - 打开设置面板
 
 ## 技术栈
 
@@ -42,3 +43,4 @@ Styles/         设计系统
 - 数据库: `Data\clipboard.db`
 - 日志: `Data\Logs\`
 - 加密密钥: `Data\secure.key`
+- 已认证设备: `Data\lan-devices.json`（仅保存令牌哈希）

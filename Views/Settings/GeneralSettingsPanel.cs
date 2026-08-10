@@ -16,6 +16,7 @@ public class GeneralSettingsPanel : StackPanel
     private System.Windows.Controls.TextBox _txtTranslationHotkey = null!;
     private System.Windows.Controls.TextBox _txtClipboardHotkey = null!;
     private System.Windows.Controls.TextBox _txtSettingsHotkey = null!;
+    private System.Windows.Controls.TextBox _txtLanTransferHotkey = null!;
 
     public GeneralSettingsPanel(ConfigManager configManager)
     {
@@ -70,10 +71,13 @@ public class GeneralSettingsPanel : StackPanel
         hotkeysSection.Children.Add(SettingsLayout.CreateInlineField("剪贴板", _txtClipboardHotkey, SettingsLayout.HotkeyLabelWidth));
 
         _txtSettingsHotkey = CreateHotkeyBox();
-        hotkeysSection.Children.Add(SettingsLayout.CreateInlineField("设置", _txtSettingsHotkey, SettingsLayout.HotkeyLabelWidth, isLast: true));
+        hotkeysSection.Children.Add(SettingsLayout.CreateInlineField("设置", _txtSettingsHotkey, SettingsLayout.HotkeyLabelWidth));
+
+        _txtLanTransferHotkey = CreateHotkeyBox();
+        hotkeysSection.Children.Add(SettingsLayout.CreateInlineField("传输", _txtLanTransferHotkey, SettingsLayout.HotkeyLabelWidth, isLast: true));
 
         // 即时保存:快捷键录制完(失焦)自动校验并保存
-        foreach (var box in new[] { _txtScreenshotHotkey, _txtTranslationHotkey, _txtClipboardHotkey, _txtSettingsHotkey })
+        foreach (var box in new[] { _txtScreenshotHotkey, _txtTranslationHotkey, _txtClipboardHotkey, _txtSettingsHotkey, _txtLanTransferHotkey })
         {
             box.LostKeyboardFocus += (_, _) => CommitHotkeysIfChanged();
         }
@@ -118,6 +122,7 @@ public class GeneralSettingsPanel : StackPanel
         _txtTranslationHotkey.Text = config.Hotkeys.Translation;
         _txtClipboardHotkey.Text = config.Hotkeys.Clipboard;
         _txtSettingsHotkey.Text = config.Hotkeys.Settings;
+        _txtLanTransferHotkey.Text = config.Hotkeys.LanTransfer;
     }
 
     /// <summary>快捷键录制完(失焦)时:有变化才校验并保存,非法则回退到已保存值。</summary>
@@ -128,12 +133,14 @@ public class GeneralSettingsPanel : StackPanel
         var translation = _txtTranslationHotkey.Text.Trim();
         var clipboard = _txtClipboardHotkey.Text.Trim();
         var settings = _txtSettingsHotkey.Text.Trim();
+        var lanTransfer = _txtLanTransferHotkey.Text.Trim();
 
         // 无变化则不动,避免无意义的保存和"已保存"闪烁
         if (screenshot == config.Hotkeys.Screenshot &&
             translation == config.Hotkeys.Translation &&
             clipboard == config.Hotkeys.Clipboard &&
-            settings == config.Hotkeys.Settings)
+            settings == config.Hotkeys.Settings &&
+            lanTransfer == config.Hotkeys.LanTransfer)
         {
             return;
         }
@@ -142,12 +149,14 @@ public class GeneralSettingsPanel : StackPanel
         if (!ValidateHotkey(screenshot, "截图快捷键") ||
             !ValidateHotkey(translation, "翻译快捷键") ||
             !ValidateHotkey(clipboard, "剪贴板快捷键") ||
-            !ValidateHotkey(settings, "设置快捷键"))
+            !ValidateHotkey(settings, "设置快捷键") ||
+            !ValidateHotkey(lanTransfer, "传输快捷键"))
         {
             _txtScreenshotHotkey.Text = config.Hotkeys.Screenshot;
             _txtTranslationHotkey.Text = config.Hotkeys.Translation;
             _txtClipboardHotkey.Text = config.Hotkeys.Clipboard;
             _txtSettingsHotkey.Text = config.Hotkeys.Settings;
+            _txtLanTransferHotkey.Text = config.Hotkeys.LanTransfer;
             return;
         }
 
@@ -157,6 +166,7 @@ public class GeneralSettingsPanel : StackPanel
             config.Hotkeys.Translation = translation;
             config.Hotkeys.Clipboard = clipboard;
             config.Hotkeys.Settings = settings;
+            config.Hotkeys.LanTransfer = lanTransfer;
 
             _configManager.Save(config);
             ((App)System.Windows.Application.Current).ReloadHotkeys();

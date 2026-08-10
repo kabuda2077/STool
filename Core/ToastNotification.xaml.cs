@@ -9,6 +9,7 @@ namespace STool.Core
     public partial class ToastNotification : Window
     {
         private DispatcherTimer? _timer;
+        private Action? _action;
         private const int DEFAULT_DURATION = 2500; // 毫秒
 
         public enum ToastType
@@ -117,7 +118,13 @@ namespace STool.Core
             sb.Begin();
         }
 
-        public static void Show(string title, string message = "", ToastType type = ToastType.Success, int duration = DEFAULT_DURATION)
+        public static void Show(
+            string title,
+            string message = "",
+            ToastType type = ToastType.Success,
+            int duration = DEFAULT_DURATION,
+            string? actionText = null,
+            Action? action = null)
         {
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
@@ -128,6 +135,13 @@ namespace STool.Core
                 {
                     toast.messageText.Text = message;
                     toast.messageText.Visibility = Visibility.Visible;
+                }
+
+                if (!string.IsNullOrWhiteSpace(actionText) && action != null)
+                {
+                    toast._action = action;
+                    toast.actionButton.Content = actionText;
+                    toast.actionButton.Visibility = Visibility.Visible;
                 }
 
                 // 根据类型设置图标和颜色
@@ -165,6 +179,31 @@ namespace STool.Core
                 };
                 toast._timer.Start();
             });
+        }
+
+        public static void ShowWithAction(
+            string title,
+            string message,
+            string actionText,
+            Action action,
+            ToastType type = ToastType.Success,
+            int duration = 5000)
+        {
+            Show(title, message, type, duration, actionText, action);
+        }
+
+        private void ActionButton_Click(object sender, RoutedEventArgs e)
+        {
+            var action = _action;
+            _action = null;
+            try
+            {
+                action?.Invoke();
+            }
+            finally
+            {
+                Close();
+            }
         }
 
     }

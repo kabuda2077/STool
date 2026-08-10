@@ -36,7 +36,9 @@ public class ConfigManager
                 {
                     var json = File.ReadAllText(_configPath);
                     _config = JsonSerializer.Deserialize<AppConfig>(json, JsonOptions) ?? new AppConfig();
-                    if (MigrateEncryptedSecrets(_config))
+                    var configChanged = MigrateEncryptedSecrets(_config);
+                    configChanged |= MigrateDefaultHotkeys(_config);
+                    if (configChanged)
                     {
                         SaveInternal(_config);
                     }
@@ -129,6 +131,19 @@ public class ConfigManager
         changed |= ReencryptIfLegacy(config.Translation.AiApiKeyEncrypted, value => config.Translation.AiApiKeyEncrypted = value);
 
         return changed;
+    }
+
+    private static bool MigrateDefaultHotkeys(AppConfig config)
+    {
+        if (!string.Equals(config.Hotkeys.Settings, "Alt+4", StringComparison.OrdinalIgnoreCase) ||
+            !string.Equals(config.Hotkeys.LanTransfer, "Alt+5", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        config.Hotkeys.Settings = "Alt+5";
+        config.Hotkeys.LanTransfer = "Alt+4";
+        return true;
     }
 
     private static bool ReencryptIfLegacy(string? encryptedText, Action<string> setValue)

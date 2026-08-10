@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+  <meta name="color-scheme" content="light">
+  <title>STool 传输</title>
+  <link rel="stylesheet" href="/assets/style.css">
+</head>
+<body>
+  <main class="shell">
+    <header class="topbar">
+      <h1>STool</h1>
+      <div class="connection-status" role="status" aria-live="polite">
+        <span id="statusDot" class="status-dot" aria-hidden="true"></span>
+        <span id="connectionLabel">正在连接电脑</span>
+      </div>
+    </header>
+
+    <section id="loadingView" class="loading-view" role="status" aria-live="polite">
+      <div class="loading-spinner" aria-hidden="true"></div>
+      <p>正在连接电脑...</p>
+    </section>
+
+    <section id="authView" class="auth-view" hidden>
+      <h2>连接验证</h2>
+      <form id="authForm">
+        <label for="codeInput">电脑上显示的验证码</label>
+        <input id="codeInput" inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}" placeholder="000000" required>
+        <label class="check-row"><input id="rememberInput" type="checkbox"> 记住此设备 90 天</label>
+        <button class="primary" type="submit">连接</button>
+        <p id="authError" class="error" role="alert"></p>
+      </form>
+    </section>
+
+    <section id="workspace" hidden>
+      <nav class="tabs" aria-label="传输方向" role="tablist">
+        <button id="receiveTab" class="tab active" data-tab="receive" role="tab" aria-selected="true" aria-controls="receiveView">从电脑下载</button>
+        <button id="sendTab" class="tab" data-tab="send" role="tab" aria-selected="false" aria-controls="sendView">发送到电脑</button>
+      </nav>
+
+      <section id="activeTransfers" class="active-transfers" aria-label="活动传输" hidden>
+        <div id="activeTransferList" class="transfer-list"></div>
+      </section>
+
+      <section id="sendView" class="view" role="tabpanel" aria-labelledby="sendTab" hidden>
+        <div id="uploadComposer">
+          <div class="picker-row">
+            <label class="picker"><input id="filePicker" type="file" multiple>选择文件</label>
+            <label class="picker"><input id="folderPicker" type="file" multiple webkitdirectory>选择文件夹</label>
+          </div>
+          <div id="selectionSummary" class="selection-summary">尚未选择文件</div>
+          <button id="uploadButton" class="primary" disabled>开始发送</button>
+          <div id="uploadList" class="list"></div>
+        </div>
+      </section>
+
+      <section id="receiveView" class="view" role="tabpanel" aria-labelledby="receiveTab">
+        <div id="folderToolbar" class="folder-toolbar" hidden>
+          <button id="folderBack" class="folder-back" type="button">返回</button>
+          <div class="folder-location">
+            <strong id="folderTitle"></strong>
+            <span id="folderPath"></span>
+          </div>
+          <button id="selectAll" class="text-action" type="button">全选</button>
+        </div>
+        <div id="selectionBar" class="selection-bar" hidden>
+          <span id="selectedCount">已选择 0 个文件</span>
+          <button id="downloadSelected" class="primary compact" type="button">下载所选</button>
+        </div>
+        <div id="archiveStatus" class="archive-status" role="status" aria-live="polite" hidden>
+          <div class="archive-status-head">
+            <strong id="archiveName"></strong>
+            <span id="archiveState">准备中</span>
+          </div>
+          <div class="archive-progress"><span id="archiveProgress"></span></div>
+          <div class="archive-detail-row">
+            <span id="archiveDetail"></span>
+          </div>
+        </div>
+        <div id="downloadList" class="list" hidden></div>
+      </section>
+    </section>
+
+    <div id="offerDialog" class="offer-backdrop" role="dialog" aria-modal="true" aria-labelledby="offerTitle" hidden>
+      <section class="offer-dialog">
+        <p class="offer-label">电脑正在发送</p>
+        <h2 id="offerTitle"></h2>
+        <p id="offerDetail" class="offer-detail"></p>
+        <p id="offerHint" class="offer-hint" hidden></p>
+        <div id="offerActions" class="offer-actions">
+          <button id="offerBrowse" class="secondary" type="button" hidden>选择文件</button>
+          <button id="offerAccept" class="primary offer-accept" type="button">接收</button>
+        </div>
+        <button id="offerReject" class="offer-reject" type="button">拒绝</button>
+      </section>
+    </div>
+
+  </main>
+  <script src="/assets/app.js"></script>
+</body>
+</html>

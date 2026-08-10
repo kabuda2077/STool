@@ -52,6 +52,14 @@
                            TextWrapping="Wrap"
                            Margin="0,2,0,0"
                            Visibility="Collapsed"/>
+                <Button x:Name="actionButton"
+                        Style="{StaticResource GhostButton}"
+                        MinHeight="26"
+                        Padding="8,3"
+                        Margin="-8,4,0,0"
+                        HorizontalAlignment="Left"
+                        Visibility="Collapsed"
+                        Click="ActionButton_Click"/>
             </StackPanel>
         </StackPanel>
     </Border>

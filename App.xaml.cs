@@ -17,6 +17,22 @@ public partial class App : System.Windows.Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        if (TryGetLanTransferConfigurePort(e.Args, out var configurePort))
+        {
+            base.OnStartup(e);
+            var result = LanTransferSetup.ConfigureCurrentUser(configurePort);
+            if (!result.Success)
+            {
+                System.Windows.MessageBox.Show(
+                    result.Message,
+                    "配置失败",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Error);
+            }
+            Shutdown(result.Success ? 0 : 1);
+            return;
+        }
+
         if (IsSettingsLab(e.Args))
         {
             base.OnStartup(e);
@@ -53,6 +69,18 @@ public partial class App : System.Windows.Application
     private static bool IsSettingsLab(string[] args)
     {
         return args.Any(arg => string.Equals(arg, "--settings-lab", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static bool TryGetLanTransferConfigurePort(string[] args, out int port)
+    {
+        port = LanTransferSetup.DefaultPort;
+        var index = Array.FindIndex(args, arg =>
+            string.Equals(arg, "--configure-lan-transfer", StringComparison.OrdinalIgnoreCase));
+        if (index < 0)
+            return false;
+        if (index + 1 < args.Length && int.TryParse(args[index + 1], out var configuredPort))
+            port = configuredPort;
+        return true;
     }
 
     protected override void OnExit(ExitEventArgs e)

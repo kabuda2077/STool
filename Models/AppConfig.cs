@@ -8,6 +8,7 @@ public class AppConfig
     public OcrConfig Ocr { get; set; } = new();
     public TranslationConfig Translation { get; set; } = new();
     public ClipboardConfig Clipboard { get; set; } = new();
+    public LanTransferConfig LanTransfer { get; set; } = new();
     public bool AutoStart { get; set; }
     public bool HideTrayIcon { get; set; }
 }
@@ -17,7 +18,16 @@ public class HotkeyConfig
     public string Screenshot { get; set; } = "Alt+1";
     public string Translation { get; set; } = "Alt+2";
     public string Clipboard { get; set; } = "Alt+3";
-    public string Settings { get; set; } = "Alt+4";
+    public string Settings { get; set; } = "Alt+5";
+    public string LanTransfer { get; set; } = "Alt+4";
+}
+
+public class LanTransferConfig
+{
+    public int Port { get; set; } = 17654;
+    public string ReceiveDirectory { get; set; } = "";
+    public string? ConfiguredExecutablePath { get; set; }
+    public int MaxConcurrentTransfers { get; set; } = 2;
 }
 
 public class OcrConfig

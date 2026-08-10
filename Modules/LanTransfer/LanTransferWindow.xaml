@@ -1,0 +1,556 @@
+<Window x:Class="STool.Modules.LanTransfer.LanTransferWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:core="clr-namespace:STool.Core"
+        Style="{StaticResource ModernWindow}"
+        core:ModernWindowChrome.TitleBarExtraTopPadding="True"
+        core:ModernWindowChrome.ShowTopmostButton="True"
+        Title="局域网传输"
+        Width="820"
+        Height="690"
+        MinWidth="700"
+        MinHeight="580"
+        WindowStartupLocation="CenterScreen"
+        AllowDrop="True"
+        DragOver="Window_DragOver"
+        Drop="Window_Drop">
+
+    <Window.Resources>
+        <Style x:Key="TransferListItem" TargetType="ListBoxItem">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="Margin" Value="0,0,0,2"/>
+            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="HorizontalContentAlignment" Value="Stretch"/>
+            <Setter Property="FocusVisualStyle" Value="{StaticResource ModernFocusVisual}"/>
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Border x:Name="Root"
+                                Background="{TemplateBinding Background}"
+                                CornerRadius="6"
+                                Padding="8,7">
+                            <ContentPresenter/>
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="Root" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+        <Style x:Key="TransferProgressItem"
+               TargetType="ListBoxItem"
+               BasedOn="{StaticResource TransferListItem}">
+            <Setter Property="Margin" Value="0,6,0,0"/>
+            <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="10,52,10,10">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+
+        <Border Grid.Row="0"
+                Style="{StaticResource SurfaceCard}"
+                Margin="0,0,0,10">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+
+                <Grid Margin="0,4,0,16">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <Ellipse x:Name="statusDot"
+                                 Width="8"
+                                 Height="8"
+                                 Fill="{StaticResource TextSecondaryBrush}"
+                                 VerticalAlignment="Center"
+                                 Margin="0,0,7,0"/>
+                        <TextBlock x:Name="statusText"
+                                   Text="正在启动服务"
+                                   FontSize="{StaticResource FontSizeSubtitle}"
+                                   FontWeight="{StaticResource FontWeightStrong}"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"
+                                   AutomationProperties.HeadingLevel="Level2"
+                                   AutomationProperties.LiveSetting="Polite"/>
+                    </StackPanel>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button x:Name="repairButton"
+                                Style="{StaticResource PrimaryButton}"
+                                Content="修复连接"
+                                Visibility="Collapsed"
+                                Click="RepairConnection_Click"/>
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="connectionDetailsPanel" Grid.Row="1">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="16"/>
+                        <ColumnDefinition Width="122"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="36"/>
+                            <RowDefinition Height="7"/>
+                            <RowDefinition Height="36"/>
+                            <RowDefinition Height="7"/>
+                            <RowDefinition Height="36"/>
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="64"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="88"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="接收目录"
+                                   Style="{StaticResource HintText}"
+                                   VerticalAlignment="Center"/>
+                        <TextBox x:Name="receiveDirectoryText"
+                                 Grid.Column="1"
+                                 Style="{StaticResource SunkenTextBox}"
+                                 Height="36"
+                                 IsReadOnly="True"
+                                 VerticalContentAlignment="Center"/>
+                        <Button Grid.Column="2"
+                                Style="{StaticResource ToolPanelSecondaryButton}"
+                                Content="更改"
+                                MinWidth="80"
+                                Margin="8,0,0,0"
+                                HorizontalAlignment="Right"
+                                Click="BrowseReceiveDirectory_Click"/>
+                        </Grid>
+
+                        <Grid Grid.Row="2">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="64"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="88"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="访问地址"
+                                   Style="{StaticResource HintText}"
+                                   VerticalAlignment="Center"/>
+                        <Border Grid.Column="1"
+                                Height="36"
+                                Background="{StaticResource SurfaceAltBrush}"
+                                CornerRadius="{StaticResource CornerRadiusMedium}"
+                                Padding="12,0">
+                            <TextBlock x:Name="addressText"
+                                       FontSize="{StaticResource FontSizeBody}"
+                                       FontWeight="{StaticResource FontWeightNormal}"
+                                       Foreground="{StaticResource PrimaryBrush}"
+                                       TextTrimming="CharacterEllipsis"
+                                       VerticalAlignment="Center"/>
+                        </Border>
+                        <Button Grid.Column="2"
+                                Style="{StaticResource ToolPanelSecondaryButton}"
+                                Content="复制"
+                                ToolTip="复制地址"
+                                AutomationProperties.Name="复制连接地址"
+                                MinWidth="80"
+                                Margin="8,0,0,0"
+                                HorizontalAlignment="Right"
+                                Click="CopyAddress_Click"/>
+                        </Grid>
+
+                        <Grid Grid.Row="4">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="64"/>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="88"/>
+                        </Grid.ColumnDefinitions>
+                        <TextBlock Text="验证码"
+                                   Style="{StaticResource HintText}"
+                                   VerticalAlignment="Center"/>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal">
+                            <Border Height="36"
+                                    Background="{StaticResource SurfaceAltBrush}"
+                                    CornerRadius="{StaticResource CornerRadiusMedium}"
+                                    Padding="12,0">
+                                <TextBlock x:Name="codeText"
+                                           FontSize="{StaticResource FontSizeBody}"
+                                           FontWeight="{StaticResource FontWeightNormal}"
+                                           Foreground="{StaticResource PrimaryBrush}"
+                                           VerticalAlignment="Center"/>
+                            </Border>
+                            <Button Style="{StaticResource IconButton}"
+                                    ToolTip="刷新连接码"
+                                    AutomationProperties.Name="刷新连接码"
+                                    Margin="8,0,0,0"
+                                    Click="RefreshCode_Click">
+                                <Viewbox Style="{StaticResource ToolIconSmall}">
+                                    <Canvas Width="24" Height="24">
+                                        <Path Data="{StaticResource IconRefreshCw}"
+                                              Stroke="{StaticResource TextPrimaryBrush}"
+                                              StrokeThickness="2"
+                                              StrokeStartLineCap="Round"
+                                              StrokeEndLineCap="Round"
+                                              StrokeLineJoin="Round"
+                                              Fill="{StaticResource TransparentBrush}"/>
+                                    </Canvas>
+                                </Viewbox>
+                            </Button>
+                        </StackPanel>
+                        <Button Grid.Column="2"
+                                Style="{StaticResource ToolPanelSecondaryButton}"
+                                Content="移除设备"
+                                ToolTip="移除所有已记住设备"
+                                MinWidth="80"
+                                Margin="8,0,0,0"
+                                HorizontalAlignment="Right"
+                                Click="RevokeDevices_Click"/>
+                        </Grid>
+                    </Grid>
+
+                    <Image x:Name="qrImage"
+                           Grid.Column="2"
+                           Width="118"
+                           Height="118"
+                           Stretch="Uniform"
+                           HorizontalAlignment="Right"
+                           VerticalAlignment="Center"
+                           RenderOptions.BitmapScalingMode="NearestNeighbor"
+                           AutomationProperties.Name="手机连接二维码"
+                           SnapsToDevicePixels="True"/>
+                </Grid>
+
+                <Grid x:Name="permissionSetupPanel"
+                      Grid.Row="1"
+                      MinHeight="118"
+                      Visibility="Collapsed">
+                    <Grid VerticalAlignment="Center">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*"/>
+                            <ColumnDefinition Width="Auto"/>
+                        </Grid.ColumnDefinitions>
+
+                        <StackPanel Margin="15,0,36,0"
+                                    VerticalAlignment="Top">
+                            <TextBlock Text="允许手机通过浏览器连接此电脑"
+                                       FontSize="{StaticResource FontSizeSubtitle}"
+                                       FontWeight="{StaticResource FontWeightStrong}"
+                                       Foreground="{StaticResource TextPrimaryBrush}"
+                                       TextWrapping="Wrap"
+                                       AutomationProperties.HeadingLevel="Level3"/>
+                            <TextBlock Text="STool 将配置一次 Windows 监听权限和本地网络防火墙规则。"
+                                       Style="{StaticResource HintText}"
+                                       Margin="0,7,0,0"
+                                       TextWrapping="Wrap"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Column="1"
+                                    HorizontalAlignment="Right"
+                                    VerticalAlignment="Top">
+                            <StackPanel Orientation="Horizontal"
+                                        HorizontalAlignment="Right">
+                                <Button x:Name="permissionLaterButton"
+                                        Style="{StaticResource ToolPanelSecondaryButton}"
+                                        Content="稍后"
+                                        Height="36"
+                                        MinWidth="64"
+                                        AutomationProperties.Name="稍后配置局域网访问"
+                                        Click="PermissionLater_Click"/>
+                                <Button x:Name="allowLanAccessButton"
+                                        Style="{StaticResource PrimaryButton}"
+                                        Content="允许局域网访问"
+                                        Height="36"
+                                        MinWidth="142"
+                                        Margin="8,0,0,0"
+                                        AutomationProperties.Name="允许局域网访问"
+                                        Click="AllowLanAccess_Click"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Grid>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Style="{StaticResource ToolPanelPane}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="*"/>
+                </Grid.RowDefinitions>
+
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*"/>
+                        <ColumnDefinition Width="Auto"/>
+                    </Grid.ColumnDefinitions>
+
+                    <Border Style="{StaticResource SegmentedContainer}"
+                            Background="{StaticResource SurfaceAltBrush}">
+                        <Grid x:Name="transferTabGrid" Height="32" ClipToBounds="True">
+                            <Border x:Name="transferTabSlider"
+                                    Style="{StaticResource SegmentedSlider}"
+                                    Width="{Binding ActualWidth, ElementName=shareTabButton}">
+                                <Border.RenderTransform>
+                                    <TransformGroup>
+                                        <ScaleTransform x:Name="transferTabSliderScale" ScaleX="1"/>
+                                        <TranslateTransform x:Name="transferTabSliderTransform"/>
+                                    </TransformGroup>
+                                </Border.RenderTransform>
+                            </Border>
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" MinWidth="82"/>
+                                    <ColumnDefinition Width="Auto" MinWidth="82"/>
+                                </Grid.ColumnDefinitions>
+                                <Button x:Name="shareTabButton"
+                                        Grid.Column="0"
+                                        Style="{StaticResource SegmentedButton}"
+                                        MinWidth="82"
+                                        Tag="on"
+                                        Content="发送到手机"
+                                        Click="TransferTab_Click"/>
+                                <Button x:Name="historyTabButton"
+                                        Grid.Column="1"
+                                        Style="{StaticResource SegmentedButton}"
+                                        MinWidth="82"
+                                        Content="传输记录"
+                                        Click="TransferTab_Click"/>
+                            </Grid>
+                        </Grid>
+                    </Border>
+
+                    <StackPanel x:Name="shareActions"
+                                Grid.Column="1"
+                                Orientation="Horizontal">
+                        <Button Style="{StaticResource ToolPanelPrimaryButton}"
+                                Content="添加文件"
+                                Click="AddFiles_Click"/>
+                        <Button Style="{StaticResource ToolPanelPrimaryButton}"
+                                Content="添加文件夹"
+                                Margin="7,0,0,0"
+                                Click="AddFolder_Click"/>
+                    </StackPanel>
+
+                    <StackPanel x:Name="historyActions"
+                                Grid.Column="1"
+                                Orientation="Horizontal"
+                                Visibility="Collapsed">
+                        <Button x:Name="clearHistoryButton"
+                                Style="{StaticResource ToolPanelSecondaryButton}"
+                                Content="清空记录"
+                                ToolTip="清除所有已完成的传输记录"
+                                Click="ClearTransferHistory_Click"/>
+                    </StackPanel>
+                </Grid>
+
+                <Grid x:Name="shareView" Grid.Row="1" Margin="0,10,0,0">
+                    <TextBlock x:Name="shareEmptyText"
+                               Text="添加文件或文件夹，或直接拖放到此处"
+                               Style="{StaticResource HintText}"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False"/>
+                    <Grid x:Name="activeTransferSection"
+                          Margin="0,9,0,0"
+                          Visibility="Collapsed">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="*"/>
+                        </Grid.RowDefinitions>
+                        <TextBlock Text="活动传输"
+                                   FontSize="{StaticResource FontSizeCaption}"
+                                   FontWeight="{StaticResource FontWeightStrong}"
+                                   Foreground="{StaticResource TextSecondaryBrush}"
+                                   Margin="8,0,8,3"/>
+                        <ListBox x:Name="sharedList"
+                                 Grid.Row="1"
+                                 Background="{StaticResource TransparentBrush}"
+                                 BorderThickness="0"
+                                 ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                                 ScrollViewer.VerticalScrollBarVisibility="Auto"
+                                 ItemContainerStyle="{StaticResource TransferListItem}">
+                            <ListBox.ItemTemplate>
+                                <DataTemplate>
+                                    <StackPanel>
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="*"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                                <ColumnDefinition Width="Auto"/>
+                                            </Grid.ColumnDefinitions>
+                                            <StackPanel>
+                                                <TextBlock Text="{Binding Name}"
+                                                           FontSize="{StaticResource FontSizeBody}"
+                                                           FontWeight="{StaticResource FontWeightStrong}"
+                                                           TextTrimming="CharacterEllipsis"/>
+                                                <TextBlock Text="{Binding Details}"
+                                                           Style="{StaticResource HintText}"
+                                                           TextTrimming="CharacterEllipsis"
+                                                           Margin="0,3,0,0"/>
+                                            </StackPanel>
+                                            <TextBlock Grid.Column="1"
+                                                       Text="{Binding Status}"
+                                                       Style="{StaticResource HintText}"
+                                                       Margin="10,0,4,0"
+                                                       VerticalAlignment="Center"/>
+                                            <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                <Button CommandParameter="{Binding}" ToolTip="暂停" AutomationProperties.Name="暂停传输" Click="PauseTransfer_Click">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                                            <Setter Property="Width" Value="28"/>
+                                                            <Setter Property="Height" Value="28"/>
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding CanPause}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <Viewbox Style="{StaticResource ToolIconSmall}"><Canvas Width="24" Height="24"><Path Data="{StaticResource IconPause}" Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="2" StrokeStartLineCap="Round" Fill="{StaticResource TransparentBrush}"/></Canvas></Viewbox>
+                                                </Button>
+                                                <Button CommandParameter="{Binding}" ToolTip="继续" AutomationProperties.Name="继续传输" Click="ResumeTransfer_Click">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                                            <Setter Property="Width" Value="28"/>
+                                                            <Setter Property="Height" Value="28"/>
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding CanResume}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <Viewbox Style="{StaticResource ToolIconSmall}"><Canvas Width="24" Height="24"><Path Data="{StaticResource IconPlay}" Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="2" StrokeLineJoin="Round" Fill="{StaticResource TransparentBrush}"/></Canvas></Viewbox>
+                                                </Button>
+                                                <Button CommandParameter="{Binding}" ToolTip="重试" AutomationProperties.Name="重试传输" Click="RetryTransfer_Click">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                                            <Setter Property="Width" Value="28"/>
+                                                            <Setter Property="Height" Value="28"/>
+                                                            <Setter Property="Visibility" Value="Collapsed"/>
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding CanRetry}" Value="True"><Setter Property="Visibility" Value="Visible"/></DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                    <Viewbox Style="{StaticResource ToolIconSmall}"><Canvas Width="24" Height="24"><Path Data="{StaticResource IconRefreshCw}" Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="{StaticResource TransparentBrush}"/></Canvas></Viewbox>
+                                                </Button>
+                                                <Button Style="{StaticResource IconButton}" Width="28" Height="28" CommandParameter="{Binding}" ToolTip="取消" AutomationProperties.Name="取消传输" Click="CancelTransfer_Click">
+                                                    <Viewbox Style="{StaticResource ToolIconSmall}"><Canvas Width="24" Height="24"><Path Data="{StaticResource IconX}" Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round" Fill="{StaticResource TransparentBrush}"/></Canvas></Viewbox>
+                                                </Button>
+                                            </StackPanel>
+                                        </Grid>
+                                        <ProgressBar Height="3" Minimum="0" Maximum="100" Value="{Binding Progress}" Margin="0,7,0,0"/>
+                                    </StackPanel>
+                                </DataTemplate>
+                            </ListBox.ItemTemplate>
+                        </ListBox>
+                    </Grid>
+                </Grid>
+
+                <Grid x:Name="historyView"
+                      Grid.Row="1"
+                      Margin="0,10,0,0"
+                      Visibility="Collapsed">
+                    <ListBox x:Name="transferList"
+                             Background="{StaticResource TransparentBrush}"
+                             BorderThickness="0"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                             ScrollViewer.VerticalScrollBarVisibility="Auto"
+                             ItemContainerStyle="{StaticResource TransferProgressItem}">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="*"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                        <ColumnDefinition Width="Auto"/>
+                                    </Grid.ColumnDefinitions>
+                                    <StackPanel>
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontSize="{StaticResource FontSizeBody}"
+                                                   FontWeight="{StaticResource FontWeightStrong}"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   VerticalAlignment="Center"/>
+                                        <TextBlock Text="{Binding Details}"
+                                                   Style="{StaticResource HintText}"
+                                                   Margin="0,4,0,0"/>
+                                    </StackPanel>
+                                        <Button Grid.Column="1"
+                                                Style="{StaticResource IconButton}"
+                                                Width="28"
+                                                Height="28"
+                                                CommandParameter="{Binding}"
+                                                ToolTip="打开所在位置"
+                                                AutomationProperties.Name="打开所在位置"
+                                                Margin="6,0,0,0"
+                                                Click="OpenTransferRecord_Click">
+                                            <Viewbox Style="{StaticResource ToolIconSmall}">
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Data="{StaticResource IconFolderOpen}"
+                                                          Stroke="{StaticResource TextSecondaryBrush}"
+                                                          StrokeThickness="2"
+                                                          StrokeStartLineCap="Round"
+                                                          StrokeEndLineCap="Round"
+                                                          StrokeLineJoin="Round"
+                                                          Fill="{StaticResource TransparentBrush}"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Button>
+                                        <Button Grid.Column="2"
+                                                CommandParameter="{Binding}"
+                                                ToolTip="删除记录"
+                                                AutomationProperties.Name="删除传输记录"
+                                                Margin="6,0,0,0"
+                                                Click="RemoveTransferRecord_Click">
+                                            <Button.Style>
+                                                <Style TargetType="Button" BasedOn="{StaticResource IconButton}">
+                                                    <Setter Property="Width" Value="28"/>
+                                                    <Setter Property="Height" Value="28"/>
+                                                </Style>
+                                            </Button.Style>
+                                            <Viewbox Style="{StaticResource ToolIconSmall}">
+                                                <Canvas Width="24" Height="24">
+                                                    <Path Data="{StaticResource IconTrash2}"
+                                                          Stroke="{StaticResource TextSecondaryBrush}"
+                                                          StrokeThickness="2"
+                                                          StrokeStartLineCap="Round"
+                                                          StrokeEndLineCap="Round"
+                                                          StrokeLineJoin="Round"
+                                                          Fill="{StaticResource TransparentBrush}"/>
+                                                </Canvas>
+                                            </Viewbox>
+                                        </Button>
+                                </Grid>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+
+                    <TextBlock Text="暂无传输记录"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               IsHitTestVisible="False">
+                        <TextBlock.Style>
+                            <Style TargetType="TextBlock" BasedOn="{StaticResource HintText}">
+                                <Setter Property="Visibility" Value="Visible"/>
+                                <Style.Triggers>
+                                    <DataTrigger Binding="{Binding ElementName=transferList, Path=HasItems}" Value="True">
+                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                    </DataTrigger>
+                                </Style.Triggers>
+                            </Style>
+                        </TextBlock.Style>
+                    </TextBlock>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

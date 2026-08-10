@@ -2,7 +2,7 @@
 # 生成框架依赖的单文件 exe（需要用户安装 .NET 9 Desktop Runtime）
 
 param(
-    [string]$Version = "1.2.2"
+    [string]$Version = "1.4"
 )
 
 $ErrorActionPreference = "Stop"
@@ -66,6 +66,9 @@ STool v$Version - 便携版
 - 翻译工具 (Alt+2)
 - 剪贴板历史 (Alt+3)
 - 设置面板 (Alt+4)
+- 局域网文件传输 (Alt+5)
+  * Android 手机通过浏览器扫码连接
+  * 支持文件与文件夹、分块上传和断点续传
 - OCR 文字识别
   * Windows OCR (本地)
   * 腾讯云 OCR

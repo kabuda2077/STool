@@ -92,19 +92,26 @@
                 BorderThickness="{TemplateBinding BorderThickness}"
                 CornerRadius="{StaticResource CornerRadiusMedium}">
             <Grid>
-                <Path Data="{StaticResource IconChevronDown}"
+                <Path x:Name="Chevron"
+                      Data="{StaticResource IconChevronDown}"
                       Stroke="{StaticResource TextSecondaryBrush}"
-                      StrokeThickness="2"
+                      StrokeThickness="1.6"
                       StrokeStartLineCap="Round"
                       StrokeEndLineCap="Round"
                       StrokeLineJoin="Round"
                       Fill="{StaticResource TransparentBrush}"
                       HorizontalAlignment="Right"
                       VerticalAlignment="Center"
-                      Width="12"
-                      Height="12"
+                      Width="8"
+                      Height="8"
                       Stretch="Uniform"
-                      Margin="0,0,12,0"/>
+                      Margin="0,0,12,0"
+                      Opacity="0.82"
+                      RenderTransformOrigin="0.5,0.5">
+                    <Path.RenderTransform>
+                        <RotateTransform Angle="0"/>
+                    </Path.RenderTransform>
+                </Path>
             </Grid>
         </Border>
         <ControlTemplate.Triggers>
@@ -114,6 +121,11 @@
             </Trigger>
             <Trigger Property="IsChecked" Value="True">
                 <Setter TargetName="Root" Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+                <Setter TargetName="Chevron" Property="RenderTransform">
+                    <Setter.Value>
+                        <RotateTransform Angle="180"/>
+                    </Setter.Value>
+                </Setter>
             </Trigger>
         </ControlTemplate.Triggers>
     </ControlTemplate>

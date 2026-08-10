@@ -2,7 +2,7 @@
 # 生成框架依赖的单文件 exe（需要用户安装 .NET 9 Desktop Runtime）
 
 param(
-    [string]$Version = "1.4"
+    [string]$Version = "1.4.0"
 )
 
 $ErrorActionPreference = "Stop"

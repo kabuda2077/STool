@@ -9,7 +9,7 @@ Windows 效率工具 - 截图、翻译、剪贴板历史、OCR、局域网文件
 dotnet build && dotnet run
 
 # 发布便携版
-.\build-portable.ps1 -Version "1.4"
+.\build-portable.ps1 -Version "1.4.0"
 ```
 
 ## 功能

@@ -18,7 +18,11 @@
 
 ## STool 是什么
 
-STool 是一款面向 Windows 10/11 的桌面效率工具。它常驻系统托盘，需要时通过快捷键立即唤出，用完即可隐藏。
+这是一个非常个人向的 Windows 工具。把我日常使用频率最高的截图、OCR、翻译、剪贴板历史和局域网传输放到了一起，希望每项功能都能通过固定快捷键直接打开，并在同一套界面和工作流中完成。
+
+STool 并不打算成为通用的应用启动器或插件平台。它舍弃了一部分扩展性和自定义能力，换取更短的操作路径、更紧密的功能联动，以及更可控的后台资源占用和使用体验。
+
+如果你更需要应用启动、插件生态和高度自定义，可以了解优秀的 [ZTools](https://github.com/ZToolsCenter/ZTools)。
 
 | 功能 | 一句话说明 |
 | --- | --- |
@@ -27,6 +31,35 @@ STool 是一款面向 Windows 10/11 的桌面效率工具。它常驻系统托�
 | 剪贴板历史 | 找回复制过的文本、图片和文件 |
 | 局域网传输 | 手机无需安装应用，扫码即可与电脑互传文件 |
 | 便携式使用 | 配置和数据保存在程序目录，方便备份与迁移 |
+
+## 界面展示
+
+<table>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/product-readme/assets/showcase-screenshot.png" alt="STool 截图与标注工具" width="100%" />
+      <br />
+      <em>截图与 OCR</em>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/product-readme/assets/showcase-translation.png" alt="STool 翻译面板" width="100%" />
+      <br />
+      <em>文字与截图翻译</em>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" align="center">
+      <img src="docs/product-readme/assets/showcase-clipboard.png" alt="STool 剪贴板历史面板" width="100%" />
+      <br />
+      <em>剪贴板历史</em>
+    </td>
+    <td width="50%" align="center">
+      <img src="docs/product-readme/assets/showcase-lan-transfer.png" alt="STool 局域网文件传输面板" width="100%" />
+      <br />
+      <em>局域网文件传输</em>
+    </td>
+  </tr>
+</table>
 
 ## 核心功能
 
@@ -38,10 +71,6 @@ STool 是一款面向 Windows 10/11 的桌面效率工具。它常驻系统托�
 - 提供矩形、椭圆、箭头、画笔、马赛克和撤销重做
 - OCR 可选择 Windows 本地、腾讯云或 AI Vision，并支持本地兜底
 
-<p align="center">
-  <img src="docs/product-readme/assets/screenshot.png" alt="STool 截图与标注工具" width="58%" />
-</p>
-
 截图完成后可以直接复制、保存、钉在桌面、提取文字或执行截图翻译。
 
 ### 翻译
@@ -52,10 +81,6 @@ STool 是一款面向 Windows 10/11 的桌面效率工具。它常驻系统托�
 - 支持常用语言策略以及复制、复制并隐藏、复制并输入
 - 截图翻译提供快速模式和智能原位覆盖模式
 
-<p align="center">
-  <img src="docs/product-readme/assets/translation.png" alt="STool 翻译面板" width="76%" />
-</p>
-
 ### 剪贴板历史
 
 按下 `Alt+3` 找回复制过的内容，不会因为下一次复制而丢失上一条记录。
@@ -64,10 +89,6 @@ STool 是一款面向 Windows 10/11 的桌面效率工具。它常驻系统托�
 - 支持搜索、来源显示、再次复制和收藏
 - 支持删除单条记录或按当前分类清空
 
-<p align="center">
-  <img src="docs/product-readme/assets/clipboard.png" alt="STool 剪贴板历史面板" width="76%" />
-</p>
-
 ### 局域网传输
 
 按下 `Alt+4`，让 Android 手机与电脑连接同一局域网，再用浏览器扫码访问。
@@ -75,10 +96,6 @@ STool 是一款面向 Windows 10/11 的桌面效率工具。它常驻系统托�
 - 电脑可拖入文件或文件夹，手机确认后接收
 - 手机可多选文件或文件夹发送到电脑
 - 支持实时速度、暂停、继续、取消、断点续传和完成记录
-
-<p align="center">
-  <img src="docs/product-readme/assets/lan-transfer.png" alt="STool 局域网文件传输面板" width="76%" />
-</p>
 
 服务只在传输面板打开时运行。首次使用时，STool 会引导配置 Windows 本地网络访问权限。
 

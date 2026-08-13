@@ -38,6 +38,10 @@ STool 默认采用便携式存储：配置、剪贴板记录和日志都保存�
 
 按下 `Alt+1` 后，STool 会立即冻结当前屏幕。你可以点击识别窗口，也可以拖动选择任意区域。
 
+<p align="center">
+  <img src="docs/product-readme/assets/screenshot.png" alt="STool 截图与标注工具" width="76%" />
+</p>
+
 - 支持多显示器和高 DPI 缩放。
 - 支持矩形、椭圆、箭头、画笔和马赛克标注。
 - 支持撤销与重做。
@@ -72,7 +76,7 @@ STool 提供三类 OCR 方案：
 按下 `Alt+3` 打开剪贴板历史。复制过的文字、图片和文件会按时间保存，避免因为下一次复制而丢失。
 
 <p align="center">
-  <img src="docs/product-readme/assets/clipboard-demo.svg" alt="STool 剪贴板历史示意图" width="88%" />
+  <img src="docs/product-readme/assets/clipboard.png" alt="STool 剪贴板历史面板" width="88%" />
 </p>
 
 - 按全部、文本、图像、文件和收藏分类查看。
@@ -80,8 +84,6 @@ STool 提供三类 OCR 方案：
 - 点击条目即可再次复制。
 - 支持收藏、删除单条记录和按分类清空。
 - 图片缩略图采用有界缓存，长时间浏览时不会无限增长内存。
-
-> 上图使用匿名示例内容，不包含真实剪贴板数据。
 
 ### 局域网传输：手机无需安装客户端
 
@@ -226,7 +228,3 @@ STool 采用单实例运行。如果已经在后台运行，再次启动会尝�
 最新稳定版：[STool v1.4.0](https://github.com/kabuda2077/STool/releases/latest)
 
 项目主页：[github.com/kabuda2077/STool](https://github.com/kabuda2077/STool)
-
----
-
-<p align="center">STool · 让常用工具随时出现，用完即走。</p>

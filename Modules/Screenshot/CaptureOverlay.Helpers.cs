@@ -17,18 +17,26 @@ namespace STool.Modules.Screenshot;
 /// </summary>
 public partial class CaptureOverlay
 {
+    private VirtualDesktopCoordinateMapper CoordinateMapper =>
+        _coordinateMapper ?? throw new InvalidOperationException("Screenshot coordinate mapper is not initialized.");
+
+    private double BitmapScaleX => _frozen == null ? 1 : _frozen.Width / CoordinateMapper.CanvasSize.Width;
+    private double BitmapScaleY => _frozen == null ? 1 : _frozen.Height / CoordinateMapper.CanvasSize.Height;
+    private System.Drawing.Rectangle SelectionBitmapRect =>
+        CoordinateMapper.CanvasToBitmap(_selection, _frozen!.Width, _frozen.Height);
+
     private System.Drawing.Bitmap RenderSelectionBitmap()
     {
         MemoryDiagnostics.LogCheckpoint("ScreenshotRenderStarted");
-        int px = (int)Math.Round(_selection.X * _scaleX);
-        int py = (int)Math.Round(_selection.Y * _scaleY);
-        int pw = Math.Max(1, (int)Math.Round(_selection.Width * _scaleX));
-        int ph = Math.Max(1, (int)Math.Round(_selection.Height * _scaleY));
+        var frozen = _frozen ?? throw new InvalidOperationException("Screenshot bitmap is not available.");
+        var pixelRect = CoordinateMapper.CanvasToBitmap(_selection, frozen.Width, frozen.Height);
+        var px = pixelRect.X;
+        var py = pixelRect.Y;
+        var pw = pixelRect.Width;
+        var ph = pixelRect.Height;
 
         // 裁剪冻结图
-        pw = Math.Min(pw, _frozen!.Width - px);
-        ph = Math.Min(ph, _frozen.Height - py);
-        var crop = _frozen.Clone(new System.Drawing.Rectangle(px, py, Math.Max(1, pw), Math.Max(1, ph)), _frozen.PixelFormat);
+        var crop = frozen.Clone(new System.Drawing.Rectangle(px, py, Math.Max(1, pw), Math.Max(1, ph)), frozen.PixelFormat);
 
         var hasTranslation = translationOverlay.Visibility == Visibility.Visible;
         var hasBlockTranslation = translationBlockCanvas.Visibility == Visibility.Visible;
@@ -143,11 +151,11 @@ public partial class CaptureOverlay
     {
         foreach (var mosaic in mosaics)
         {
-            var brushSize = Math.Max(10, (int)Math.Round(mosaic.BrushSize * _scaleX));
+            var brushSize = Math.Max(10, (int)Math.Round(mosaic.BrushSize * BitmapScaleX));
             foreach (var point in mosaic.Points)
             {
-                var centerX = (int)Math.Round(point.X * _scaleX);
-                var centerY = (int)Math.Round(point.Y * _scaleY);
+                var centerX = (int)Math.Round(point.X * BitmapScaleX);
+                var centerY = (int)Math.Round(point.Y * BitmapScaleY);
                 ApplyMosaic(bitmap, new System.Drawing.Rectangle(
                     centerX - brushSize / 2,
                     centerY - brushSize / 2,
@@ -177,10 +185,10 @@ public partial class CaptureOverlay
         foreach (var block in blocks)
         {
             var rect = new System.Drawing.RectangleF(
-                (float)(block.Rect.X * _scaleX),
-                (float)(block.Rect.Y * _scaleY),
-                (float)(block.Rect.Width * _scaleX),
-                (float)(block.Rect.Height * _scaleY));
+                (float)(block.Rect.X * BitmapScaleX),
+                (float)(block.Rect.Y * BitmapScaleY),
+                (float)(block.Rect.Width * BitmapScaleX),
+                (float)(block.Rect.Height * BitmapScaleY));
 
             if (rect.Width <= 1 || rect.Height <= 1)
                 continue;
@@ -188,13 +196,13 @@ public partial class CaptureOverlay
             using var backgroundBrush = new System.Drawing.SolidBrush(ToDrawingColor(block.Background));
             graphics.FillRectangle(backgroundBrush, rect);
 
-            var paddingX = (float)(block.Padding.Left * _scaleX);
-            var paddingY = (float)(block.Padding.Top * _scaleY);
+            var paddingX = (float)(block.Padding.Left * BitmapScaleX);
+            var paddingY = (float)(block.Padding.Top * BitmapScaleY);
             var textRect = new System.Drawing.RectangleF(
                 rect.X + paddingX,
                 rect.Y + paddingY,
-                Math.Max(1, rect.Width - paddingX - (float)(block.Padding.Right * _scaleX)),
-                Math.Max(1, rect.Height - paddingY - (float)(block.Padding.Bottom * _scaleY)));
+                Math.Max(1, rect.Width - paddingX - (float)(block.Padding.Right * BitmapScaleX)),
+                Math.Max(1, rect.Height - paddingY - (float)(block.Padding.Bottom * BitmapScaleY)));
 
             var fontSizePoints = (float)(block.FontSize * 72.0 / graphics.DpiY);
             using var font = new System.Drawing.Font("Microsoft YaHei UI", fontSizePoints, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point);
@@ -259,7 +267,7 @@ public partial class CaptureOverlay
     }
 
     private (int, int) ToPhysicalSize(double w, double h)
-        => (Math.Max(1, (int)Math.Round(w * _scaleX)), Math.Max(1, (int)Math.Round(h * _scaleY)));
+        => CoordinateMapper.CanvasToBitmapSize(w, h, _frozen!.Width, _frozen.Height);
 
     private static double Clamp(double v, double lo, double hi) => v < lo ? lo : (v > hi ? hi : v);
 }

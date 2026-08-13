@@ -87,10 +87,11 @@ public partial class CaptureOverlay
 
         _mosaicSourceSelection = _selection;
 
-        var px = (int)Math.Round(_selection.X * _scaleX);
-        var py = (int)Math.Round(_selection.Y * _scaleY);
-        var pw = Math.Max(1, (int)Math.Round(_selection.Width * _scaleX));
-        var ph = Math.Max(1, (int)Math.Round(_selection.Height * _scaleY));
+        var pixelRect = SelectionBitmapRect;
+        var px = pixelRect.X;
+        var py = pixelRect.Y;
+        var pw = pixelRect.Width;
+        var ph = pixelRect.Height;
         px = Math.Clamp(px, 0, Math.Max(0, _frozen.Width - 1));
         py = Math.Clamp(py, 0, Math.Max(0, _frozen.Height - 1));
         pw = Math.Min(pw, _frozen.Width - px);
@@ -104,10 +105,10 @@ public partial class CaptureOverlay
         if (_frozen == null)
             return System.Windows.Media.Color.FromRgb(160, 160, 166);
 
-        var x = (int)Math.Round((_selection.X + rect.X) * _scaleX);
-        var y = (int)Math.Round((_selection.Y + rect.Y) * _scaleY);
-        var width = Math.Max(1, (int)Math.Round(rect.Width * _scaleX));
-        var height = Math.Max(1, (int)Math.Round(rect.Height * _scaleY));
+        var x = (int)Math.Round((_selection.X + rect.X) * BitmapScaleX);
+        var y = (int)Math.Round((_selection.Y + rect.Y) * BitmapScaleY);
+        var width = Math.Max(1, (int)Math.Round(rect.Width * BitmapScaleX));
+        var height = Math.Max(1, (int)Math.Round(rect.Height * BitmapScaleY));
 
         var region = new System.Drawing.Rectangle(x, y, width, height);
         region.Intersect(new System.Drawing.Rectangle(0, 0, _frozen.Width, _frozen.Height));

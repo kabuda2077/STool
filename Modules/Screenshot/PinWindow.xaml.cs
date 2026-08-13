@@ -1,8 +1,10 @@
 using System;
 using System.Drawing;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media.Imaging;
 using STool.Core;
 
@@ -12,26 +14,54 @@ public partial class PinWindow : Window
 {
     private const double ShadowPadding = 14;
     private readonly Bitmap _screenshot;
+    private readonly Rectangle? _targetPhysical;
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromRect(ref NativeRect rect, uint flags);
+
+    [DllImport("shcore.dll")]
+    private static extern int GetDpiForMonitor(IntPtr monitor, int dpiType, out uint dpiX, out uint dpiY);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(
+        IntPtr hWnd,
+        IntPtr hWndInsertAfter,
+        int x,
+        int y,
+        int cx,
+        int cy,
+        uint flags);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct NativeRect
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    private const uint MonitorDefaultToNearest = 2;
+    private const int EffectiveDpi = 0;
+    private const uint SwpNoZOrder = 0x0004;
+    private const uint SwpNoActivate = 0x0010;
 
     public PinWindow(Bitmap screenshot) : this(screenshot, null) { }
 
-    public PinWindow(Bitmap screenshot, Rect? targetDip)
+    public PinWindow(Bitmap screenshot, Rectangle? targetPhysical)
     {
         InitializeComponent();
         Loaded += (_, _) => UpdateTopmostButton();
 
         _screenshot = screenshot;
+        _targetPhysical = targetPhysical;
         screenshotImage.Source = BitmapInterop.ToBitmapSource(screenshot);
 
         WindowStartupLocation = WindowStartupLocation.Manual;
 
-        if (targetDip is Rect r && r.Width >= 1 && r.Height >= 1)
+        if (targetPhysical is Rectangle r && r.Width >= 1 && r.Height >= 1)
         {
-            // 在选区原位、原尺寸钉住(不再跳到屏幕中间)
-            Left = r.X - ShadowPadding;
-            Top = r.Y - ShadowPadding;
-            Width = r.Width + ShadowPadding * 2;
-            Height = r.Height + ShadowPadding * 2;
+            SourceInitialized += PositionAtPhysicalSelection;
         }
         else
         {
@@ -41,6 +71,36 @@ public partial class PinWindow : Window
             Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
             Top = (SystemParameters.PrimaryScreenHeight - Height) / 2;
         }
+    }
+
+    private void PositionAtPhysicalSelection(object? sender, EventArgs e)
+    {
+        SourceInitialized -= PositionAtPhysicalSelection;
+        if (_targetPhysical is not Rectangle target)
+            return;
+
+        var nativeRect = new NativeRect
+        {
+            Left = target.Left,
+            Top = target.Top,
+            Right = target.Right,
+            Bottom = target.Bottom
+        };
+        var monitor = MonitorFromRect(ref nativeRect, MonitorDefaultToNearest);
+        var dpiScale = 1.0;
+        if (monitor != IntPtr.Zero && GetDpiForMonitor(monitor, EffectiveDpi, out var dpiX, out _) == 0)
+            dpiScale = dpiX / 96.0;
+
+        var paddingPixels = Math.Max(1, (int)Math.Round(ShadowPadding * dpiScale));
+        var hwnd = new WindowInteropHelper(this).Handle;
+        SetWindowPos(
+            hwnd,
+            IntPtr.Zero,
+            target.Left - paddingPixels,
+            target.Top - paddingPixels,
+            target.Width + paddingPixels * 2,
+            target.Height + paddingPixels * 2,
+            SwpNoZOrder | SwpNoActivate);
     }
 
     private void Image_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -75,8 +135,10 @@ public partial class PinWindow : Window
         if (Keyboard.Modifiers == ModifierKeys.Control)
         {
             double factor = e.Delta > 0 ? 1.1 : 0.9;
-            var newWidth = Width * factor;
-            var newHeight = Height * factor;
+            var currentWidth = double.IsNaN(Width) ? ActualWidth : Width;
+            var currentHeight = double.IsNaN(Height) ? ActualHeight : Height;
+            var newWidth = currentWidth * factor;
+            var newHeight = currentHeight * factor;
 
             if (newWidth >= 60 && newWidth <= 4000)
             {
@@ -111,6 +173,7 @@ public partial class PinWindow : Window
 
     protected override void OnClosed(EventArgs e)
     {
+        SourceInitialized -= PositionAtPhysicalSelection;
         screenshotImage.Source = null;
         _screenshot?.Dispose();
         MemoryDiagnostics.LogCheckpoint("PinWindowClosed");

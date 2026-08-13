@@ -36,11 +36,7 @@ public partial class CaptureOverlay
     private Rect DefaultSelectionRect()
     {
         var wa = System.Windows.Forms.Screen.FromPoint(System.Windows.Forms.Cursor.Position).WorkingArea;
-        return new Rect(
-            wa.Left / _scaleX - SystemParameters.VirtualScreenLeft,
-            wa.Top / _scaleY - SystemParameters.VirtualScreenTop,
-            wa.Width / _scaleX,
-            wa.Height / _scaleY);
+        return PhysicalToSelection(wa);
     }
 
     /// <summary>枚举覆盖层之下所有可见顶层窗口的物理矩形(EnumWindows 返回 Z 序,顶层在前)。</summary>
@@ -107,11 +103,7 @@ public partial class CaptureOverlay
         return DefaultSelectionRect();
     }
 
-    private Rect PhysicalToSelection(System.Drawing.Rectangle r) => new Rect(
-        r.Left / _scaleX - SystemParameters.VirtualScreenLeft,
-        r.Top / _scaleY - SystemParameters.VirtualScreenTop,
-        r.Width / _scaleX,
-        r.Height / _scaleY);
+    private Rect PhysicalToSelection(System.Drawing.Rectangle r) => CoordinateMapper.PhysicalToCanvas(r);
 
     private Rect ClampSelection(Rect r)
     {
@@ -164,6 +156,19 @@ public partial class CaptureOverlay
         toolbar.Visibility = Visibility.Collapsed;   // 调整过程中隐藏工具条
         overlayCanvas.CaptureMouse();
         e.Handled = true;
+    }
+
+    protected override void OnLostMouseCapture(System.Windows.Input.MouseEventArgs e)
+    {
+        base.OnLostMouseCapture(e);
+        if (_closing || _dragMode == DragMode.None)
+            return;
+
+        _dragMode = DragMode.None;
+        _activeHandle = "";
+        toolbar.Visibility = _confirmed ? Visibility.Visible : Visibility.Collapsed;
+        UpdateCursorState();
+        UpdateVisuals();
     }
 
     // ---------- 选区:新建 / 移动 ----------

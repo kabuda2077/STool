@@ -346,7 +346,7 @@ public partial class CaptureOverlay
             var contentHeight = Math.Max(1, rect.Height - paddingY * 2);
 
             // 整段统一字号:以段内行高中位数为基准,再按译文是否塞得下整体缩放一次。
-            var baseSize = Clamp(paragraph.MedianLineHeight / _scaleY * 0.82, 9, 26);
+            var baseSize = Clamp(paragraph.MedianLineHeight / BitmapScaleY * 0.82, 9, 26);
             var fontSize = FitParagraphFontSize(translations[i], baseSize, contentWidth, contentHeight);
 
             var lineHeight = Math.Ceiling(fontSize * 1.25);
@@ -402,10 +402,10 @@ public partial class CaptureOverlay
     private Rect PhysicalLineToDipRect(System.Drawing.Rectangle box)
     {
         return new Rect(
-            box.X / _scaleX,
-            box.Y / _scaleY,
-            box.Width / _scaleX,
-            box.Height / _scaleY);
+            box.X / BitmapScaleX,
+            box.Y / BitmapScaleY,
+            box.Width / BitmapScaleX,
+            box.Height / BitmapScaleY);
     }
 
     private (System.Windows.Media.Color Color, bool Uniform) SampleParagraphBackground(System.Drawing.Bitmap crop, System.Drawing.Rectangle box)

@@ -34,7 +34,8 @@ public partial class CaptureOverlay : Window
     private enum DragMode { None, NewSelection, Move, Resize }
 
     private System.Drawing.Bitmap? _frozen;
-    private double _scaleX = 1, _scaleY = 1;          // DIP → 物理像素
+    private readonly System.Drawing.Rectangle _virtualScreenBounds;
+    private VirtualDesktopCoordinateMapper? _coordinateMapper;
     private Rect _selection;
     private DragMode _dragMode = DragMode.None;
     private string _activeHandle = "";
@@ -43,6 +44,7 @@ public partial class CaptureOverlay : Window
     private bool _closing;
     private bool _handlesReady;
     private bool _interactionReady;
+    private bool _suppressStartupAltRelease;
     private bool _confirmed;                    // 是否已确认选区(确认后才出工具条 + 手柄)
     private bool _dragMoved;                    // 本次按下后是否明显移动(区分点击与拖拽)
     private readonly List<System.Drawing.Rectangle> _windowRects = new();   // 底层窗口物理矩形(Z 序,顶层在前)
@@ -64,6 +66,19 @@ public partial class CaptureOverlay : Window
 
     // P/Invoke for ForceForeground
     [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetWindowPos(
+        IntPtr hWnd,
+        IntPtr hWndInsertAfter,
+        int x,
+        int y,
+        int cx,
+        int cy,
+        uint flags);
+
+    private const uint SWP_NOZORDER = 0x0004;
+    private const uint SWP_NOACTIVATE = 0x0010;
 
     public CaptureOverlay() : this(false) { }
 
@@ -89,6 +104,8 @@ public partial class CaptureOverlay : Window
             return;
         }
 
+        _virtualScreenBounds = ScreenCapture.GetVirtualScreenBounds();
+
         Mouse.OverrideCursor = Cursors.Cross;
         Closed += (_, _) =>
         {
@@ -108,7 +125,7 @@ public partial class CaptureOverlay : Window
         LogStartupStep("Window bounds prepared");
 
         // 冻结屏幕
-        _frozen = ScreenCapture.CaptureAllScreens();
+        _frozen = ScreenCapture.CaptureRegion(_virtualScreenBounds);
         LogStartupStep($"CaptureAllScreens {_frozen.Width}x{_frozen.Height}");
         screenshotImage.Source = BitmapInterop.ToBitmapSource(_frozen);
         LogStartupStep("BitmapInterop.ToBitmapSource");
@@ -173,6 +190,18 @@ public partial class CaptureOverlay : Window
         _selfHwnd = new WindowInteropHelper(this).Handle;
         _hwndSource = HwndSource.FromHwnd(_selfHwnd);
         _hwndSource?.AddHook(WndProc);
+        _suppressStartupAltRelease = (GetAsyncKeyState(0x12) & 0x8000) != 0;
+        if (!SetWindowPos(
+            _selfHwnd,
+            IntPtr.Zero,
+            _virtualScreenBounds.Left,
+            _virtualScreenBounds.Top,
+            _virtualScreenBounds.Width,
+            _virtualScreenBounds.Height,
+            SWP_NOZORDER | SWP_NOACTIVATE))
+        {
+            Log.Warning("[Capture] Failed to size overlay to the physical virtual desktop error={Error}", Marshal.GetLastWin32Error());
+        }
         LogStartupStep("SourceInitialized");
         EnsureInteractionReady("SourceInitialized");
         ForceForeground();
@@ -182,11 +211,33 @@ public partial class CaptureOverlay : Window
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
     {
         const int WM_KEYDOWN = 0x0100;
+        const int WM_KEYUP = 0x0101;
         const int WM_SYSKEYDOWN = 0x0104;
+        const int WM_SYSKEYUP = 0x0105;
+        const int WM_SYSCOMMAND = 0x0112;
+        const int SC_KEYMENU = 0xF100;
         const int VK_ESCAPE = 0x1B;
         const int VK_RETURN = 0x0D;
+        const int VK_MENU = 0x12;
         const int VK_Z = 0x5A;
         const int VK_Y = 0x59;
+
+        // Alt+数字启动截图时,覆盖层可能在 Alt 松开前取得焦点。吞掉这次残留的
+        // Alt 释放和系统菜单命令,避免 WPF 进入菜单模式后暂停鼠标悬停识别。
+        if (msg == WM_SYSCOMMAND && (wParam.ToInt64() & 0xFFF0) == SC_KEYMENU)
+        {
+            handled = true;
+            return IntPtr.Zero;
+        }
+
+        if (_suppressStartupAltRelease &&
+            (msg == WM_KEYUP || msg == WM_SYSKEYUP) &&
+            wParam.ToInt32() == VK_MENU)
+        {
+            _suppressStartupAltRelease = false;
+            handled = true;
+            return IntPtr.Zero;
+        }
 
         if (msg != WM_KEYDOWN && msg != WM_SYSKEYDOWN)
             return IntPtr.Zero;
@@ -263,8 +314,20 @@ public partial class CaptureOverlay : Window
         if (_interactionReady)
             return;
 
-        var t = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
-        _scaleX = t.M11; _scaleY = t.M22;
+        var transform = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
+        var canvasSize = new System.Windows.Size(
+            _virtualScreenBounds.Width / Math.Max(0.01, transform.M11),
+            _virtualScreenBounds.Height / Math.Max(0.01, transform.M22));
+        _coordinateMapper = new VirtualDesktopCoordinateMapper(_virtualScreenBounds, canvasSize);
+        Width = canvasSize.Width;
+        Height = canvasSize.Height;
+        Log.Information(
+            "[Capture] virtualDesktop={PhysicalBounds} canvas={CanvasWidth:F1}x{CanvasHeight:F1} scale={ScaleX:F3}x{ScaleY:F3}",
+            _virtualScreenBounds,
+            canvasSize.Width,
+            canvasSize.Height,
+            _coordinateMapper.PixelsPerDipX,
+            _coordinateMapper.PixelsPerDipY);
         LogStartupStep($"{caller} DPI scale ready");
 
         CreateHandles();

@@ -136,8 +136,7 @@ public partial class CaptureOverlay
     private void BtnPin_Click(object sender, RoutedEventArgs e)
     {
         var bmp = RenderSelectionBitmap();
-        // 选区在屏幕上的 DIP 位置 = 覆盖窗口原点(虚拟屏左上)+ 窗口内 DIP 偏移
-        var screenRect = new Rect(Left + _selection.X, Top + _selection.Y, _selection.Width, _selection.Height);
+        var screenRect = CoordinateMapper.CanvasToPhysical(_selection);
         CloseOverlay();
         try
         {

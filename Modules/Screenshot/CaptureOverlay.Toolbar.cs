@@ -62,9 +62,6 @@ public partial class CaptureOverlay
         annotationCanvas.IsHitTestVisible = _currentTool != AnnotationTool.None;
         UpdateCursorState();
 
-        // 高亮当前工具按钮
-        foreach (var b in _toolButtons)
-            b.Tag = b.Tag; // 无操作占位
         HighlightTools();
         PositionHandles();
     }
@@ -91,15 +88,20 @@ public partial class CaptureOverlay
     // ---------- 动作 ----------
     private void BtnConfirm_Click(object sender, RoutedEventArgs e) => CopyAndClose();
 
-    private void CopyAndClose()
+    private async void CopyAndClose()
     {
         try
         {
             using var bmp = RenderSelectionBitmap();
-            System.Windows.Clipboard.SetImage(ToBitmapSource(bmp));
+            var image = ToBitmapSource(bmp);
+            await STool.Modules.Clipboard.ClipboardManager.SetClipboardWithRetryAsync(
+                () => System.Windows.Clipboard.SetImage(image));
+            CloseOverlay();
         }
-        catch { /* 忽略,直接关闭 */ }
-        CloseOverlay();
+        catch (Exception ex)
+        {
+            Core.ToastNotification.Show("复制失败", ex.Message, Core.ToastNotification.ToastType.Error);
+        }
     }
 
     private void BtnSave_Click(object sender, RoutedEventArgs e)
@@ -108,7 +110,14 @@ public partial class CaptureOverlay
         CloseOverlay();   // 先关取景窗,保存对话框显示在真实桌面上
 
         var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "STool");
-        try { Directory.CreateDirectory(dir); } catch { }
+        try
+        {
+            Directory.CreateDirectory(dir);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to prepare screenshot save directory {Directory}", dir);
+        }
 
         var dlg = new Microsoft.Win32.SaveFileDialog
         {
@@ -151,17 +160,39 @@ public partial class CaptureOverlay
 
     private async void BtnOcr_Click(object sender, RoutedEventArgs e)
     {
+        if (!btnOcr.IsEnabled)
+            return;
+
         var bmp = RenderSelectionBitmap();
-        CloseOverlay();
         var ocr = ((App)System.Windows.Application.Current).GetService<STool.Modules.Ocr.OcrManager>();
-        if (ocr == null) { Core.ToastNotification.Show("OCR 不可用", "服务未初始化", Core.ToastNotification.ToastType.Error); bmp.Dispose(); return; }
+        if (ocr == null)
+        {
+            Core.ToastNotification.Show("OCR 不可用", "服务未初始化", Core.ToastNotification.ToastType.Error);
+            bmp.Dispose();
+            return;
+        }
+
+        btnOcr.IsEnabled = false;
+        btnOcr.ToolTip = "正在识别...";
         try
         {
             var result = await ocr.RecognizeAsync(bmp);
+            CloseOverlay();
             new STool.Modules.Ocr.OcrResultWindow(result.FullText, result.Provider).Show();
         }
-        catch (Exception ex) { Core.ToastNotification.Show("OCR 失败", ex.Message, Core.ToastNotification.ToastType.Error); }
-        finally { bmp.Dispose(); }
+        catch (Exception ex)
+        {
+            Core.ToastNotification.Show("OCR 失败", ex.Message, Core.ToastNotification.ToastType.Error);
+        }
+        finally
+        {
+            bmp.Dispose();
+            if (!_closing)
+            {
+                btnOcr.IsEnabled = true;
+                btnOcr.ToolTip = "OCR 识别";
+            }
+        }
     }
 
     private async void BtnTranslate_Click(object sender, RoutedEventArgs e)
@@ -179,6 +210,7 @@ public partial class CaptureOverlay
         var cancellationToken = currentTranslationCts.Token;
 
         var bmp = RenderSelectionBitmap();
+        btnTranslate.ToolTip = "取消翻译";
         ShowTranslationLoading();
         var ocr = ((App)System.Windows.Application.Current).GetService<STool.Modules.Ocr.OcrManager>();
         var tr = ((App)System.Windows.Application.Current).GetService<STool.Modules.Translation.TranslationManager>();
@@ -217,7 +249,19 @@ public partial class CaptureOverlay
         {
             bmp.Dispose();
             currentTranslationCts.Dispose();
+            if (!_closing)
+                UpdateTranslationToolTip();
         }
+    }
+
+    private void UpdateTranslationToolTip()
+    {
+        var manager = ((App)System.Windows.Application.Current)
+            .GetService<STool.Modules.Translation.TranslationManager>();
+        var mode = manager?.GetConfiguredScreenshotMode() == STool.Models.ScreenshotTranslationMode.Smart
+            ? "智能"
+            : "快速";
+        btnTranslate.ToolTip = $"截图翻译（{mode}模式）";
     }
 
     private void BtnCancel_Click(object sender, RoutedEventArgs e) => CloseOverlay();

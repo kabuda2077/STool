@@ -277,7 +277,8 @@ internal sealed class LanTransferServer : IAsyncDisposable
             if (diagnosticRequest || context.Response.StatusCode >= 400)
                 Log.Information("LAN transfer response method={Method} path={Path} remote={Remote} status={StatusCode} elapsedMs={ElapsedMs}",
                     request.HttpMethod, path, remote, context.Response.StatusCode, stopwatch.ElapsedMilliseconds);
-            try { context.Response.Close(); } catch { }
+            try { context.Response.Close(); }
+            catch (Exception ex) { Log.Debug(ex, "Failed to close LAN response path={Path}", path); }
         }
     }
 
@@ -1395,21 +1396,25 @@ internal sealed class LanTransferServer : IAsyncDisposable
         _lifetime?.Cancel();
         if (_listener != null)
         {
-            try { _listener.Stop(); } catch { }
+            try { _listener.Stop(); }
+            catch (Exception ex) { Log.Debug(ex, "LAN listener stop failed during disposal"); }
             _listener.Close();
             _listener = null;
         }
 
         if (_acceptLoop != null)
         {
-            try { await _acceptLoop; } catch { }
+            try { await _acceptLoop; }
+            catch (Exception ex) { Log.Debug(ex, "LAN accept loop ended with an error during disposal"); }
             _acceptLoop = null;
         }
 
         var requests = _requests.Values.ToArray();
         if (requests.Length > 0)
         {
-            try { await Task.WhenAll(requests).WaitAsync(TimeSpan.FromSeconds(3)); } catch { }
+            try { await Task.WhenAll(requests).WaitAsync(TimeSpan.FromSeconds(3)); }
+            catch (TimeoutException ex) { Log.Warning(ex, "LAN requests did not stop within the disposal timeout"); }
+            catch (Exception ex) { Log.Debug(ex, "LAN requests ended with an error during disposal"); }
         }
 
         _auth.Clear();

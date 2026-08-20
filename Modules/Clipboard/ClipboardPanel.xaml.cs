@@ -38,6 +38,7 @@ public partial class ClipboardPanel : Window
     private Tab _tab = Tab.All;
     private string _searchText = string.Empty;
     private readonly IntPtr _targetHwnd;
+    private string? _lastCopiedItemId;
 
     // D: ViewModel 按 Id 缓存,切分类/搜索时复用,避免重复造 VM 与重复解码
     private readonly Dictionary<string, ClipboardItemViewModel> _vmCache = new();
@@ -52,6 +53,8 @@ public partial class ClipboardPanel : Window
     private const long LargeImageBytes = 2 * 1024 * 1024;
     private readonly ThumbnailCache _thumbnailCache = new();
     private readonly CancellationTokenSource _thumbnailLifetime = new();
+    private CancellationTokenSource _thumbnailGeneration = new();
+    private readonly SemaphoreSlim _clipboardRestoreGate = new(1, 1);
     private bool _closing;
 
     public ClipboardPanel(ClipboardManager manager)
@@ -99,6 +102,7 @@ public partial class ClipboardPanel : Window
     private void ApplyFilter()
     {
         _tabContentDelay.Stop();
+        ResetThumbnailGeneration();
 
         IEnumerable<ClipboardItem> q = _allRaw;
         var hasSearch = !string.IsNullOrWhiteSpace(_searchText);
@@ -231,31 +235,62 @@ public partial class ClipboardPanel : Window
     }
 
     // 单击复制不关闭;双击复制、关闭面板并尝试粘贴到原前台文本框
-    private void Item_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private async void Item_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        if (sender is Border border && border.Tag is string id)
+        if (sender is not Border { Tag: string id })
+            return;
+
+        var item = _allRaw.FirstOrDefault(candidate => candidate.Id == id);
+        if (item == null)
+            return;
+
+        e.Handled = true;
+        var pasteAfterCopy = e.ClickCount >= 2;
+        if (!await TryRestoreToClipboardAsync(item, allowCachedResult: pasteAfterCopy))
+            return;
+
+        if (pasteAfterCopy)
         {
-            var item = _allRaw.FirstOrDefault(i => i.Id == id);
-            if (item != null)
-            {
-                try
-                {
-                    _manager.RestoreToClipboard(item);
-                    if (e.ClickCount >= 2)
-                    {
-                        Close();
-                        PasteToTarget();
-                    }
-                    else
-                    {
-                        ToastNotification.Show("已复制");
-                    }
-                }
-                catch
-                {
-                    ToastNotification.Show("复制失败", type: ToastNotification.ToastType.Error);
-                }
-            }
+            PasteToTargetAfterClose();
+            return;
+        }
+
+        ToastNotification.Show("已复制");
+    }
+
+    private async Task<bool> TryRestoreToClipboardAsync(ClipboardItem item, bool allowCachedResult)
+    {
+        try
+        {
+            await _clipboardRestoreGate.WaitAsync(_thumbnailLifetime.Token);
+        }
+        catch (OperationCanceledException) when (_closing)
+        {
+            return false;
+        }
+
+        try
+        {
+            if (allowCachedResult && _lastCopiedItemId == item.Id)
+                return true;
+
+            await _manager.RestoreToClipboardAsync(item, _thumbnailLifetime.Token);
+            _lastCopiedItemId = item.Id;
+            return true;
+        }
+        catch (OperationCanceledException) when (_closing)
+        {
+            return false;
+        }
+        catch (Exception ex)
+        {
+            _lastCopiedItemId = null;
+            ToastNotification.Show("复制失败", ex.Message, ToastNotification.ToastType.Error);
+            return false;
+        }
+        finally
+        {
+            _clipboardRestoreGate.Release();
         }
     }
 
@@ -441,28 +476,38 @@ public partial class ClipboardPanel : Window
         };
     }
 
-    private void PasteToTarget()
+    private void PasteToTargetAfterClose()
     {
-        if (_targetHwnd == IntPtr.Zero)
-            return;
+        var targetHwnd = _targetHwnd;
+        var panelHwnd = new WindowInteropHelper(this).Handle;
+        var dispatcher = System.Windows.Application.Current.Dispatcher;
 
-        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        Close();
+
+        if (targetHwnd == IntPtr.Zero || targetHwnd == panelHwnd)
         {
+            ToastNotification.Show("内容已复制", "原窗口不可用，请手动粘贴。", ToastNotification.ToastType.Info);
+            return;
+        }
+
+        dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+        {
+            if (!SetForegroundWindow(targetHwnd))
+            {
+                ToastNotification.Show("内容已复制", "无法切回原窗口，请手动粘贴。", ToastNotification.ToastType.Info);
+                return;
+            }
+
             try
             {
-                var panelHwnd = new WindowInteropHelper(this).Handle;
-                if (_targetHwnd == panelHwnd)
-                    return;
-
-                SetForegroundWindow(_targetHwnd);
                 keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero);
                 keybd_event(VK_V, 0, 0, UIntPtr.Zero);
                 keybd_event(VK_V, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
                 keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
             }
-            catch
+            catch (Exception ex)
             {
-                // 已经复制到剪贴板,粘贴失败不再打断用户
+                ToastNotification.Show("内容已复制", $"自动粘贴失败：{ex.Message}", ToastNotification.ToastType.Info);
             }
         }));
     }
@@ -559,7 +604,7 @@ public partial class ClipboardPanel : Window
         }
 
         var decodeHeight = GetThumbnailDecodeHeight();
-        var cancellationToken = _thumbnailLifetime.Token;
+        var cancellationToken = _thumbnailGeneration.Token;
 
         _ = Task.Run(async () =>
         {
@@ -614,7 +659,11 @@ public partial class ClipboardPanel : Window
 
         Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
         {
-            if (!_closing && !cancellationToken.IsCancellationRequested)
+            if (!_closing &&
+                !cancellationToken.IsCancellationRequested &&
+                _vmCache.TryGetValue(vm.Id, out var current) &&
+                ReferenceEquals(current, vm) &&
+                string.Equals(vm.ThumbnailCacheKey, BuildThumbnailCacheKey(vm.Id, vm.ImagePath ?? string.Empty), StringComparison.Ordinal))
             {
                 vm.ImageSource = image;
                 var count = _thumbnailCache.Count;
@@ -751,6 +800,20 @@ public partial class ClipboardPanel : Window
         }
     }
 
+    private void ResetThumbnailGeneration()
+    {
+        var previous = _thumbnailGeneration;
+        _thumbnailGeneration = CancellationTokenSource.CreateLinkedTokenSource(_thumbnailLifetime.Token);
+        previous.Cancel();
+        previous.Dispose();
+
+        foreach (var vm in _vmCache.Values)
+        {
+            if (vm.ImageSource == null)
+                vm.ThumbRequested = false;
+        }
+    }
+
     private void RemoveCachedViewModel(string id)
     {
         if (!_vmCache.Remove(id, out var vm))
@@ -865,7 +928,10 @@ public partial class ClipboardPanel : Window
                 return (w, h);
             }
         }
-        catch { }
+        catch (Exception ex)
+        {
+            Serilog.Log.Debug(ex, "Failed to read clipboard PNG dimensions from {ImagePath}", path);
+        }
         return (0, 0);
     }
 
@@ -876,6 +942,7 @@ public partial class ClipboardPanel : Window
         _tabContentDelay.Stop();
         _tabContentDelay.Tick -= TabContentDelay_Tick;
         _thumbnailLifetime.Cancel();
+        _thumbnailGeneration.Cancel();
 
         itemsList.ItemsSource = null;
         HideImagePreview();
@@ -889,6 +956,7 @@ public partial class ClipboardPanel : Window
         _vmCache.Clear();
         _allRaw.Clear();
         _thumbnailCache.ItemEvicted -= OnThumbnailEvicted;
+        _thumbnailGeneration.Dispose();
         _thumbnailLifetime.Dispose();
         MemoryDiagnostics.LogCheckpoint(
             "ClipboardClosed",

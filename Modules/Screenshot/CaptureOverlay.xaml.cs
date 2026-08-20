@@ -340,6 +340,7 @@ public partial class CaptureOverlay : Window
         // 初始选区先用当前显示器工作区，避免窗口枚举拖住首帧和鼠标输入。
         _selection = DefaultSelectionRect();
         _interactionReady = true;
+        UpdateTranslationToolTip();
         UpdateVisuals();
         UpdateMosaicSource(force: true);
         LogStartupStep($"{caller} interaction ready");

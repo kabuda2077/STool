@@ -18,7 +18,7 @@ public class TranslationManager : IDisposable
 {
     private readonly ConfigManager _configManager;
     private ITranslationService? _service;
-    private string? _serviceSignature;
+    private TranslationServiceOptions? _serviceOptions;
     private ScreenContentSelector? _contentSelector;
     private string? _contentSelectorSignature;
 
@@ -34,14 +34,10 @@ public class TranslationManager : IDisposable
 
     public void SaveConfiguredProvider(TranslationProvider provider)
     {
-        var config = _configManager.Get();
-        if (config.Translation.Provider == provider)
-        {
+        if (_configManager.Get().Translation.Provider == provider)
             return;
-        }
 
-        config.Translation.Provider = provider;
-        _configManager.Save(config);
+        _configManager.Update(config => config.Translation.Provider = provider);
     }
 
     public string GetConfiguredTargetLanguage()
@@ -70,10 +66,12 @@ public class TranslationManager : IDisposable
             return;
         }
 
-        config.Translation.TranslationMode = mode;
-        config.Translation.SourceLanguage = "auto";
-        config.Translation.TargetLanguage = targetLanguage;
-        _configManager.Save(config);
+        _configManager.Update(current =>
+        {
+            current.Translation.TranslationMode = mode;
+            current.Translation.SourceLanguage = "auto";
+            current.Translation.TargetLanguage = targetLanguage;
+        });
     }
 
     public void SaveConfiguredLanguages(string sourceLanguage, string targetLanguage)
@@ -85,9 +83,11 @@ public class TranslationManager : IDisposable
             return;
         }
 
-        config.Translation.SourceLanguage = sourceLanguage;
-        config.Translation.TargetLanguage = targetLanguage;
-        _configManager.Save(config);
+        _configManager.Update(current =>
+        {
+            current.Translation.SourceLanguage = sourceLanguage;
+            current.Translation.TargetLanguage = targetLanguage;
+        });
     }
 
     /// <summary>
@@ -406,8 +406,8 @@ public class TranslationManager : IDisposable
 
     private ITranslationService? GetOrCreateService(TranslationProvider provider, TranslationConfig config)
     {
-        var signature = provider + "|" + CreateSignature(config);
-        if (_service != null && _serviceSignature == signature)
+        var options = TranslationServiceOptions.From(provider, config);
+        if (_service != null && _serviceOptions == options)
         {
             return _service;
         }
@@ -420,15 +420,21 @@ public class TranslationManager : IDisposable
             TranslationProvider.Google => new GoogleTranslationService(),
             _ => null
         };
-        _serviceSignature = signature;
+        _serviceOptions = options;
 
         return _service;
     }
 
-    private static string CreateSignature(TranslationConfig config)
+    private sealed record TranslationServiceOptions(
+        TranslationProvider Provider,
+        string? TencentSecretId,
+        string? TencentSecretKey,
+        string? AiApiUrl,
+        string? AiApiKey,
+        string? AiModel)
     {
-        return string.Join("|",
-            config.Provider,
+        public static TranslationServiceOptions From(TranslationProvider provider, TranslationConfig config) => new(
+            provider,
             config.TencentSecretIdEncrypted,
             config.TencentSecretKeyEncrypted,
             config.AiApiUrlEncrypted,

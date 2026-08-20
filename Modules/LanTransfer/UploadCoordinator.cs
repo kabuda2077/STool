@@ -2,6 +2,8 @@ using System.Buffers;
 using System.Collections.Concurrent;
 using System.IO;
 
+using Serilog;
+
 namespace STool.Modules.LanTransfer;
 
 internal sealed class UploadCoordinator : IAsyncDisposable
@@ -427,17 +429,20 @@ internal sealed class UploadCoordinator : IAsyncDisposable
 
     private static void TryHideDirectory(string path)
     {
-        try { File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Hidden); } catch { }
+        try { File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Hidden); }
+        catch (Exception ex) { Log.Debug(ex, "Failed to hide upload directory {Path}", path); }
     }
 
     private static void TryDeleteFile(string path)
     {
-        try { if (File.Exists(path)) File.Delete(path); } catch { }
+        try { if (File.Exists(path)) File.Delete(path); }
+        catch (Exception ex) { Log.Debug(ex, "Failed to delete upload temporary file {Path}", path); }
     }
 
     private static void TryDeleteDirectory(string path)
     {
-        try { if (Directory.Exists(path)) Directory.Delete(path, true); } catch { }
+        try { if (Directory.Exists(path)) Directory.Delete(path, true); }
+        catch (Exception ex) { Log.Debug(ex, "Failed to delete upload temporary directory {Path}", path); }
     }
 
     public async ValueTask DisposeAsync()

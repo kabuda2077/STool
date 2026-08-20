@@ -172,7 +172,7 @@ public class AiTranslationService : ITranslationService
                 return new TranslationResult
                 {
                     Success = false,
-                    ErrorMessage = $"API error: {response.StatusCode} - {response.Body}",
+                    ErrorMessage = NetworkErrorMessages.FromStatus(response.StatusCode, response.Body),
                     Provider = "AI Translation"
                 };
             }
@@ -184,7 +184,16 @@ public class AiTranslationService : ITranslationService
             if (root.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0)
             {
                 var message = choices[0].GetProperty("message");
-                var content = message.GetProperty("content").GetString() ?? "";
+                var content = message.GetProperty("content").GetString()?.Trim() ?? string.Empty;
+                if (string.IsNullOrWhiteSpace(content))
+                {
+                    return new TranslationResult
+                    {
+                        Success = false,
+                        ErrorMessage = "翻译服务返回了空结果。",
+                        Provider = "AI Translation"
+                    };
+                }
 
                 return new TranslationResult
                 {
@@ -192,7 +201,7 @@ public class AiTranslationService : ITranslationService
                     SourceLanguage = sourceLanguage,
                     TargetLanguage = targetLanguage,
                     SourceText = text,
-                    TranslatedText = content.Trim(),
+                    TranslatedText = content,
                     Provider = "AI Translation"
                 };
             }
@@ -209,7 +218,7 @@ public class AiTranslationService : ITranslationService
             return new TranslationResult
             {
                 Success = false,
-                ErrorMessage = ex.Message,
+                ErrorMessage = NetworkErrorMessages.FromException(ex, cancellationToken),
                 Provider = "AI Translation"
             };
         }

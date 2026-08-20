@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using STool.Core;
 
 namespace STool.Modules.Translation;
 
@@ -13,18 +14,22 @@ namespace STool.Modules.Translation;
 /// </summary>
 public class GoogleTranslationService : ITranslationService
 {
-    private static readonly HttpClient _http = CreateClient();
+    private static readonly HttpClient HttpClient = CreateClient();
 
     private static HttpClient CreateClient()
     {
-        var c = new HttpClient { Timeout = TimeSpan.FromSeconds(15) };
-        c.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
-        return c;
+        var client = HttpDefaults.CreateClient();
+        client.DefaultRequestHeaders.Add("User-Agent", "Mozilla/5.0");
+        return client;
     }
 
     public bool IsAvailable() => true;
 
-    public async Task<TranslationResult> TranslateAsync(string text, string sourceLanguage, string targetLanguage, CancellationToken cancellationToken = default)
+    public async Task<TranslationResult> TranslateAsync(
+        string text,
+        string sourceLanguage,
+        string targetLanguage,
+        CancellationToken cancellationToken = default)
     {
         try
         {
@@ -32,31 +37,18 @@ public class GoogleTranslationService : ITranslationService
             var tl = MapLanguageCode(targetLanguage);
             var url = $"https://translate.googleapis.com/translate_a/single?client=gtx&sl={sl}&tl={tl}&dt=t&q={Uri.EscapeDataString(text)}";
 
-            var json = await _http.GetStringAsync(url, cancellationToken);
-            using var doc = JsonDocument.Parse(json);
-            var root = doc.RootElement;
-
-            // 响应形如:[[["译文","原文",...],...], null, "检测到的源语言", ...]
-            var sb = new StringBuilder();
-            if (root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 0 && root[0].ValueKind == JsonValueKind.Array)
-            {
-                foreach (var seg in root[0].EnumerateArray())
-                {
-                    if (seg.ValueKind == JsonValueKind.Array && seg.GetArrayLength() > 0 && seg[0].ValueKind == JsonValueKind.String)
-                        sb.Append(seg[0].GetString());
-                }
-            }
-
-            var detected = root.ValueKind == JsonValueKind.Array && root.GetArrayLength() > 2 && root[2].ValueKind == JsonValueKind.String
-                ? root[2].GetString() ?? sl
-                : sl;
+            var json = await HttpClient.GetStringAsync(url, cancellationToken);
+            using var document = JsonDocument.Parse(json);
+            var parsed = ParseResponse(document.RootElement, sl);
+            if (string.IsNullOrWhiteSpace(parsed.TranslatedText))
+                throw new InvalidOperationException("翻译服务返回了空结果。");
 
             return new TranslationResult
             {
                 Success = true,
                 SourceText = text,
-                TranslatedText = sb.ToString(),
-                SourceLanguage = detected,
+                TranslatedText = parsed.TranslatedText,
+                SourceLanguage = parsed.SourceLanguage,
                 TargetLanguage = tl,
                 Provider = "Google"
             };
@@ -66,13 +58,41 @@ public class GoogleTranslationService : ITranslationService
             return new TranslationResult
             {
                 Success = false,
-                ErrorMessage = ex.Message,
+                ErrorMessage = NetworkErrorMessages.FromException(ex, cancellationToken),
                 Provider = "Google"
             };
         }
     }
 
-    private static string MapLanguageCode(string code) => code.ToLower() switch
+    internal static (string TranslatedText, string SourceLanguage) ParseResponse(
+        JsonElement root,
+        string fallbackLanguage)
+    {
+        if (root.ValueKind != JsonValueKind.Array ||
+            root.GetArrayLength() == 0 ||
+            root[0].ValueKind != JsonValueKind.Array)
+        {
+            throw new InvalidOperationException("翻译服务返回格式不正确。");
+        }
+
+        var translated = new StringBuilder();
+        foreach (var segment in root[0].EnumerateArray())
+        {
+            if (segment.ValueKind == JsonValueKind.Array &&
+                segment.GetArrayLength() > 0 &&
+                segment[0].ValueKind == JsonValueKind.String)
+            {
+                translated.Append(segment[0].GetString());
+            }
+        }
+
+        var detected = root.GetArrayLength() > 2 && root[2].ValueKind == JsonValueKind.String
+            ? root[2].GetString() ?? fallbackLanguage
+            : fallbackLanguage;
+        return (translated.ToString().Trim(), detected);
+    }
+
+    private static string MapLanguageCode(string code) => code.ToLowerInvariant() switch
     {
         "auto" => "auto",
         "zh" or "zh-cn" or "chinese" => "zh-CN",
@@ -86,5 +106,8 @@ public class GoogleTranslationService : ITranslationService
         _ => code
     };
 
-    public void Dispose() { /* 共享静态 HttpClient,不在此释放 */ }
+    public void Dispose()
+    {
+        // Shared process-level HttpClient.
+    }
 }

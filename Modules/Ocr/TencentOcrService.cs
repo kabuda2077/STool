@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Net.Http;
@@ -7,6 +8,7 @@ using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using Serilog;
 using STool.Core;
 
 namespace STool.Modules.Ocr;
@@ -43,11 +45,12 @@ public class TencentOcrService : IOcrService
             return new OcrResult
             {
                 Success = false,
-                ErrorMessage = "Tencent Cloud credentials not configured",
+                ErrorMessage = "腾讯云凭据未配置完整。",
                 Provider = "Tencent Cloud"
             };
         }
 
+        var stopwatch = Stopwatch.StartNew();
         try
         {
             // 转换图片为 Base64
@@ -91,6 +94,16 @@ public class TencentOcrService : IOcrService
 
             using var response = await _httpClient.SendAsync(request, cancellationToken);
             var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
+            Log.Information("Tencent OCR completed status={StatusCode} elapsedMs={ElapsedMs}", response.StatusCode, stopwatch.ElapsedMilliseconds);
+            if (!response.IsSuccessStatusCode)
+            {
+                return new OcrResult
+                {
+                    Success = false,
+                    ErrorMessage = NetworkErrorMessages.FromStatus(response.StatusCode, responseJson),
+                    Provider = "Tencent Cloud"
+                };
+            }
 
             // 解析响应
             using var jsonDoc = JsonDocument.Parse(responseJson);
@@ -104,7 +117,7 @@ public class TencentOcrService : IOcrService
                     return new OcrResult
                     {
                         Success = false,
-                        ErrorMessage = errorMessage,
+                        ErrorMessage = $"腾讯云返回错误：{errorMessage}",
                         Provider = "Tencent Cloud"
                     };
                 }
@@ -143,7 +156,7 @@ public class TencentOcrService : IOcrService
             return new OcrResult
             {
                 Success = false,
-                ErrorMessage = "Invalid response format",
+                ErrorMessage = "腾讯云返回格式不正确。",
                 Provider = "Tencent Cloud"
             };
         }
@@ -152,7 +165,7 @@ public class TencentOcrService : IOcrService
             return new OcrResult
             {
                 Success = false,
-                ErrorMessage = ex.Message,
+                ErrorMessage = NetworkErrorMessages.FromException(ex, cancellationToken),
                 Provider = "Tencent Cloud"
             };
         }

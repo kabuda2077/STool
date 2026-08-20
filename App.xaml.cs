@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Threading;
 using Serilog;
@@ -95,9 +96,9 @@ public partial class App : System.Windows.Application
         return _bootstrap?.GetService<T>();
     }
 
-    public void ReloadHotkeys()
+    public IReadOnlyList<HotkeyRegistrationResult> ReloadHotkeys(bool notifyFailures = false)
     {
-        _bootstrap?.ReloadHotkeys();
+        return _bootstrap?.ReloadHotkeys(notifyFailures) ?? Array.Empty<HotkeyRegistrationResult>();
     }
 
     public void ReloadTrayIconVisibility()

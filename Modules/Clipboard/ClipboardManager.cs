@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Threading;
+using System.Threading.Tasks;
 using Serilog;
 using STool.Core;
 
@@ -12,6 +14,10 @@ namespace STool.Modules.Clipboard;
 /// </summary>
 public class ClipboardManager : IDisposable
 {
+    private const int ClipboardBusyHResult = unchecked((int)0x800401D0);
+    private const int ClipboardWriteAttempts = 6;
+    private const int ClipboardRetryDelayMs = 50;
+
     [DllImport("gdi32.dll")]
     private static extern bool DeleteObject(IntPtr hObject);
 
@@ -172,17 +178,20 @@ public class ClipboardManager : IDisposable
         _storage.ClearFavorites();
     }
 
-    public void RestoreToClipboard(ClipboardItem item)
+    public async Task RestoreToClipboardAsync(ClipboardItem item, CancellationToken cancellationToken = default)
     {
         try
         {
+            var restored = false;
             switch (item.Type)
             {
                 case ClipboardItemType.Text:
                     if (!string.IsNullOrEmpty(item.TextContent))
                     {
-                        _monitor.SuppressNextUpdate();
-                        System.Windows.Clipboard.SetText(item.TextContent);
+                        await SetClipboardWithRetryAsync(
+                            () => System.Windows.Clipboard.SetText(item.TextContent),
+                            cancellationToken);
+                        restored = true;
                     }
                     break;
 
@@ -201,8 +210,10 @@ public class ClipboardManager : IDisposable
                             );
                             bitmapSource.Freeze();
 
-                            _monitor.SuppressNextUpdate();
-                            System.Windows.Clipboard.SetImage(bitmapSource);
+                            await SetClipboardWithRetryAsync(
+                                () => System.Windows.Clipboard.SetImage(bitmapSource),
+                                cancellationToken);
+                            restored = true;
                         }
                         finally
                         {
@@ -216,18 +227,50 @@ public class ClipboardManager : IDisposable
                     {
                         var fileDropList = new System.Collections.Specialized.StringCollection();
                         fileDropList.AddRange(item.FilePaths);
-                        _monitor.SuppressNextUpdate();
-                        System.Windows.Clipboard.SetFileDropList(fileDropList);
+                        await SetClipboardWithRetryAsync(
+                            () => System.Windows.Clipboard.SetFileDropList(fileDropList),
+                            cancellationToken);
+                        restored = true;
                     }
                     break;
             }
 
-            Log.Information($"Restored clipboard item: {item.Id}");
+            if (!restored)
+                throw new InvalidOperationException("剪贴板记录内容已不可用。");
+
+            _monitor.SuppressNextUpdate();
+            Log.Information("Restored clipboard item: {ItemId}", item.Id);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Failed to restore clipboard item");
+            Log.Error(ex, "Failed to restore clipboard item {ItemId}", item.Id);
             throw;
+        }
+    }
+
+    internal static async Task SetClipboardWithRetryAsync(
+        Action setClipboard,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(setClipboard);
+
+        for (var attempt = 1; attempt <= ClipboardWriteAttempts; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                setClipboard();
+                return;
+            }
+            catch (COMException ex) when (
+                ex.HResult == ClipboardBusyHResult && attempt < ClipboardWriteAttempts)
+            {
+                await Task.Delay(ClipboardRetryDelayMs, cancellationToken);
+            }
         }
     }
 

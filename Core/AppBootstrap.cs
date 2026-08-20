@@ -14,8 +14,7 @@ public class AppBootstrap : IDisposable
     private readonly IServiceProvider _serviceProvider;
     private readonly HotkeyManager _hotkeyManager;
     private readonly ConfigManager _configManager;
-    private STool.Views.SettingsWindow? _settingsWindow;
-    private STool.Modules.LanTransfer.LanTransferWindow? _lanTransferWindow;
+    private readonly WindowCoordinator _windows = new();
 
     public AppBootstrap()
     {
@@ -46,89 +45,18 @@ public class AppBootstrap : IDisposable
 
         // 初始化快捷键
         _hotkeyManager.Initialize();
-        RegisterConfiguredHotkeys();
+        RegisterConfiguredHotkeys(notifyFailures: true);
 
         // 启动剪贴板监听
         var clipboardManager = _serviceProvider.GetService(typeof(STool.Modules.Clipboard.ClipboardManager))
             as STool.Modules.Clipboard.ClipboardManager;
         clipboardManager?.Start();
 
-        // 预热功能窗口:消除"第一次按快捷键慢"(JIT + BAML 解析 + 模板初始化)
-        WarmUpWindows();
-    }
-
-    /// <summary>
-    /// 启动后在 UI 线程空闲时,各功能窗口构造一次再丢弃,把 WPF 一次性初始化成本
-    /// (JIT、BAML 解析、控件模板实例化)提前付掉。仅 new 不 Show,用户无感。
-    /// </summary>
-    private void WarmUpWindows()
-    {
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher == null)
-            return;
-
-        // 逐个排队,低优先级,互不阻塞;任一失败不影响其他与正常使用
-        dispatcher.BeginInvoke(DispatcherPriorityBackground, new Action(() => WarmUp("Clipboard", () =>
+        StartupWarmup.Schedule(() =>
         {
-            var mgr = GetService<STool.Modules.Clipboard.ClipboardManager>();
-            return mgr != null ? new STool.Modules.Clipboard.ClipboardPanel(mgr) : null;
-        })));
-
-        dispatcher.BeginInvoke(DispatcherPriorityBackground, new Action(() => WarmUp("Translation", () =>
-        {
-            var mgr = GetService<STool.Modules.Translation.TranslationManager>();
-            return mgr != null ? new STool.Modules.Translation.TranslationPanel(mgr) : null;
-        })));
-
-        // 截图窗用专用预热构造:跳过抓屏(CaptureAllScreens),只付 BAML/模板的一次性成本
-        dispatcher.BeginInvoke(DispatcherPriorityBackground, new Action(() => WarmUp("Screenshot",
-            () => STool.Modules.Screenshot.CaptureOverlay.CreateForWarmUp())));
-
-        dispatcher.BeginInvoke(DispatcherPriorityBackground,
-            new Action(() => MemoryDiagnostics.LogCheckpoint("StartupReady")));
-    }
-
-    private const System.Windows.Threading.DispatcherPriority DispatcherPriorityBackground
-        = System.Windows.Threading.DispatcherPriority.Background;
-
-    private static void WarmUp(string name, Func<System.Windows.Window?> factory)
-    {
-        System.Windows.Window? window = null;
-        var windowsBefore = System.Windows.Application.Current?.Windows.Count ?? 0;
-        try
-        {
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            // 仅构造以触发初始化;不 Show。完成后显式 Close,避免实例留在 Application.Windows。
-            window = factory();
-            if (window != null)
-            {
-                Log.Information(
-                    "[WarmUp] {Name} prewarmed in {Ms}ms windowsBefore={WindowsBefore}",
-                    name,
-                    sw.ElapsedMilliseconds,
-                    windowsBefore);
-            }
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "[WarmUp] {Name} prewarm failed (non-fatal)", name);
-        }
-        finally
-        {
-            try
-            {
-                window?.Close();
-            }
-            catch (Exception ex)
-            {
-                Log.Warning(ex, "[WarmUp] {Name} window cleanup failed (non-fatal)", name);
-            }
-
-            Log.Information(
-                "[WarmUp] {Name} cleanup completed windowsAfter={WindowsAfter}",
-                name,
-                System.Windows.Application.Current?.Windows.Count ?? 0);
-        }
+            var manager = GetService<STool.Modules.Clipboard.ClipboardManager>();
+            return manager == null ? null : new STool.Modules.Clipboard.ClipboardPanel(manager);
+        });
     }
 
     private void ConfigureServices(IServiceCollection services)
@@ -176,47 +104,50 @@ public class AppBootstrap : IDisposable
         menu.ShowNearCursor();
     }
 
-    private void RegisterConfiguredHotkeys()
+    private IReadOnlyList<HotkeyRegistrationResult> RegisterConfiguredHotkeys(bool notifyFailures = false)
     {
         var config = _configManager.Get();
-
-        // 截图快捷键
-        if (!_hotkeyManager.RegisterHotkey(config.Hotkeys.Screenshot, OnScreenshotHotkey))
+        var results = new[]
         {
-            Log.Warning($"Failed to register screenshot hotkey: {config.Hotkeys.Screenshot}");
+            _hotkeyManager.RegisterHotkey("截图", config.Hotkeys.Screenshot, OnScreenshotHotkey),
+            _hotkeyManager.RegisterHotkey("翻译", config.Hotkeys.Translation, OnTranslationHotkey),
+            _hotkeyManager.RegisterHotkey("剪贴板", config.Hotkeys.Clipboard, OnClipboardHotkey),
+            _hotkeyManager.RegisterHotkey("设置", config.Hotkeys.Settings, ShowSettings),
+            _hotkeyManager.RegisterHotkey("局域网传输", config.Hotkeys.LanTransfer, OnLanTransferHotkey)
+        };
+
+        var failures = results.Where(result => !result.Success).ToArray();
+        foreach (var failure in failures)
+        {
+            Log.Warning(
+                "Failed to register {FeatureName} hotkey {Hotkey}: {Failure}",
+                failure.FeatureName,
+                failure.Hotkey,
+                failure.Failure);
         }
 
-        // 翻译快捷键
-        if (!_hotkeyManager.RegisterHotkey(config.Hotkeys.Translation, OnTranslationHotkey))
+        if (notifyFailures && failures.Length > 0)
         {
-            Log.Warning($"Failed to register translation hotkey: {config.Hotkeys.Translation}");
+            var details = string.Join("、", failures.Select(result => $"{result.FeatureName} {result.Hotkey}"));
+            ToastNotification.Show(
+                "部分快捷键未生效",
+                $"{details} 已被其他程序占用或格式无效。",
+                ToastNotification.ToastType.Warning,
+                duration: 5000);
         }
 
-        // 剪贴板快捷键
-        if (!_hotkeyManager.RegisterHotkey(config.Hotkeys.Clipboard, OnClipboardHotkey))
-        {
-            Log.Warning($"Failed to register clipboard hotkey: {config.Hotkeys.Clipboard}");
-        }
-
-        // 设置快捷键
-        if (!_hotkeyManager.RegisterHotkey(config.Hotkeys.Settings, ShowSettings))
-        {
-            Log.Warning($"Failed to register settings hotkey: {config.Hotkeys.Settings}");
-        }
-
-        if (!_hotkeyManager.RegisterHotkey(config.Hotkeys.LanTransfer, OnLanTransferHotkey))
-        {
-            Log.Warning($"Failed to register LAN transfer hotkey: {config.Hotkeys.LanTransfer}");
-        }
-
-        Log.Information("Hotkeys initialized");
+        Log.Information(
+            "Hotkeys initialized success={SuccessCount} failed={FailureCount}",
+            results.Length - failures.Length,
+            failures.Length);
+        return results;
     }
 
-    public void ReloadHotkeys()
+    public IReadOnlyList<HotkeyRegistrationResult> ReloadHotkeys(bool notifyFailures = false)
     {
         _hotkeyManager.UnregisterAll();
         _configManager.Reload();
-        RegisterConfiguredHotkeys();
+        return RegisterConfiguredHotkeys(notifyFailures);
     }
 
     public void ReloadTrayIconVisibility()
@@ -252,17 +183,21 @@ public class AppBootstrap : IDisposable
         dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, new Action(ShowScreenshotOverlay));
     }
 
-    private static void ShowScreenshotOverlay()
+    private void ShowScreenshotOverlay()
     {
         var startupTimer = Stopwatch.StartNew();
-
-        // 一体化取景窗自行处理选区/标注/复制/保存等,无需外部事件
-        var overlay = new STool.Modules.Screenshot.CaptureOverlay(startupTimer);
-        Log.Information("[CaptureStartup] Overlay constructed in {ElapsedMs}ms", startupTimer.ElapsedMilliseconds);
-
-        overlay.Show();
-        Log.Information("[CaptureStartup] Show returned in {ElapsedMs}ms", startupTimer.ElapsedMilliseconds);
-        overlay.SchedulePostShowDiagnostics();
+        var existing = _windows.Get<STool.Modules.Screenshot.CaptureOverlay>("screenshot");
+        var overlay = _windows.ShowSingle("screenshot", () =>
+        {
+            var created = new STool.Modules.Screenshot.CaptureOverlay(startupTimer);
+            Log.Information("[CaptureStartup] Overlay constructed in {ElapsedMs}ms", startupTimer.ElapsedMilliseconds);
+            return created;
+        });
+        if (existing == null)
+        {
+            Log.Information("[CaptureStartup] Show returned in {ElapsedMs}ms", startupTimer.ElapsedMilliseconds);
+            overlay.SchedulePostShowDiagnostics();
+        }
     }
 
     private void OnTranslationHotkey()
@@ -278,8 +213,9 @@ public class AppBootstrap : IDisposable
             return;
         }
 
-        var panel = new STool.Modules.Translation.TranslationPanel(translationManager);
-        ShowInForeground(panel);
+        _windows.ShowSingle(
+            "translation",
+            () => new STool.Modules.Translation.TranslationPanel(translationManager));
     }
 
     private void OnClipboardHotkey()
@@ -295,56 +231,27 @@ public class AppBootstrap : IDisposable
             return;
         }
 
-        var panel = new STool.Modules.Clipboard.ClipboardPanel(clipboardManager);
-        ShowInForeground(panel);
+        _windows.ShowSingle(
+            "clipboard",
+            () => new STool.Modules.Clipboard.ClipboardPanel(clipboardManager));
     }
 
     private void OnLanTransferHotkey()
     {
         Log.Information("LAN transfer hotkey triggered");
-        if (_lanTransferWindow != null)
-        {
-            ShowInForeground(_lanTransferWindow);
-            return;
-        }
-
-        _lanTransferWindow = new STool.Modules.LanTransfer.LanTransferWindow(_configManager);
-        _lanTransferWindow.Closed += (_, _) => _lanTransferWindow = null;
-        ShowInForeground(_lanTransferWindow);
+        _windows.ShowSingle(
+            "lan-transfer",
+            () => new STool.Modules.LanTransfer.LanTransferWindow(_configManager));
     }
 
     public void ShowSettings()
     {
-        // 单例:已打开则激活,避免多个设置窗口
-        if (_settingsWindow != null)
-        {
-            ShowInForeground(_settingsWindow);
-            return;
-        }
-
-        _settingsWindow = new STool.Views.SettingsWindow(_configManager);
-        _settingsWindow.Closed += (_, _) =>
-        {
-            _settingsWindow = null;
-            // 安全网:关闭后确保全局快捷键按最新配置恢复
-            ReloadHotkeys();
-        };
-        ShowInForeground(_settingsWindow);
-    }
-
-    private static void ShowInForeground(Window window)
-    {
-        if (!window.IsVisible)
-            window.Show();
-
-        if (window.WindowState == WindowState.Minimized)
-            window.WindowState = WindowState.Normal;
-
-        window.Topmost = true;
-        window.Activate();
-        window.Focus();
-        window.Topmost = false;
-        window.Activate();
+        var existing = _windows.Get<STool.Views.SettingsWindow>("settings");
+        var settings = _windows.ShowSingle(
+            "settings",
+            () => new STool.Views.SettingsWindow(_configManager));
+        if (existing == null)
+            settings.Closed += (_, _) => ReloadHotkeys();
     }
 
     private void OnExit(object? sender, EventArgs e)
@@ -355,7 +262,7 @@ public class AppBootstrap : IDisposable
 
     public void Dispose()
     {
-        try { _lanTransferWindow?.Close(); } catch { }
+        _windows.Dispose();
         _notifyIcon.Dispose();
         _hotkeyManager.Dispose();
         (_serviceProvider as IDisposable)?.Dispose();

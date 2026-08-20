@@ -99,8 +99,22 @@ public class HotkeyBox : TextBox
             return ((char)('0' + (key - Key.D0))).ToString();
         if (key >= Key.NumPad0 && key <= Key.NumPad9)
             return ((char)('0' + (key - Key.NumPad0))).ToString();
-        if (key >= Key.F1 && key <= Key.F12)
+        if (key >= Key.F1 && key <= Key.F24)
             return "F" + (key - Key.F1 + 1);
-        return null;
+        return key switch
+        {
+            Key.Left => "Left",
+            Key.Up => "Up",
+            Key.Right => "Right",
+            Key.Down => "Down",
+            Key.Home => "Home",
+            Key.End => "End",
+            Key.PageUp => "PageUp",
+            Key.PageDown => "PageDown",
+            Key.Insert => "Insert",
+            Key.Delete => "Delete",
+            Key.Space => "Space",
+            _ => null
+        };
     }
 }

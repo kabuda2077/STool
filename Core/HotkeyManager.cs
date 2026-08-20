@@ -1,9 +1,25 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows.Interop;
 
 namespace STool.Core;
+
+public enum HotkeyRegistrationFailure
+{
+    None,
+    InvalidFormat,
+    SystemRejected
+}
+
+public sealed record HotkeyRegistrationResult(
+    string FeatureName,
+    string Hotkey,
+    bool Success,
+    HotkeyRegistrationFailure Failure = HotkeyRegistrationFailure.None);
+
+internal readonly record struct ParsedHotkey(uint Modifiers, uint VirtualKey, string NormalizedText);
 
 public class HotkeyManager : IDisposable
 {
@@ -33,38 +49,48 @@ public class HotkeyManager : IDisposable
         _hwndSource.AddHook(WndProc);
     }
 
-    public bool RegisterHotkey(string hotkeyString, Action action)
+    public HotkeyRegistrationResult RegisterHotkey(string featureName, string hotkeyString, Action action)
     {
-        if (_hwndSource == null)
-            return false;
-
-        if (!TryParseHotkey(hotkeyString, out var modifiers, out var key))
-            return false;
-
-        var id = _currentId++;
-        if (RegisterHotKey(_hwndSource.Handle, id, modifiers, key))
+        if (_hwndSource == null || !TryParseHotkey(hotkeyString, out var parsed))
         {
-            _hotkeyActions[id] = action;
-            return true;
+            return new HotkeyRegistrationResult(
+                featureName,
+                hotkeyString,
+                false,
+                HotkeyRegistrationFailure.InvalidFormat);
         }
 
-        return false;
+        var id = _currentId++;
+        if (RegisterHotKey(_hwndSource.Handle, id, parsed.Modifiers, parsed.VirtualKey))
+        {
+            _hotkeyActions[id] = action;
+            return new HotkeyRegistrationResult(featureName, parsed.NormalizedText, true);
+        }
+
+        return new HotkeyRegistrationResult(
+            featureName,
+            parsed.NormalizedText,
+            false,
+            HotkeyRegistrationFailure.SystemRejected);
     }
 
-    public static bool IsValidHotkey(string hotkeyString)
-    {
-        return TryParseHotkey(hotkeyString, out _, out _);
-    }
+    public static bool IsValidHotkey(string hotkeyString) =>
+        TryParseHotkey(hotkeyString, out _);
 
-    private static bool TryParseHotkey(string hotkeyString, out uint modifiers, out uint key)
-    {
-        modifiers = 0;
-        key = 0;
+    public static string? NormalizeHotkey(string hotkeyString) =>
+        TryParseHotkey(hotkeyString, out var parsed) ? parsed.NormalizedText : null;
 
-        var parts = hotkeyString.Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-        if (parts.Length == 0)
+    internal static bool TryParseHotkey(string hotkeyString, out ParsedHotkey parsed)
+    {
+        parsed = default;
+        if (string.IsNullOrWhiteSpace(hotkeyString))
             return false;
 
+        var parts = hotkeyString.Split('+', StringSplitOptions.TrimEntries);
+        if (parts.Length < 2 || parts.Any(string.IsNullOrWhiteSpace))
+            return false;
+
+        uint modifiers = 0;
         foreach (var part in parts[..^1])
         {
             var modifier = part.ToLowerInvariant() switch
@@ -76,37 +102,64 @@ public class HotkeyManager : IDisposable
                 _ => 0u
             };
 
-            if (modifier == 0)
+            if (modifier == 0 || (modifiers & modifier) != 0)
                 return false;
 
             modifiers |= modifier;
         }
 
-        var keyStr = parts[^1].ToUpperInvariant();
-        if (keyStr.Length == 1)
+        if (modifiers == 0 || !TryParseKey(parts[^1], out var key, out var keyToken))
+            return false;
+
+        var normalizedParts = new List<string>(5);
+        if ((modifiers & 0x0002) != 0) normalizedParts.Add("Ctrl");
+        if ((modifiers & 0x0001) != 0) normalizedParts.Add("Alt");
+        if ((modifiers & 0x0004) != 0) normalizedParts.Add("Shift");
+        if ((modifiers & 0x0008) != 0) normalizedParts.Add("Win");
+        normalizedParts.Add(keyToken);
+
+        parsed = new ParsedHotkey(modifiers, key, string.Join("+", normalizedParts));
+        return true;
+    }
+
+    private static bool TryParseKey(string value, out uint key, out string token)
+    {
+        key = 0;
+        token = string.Empty;
+        var normalized = value.Trim().ToUpperInvariant();
+
+        if (normalized.Length == 1 && normalized[0] is >= 'A' and <= 'Z' or >= '0' and <= '9')
         {
-            key = (uint)keyStr[0];
-        }
-        else
-        {
-            key = keyStr switch
-            {
-                "F1" => 0x70,
-                "F2" => 0x71,
-                "F3" => 0x72,
-                "F4" => 0x73,
-                "F5" => 0x74,
-                "F6" => 0x75,
-                "F7" => 0x76,
-                "F8" => 0x77,
-                "F9" => 0x78,
-                "F10" => 0x79,
-                "F11" => 0x7A,
-                "F12" => 0x7B,
-                _ => 0
-            };
+            key = normalized[0];
+            token = normalized;
+            return true;
         }
 
+        if (normalized.Length is 2 or 3 &&
+            normalized[0] == 'F' &&
+            int.TryParse(normalized[1..], out var functionKey) &&
+            functionKey is >= 1 and <= 24)
+        {
+            key = (uint)(0x70 + functionKey - 1);
+            token = $"F{functionKey}";
+            return true;
+        }
+
+        (key, token) = normalized switch
+        {
+            "LEFT" => (0x25u, "Left"),
+            "UP" => (0x26u, "Up"),
+            "RIGHT" => (0x27u, "Right"),
+            "DOWN" => (0x28u, "Down"),
+            "HOME" => (0x24u, "Home"),
+            "END" => (0x23u, "End"),
+            "PAGEUP" or "PGUP" => (0x21u, "PageUp"),
+            "PAGEDOWN" or "PGDN" => (0x22u, "PageDown"),
+            "INSERT" or "INS" => (0x2Du, "Insert"),
+            "DELETE" or "DEL" => (0x2Eu, "Delete"),
+            "SPACE" => (0x20u, "Space"),
+            _ => (0u, string.Empty)
+        };
         return key != 0;
     }
 
@@ -115,9 +168,7 @@ public class HotkeyManager : IDisposable
         if (_hwndSource != null)
         {
             foreach (var id in _hotkeyActions.Keys)
-            {
                 UnregisterHotKey(_hwndSource.Handle, id);
-            }
         }
 
         _hotkeyActions.Clear();
@@ -131,7 +182,7 @@ public class HotkeyManager : IDisposable
             var id = wParam.ToInt32();
             if (_hotkeyActions.TryGetValue(id, out var action))
             {
-                action?.Invoke();
+                action();
                 handled = true;
             }
         }

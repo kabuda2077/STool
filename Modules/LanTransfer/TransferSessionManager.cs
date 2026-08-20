@@ -443,7 +443,9 @@ internal sealed class TransferSessionManager : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         _lifetime.Cancel();
-        try { await _watchdogTask; } catch { }
+        try { await _watchdogTask; }
+        catch (OperationCanceledException) { }
+        catch (Exception ex) { Serilog.Log.Debug(ex, "Transfer watchdog ended with an error during disposal"); }
         foreach (var session in _sessions.Values)
         {
             session.Cancellation.Cancel();

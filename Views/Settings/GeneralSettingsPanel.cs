@@ -1,9 +1,12 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using Microsoft.Win32;
 using Serilog;
 using STool.Core;
+using STool.Models;
 
 namespace STool.Views.Settings;
 
@@ -152,31 +155,105 @@ public class GeneralSettingsPanel : StackPanel
             !ValidateHotkey(settings, "设置快捷键") ||
             !ValidateHotkey(lanTransfer, "传输快捷键"))
         {
-            _txtScreenshotHotkey.Text = config.Hotkeys.Screenshot;
-            _txtTranslationHotkey.Text = config.Hotkeys.Translation;
-            _txtClipboardHotkey.Text = config.Hotkeys.Clipboard;
-            _txtSettingsHotkey.Text = config.Hotkeys.Settings;
-            _txtLanTransferHotkey.Text = config.Hotkeys.LanTransfer;
+            RestoreHotkeyText(config.Hotkeys);
             return;
         }
 
+        var proposed = new Dictionary<string, string>
+        {
+            ["截图"] = HotkeyManager.NormalizeHotkey(screenshot)!,
+            ["翻译"] = HotkeyManager.NormalizeHotkey(translation)!,
+            ["剪贴板"] = HotkeyManager.NormalizeHotkey(clipboard)!,
+            ["设置"] = HotkeyManager.NormalizeHotkey(settings)!,
+            ["传输"] = HotkeyManager.NormalizeHotkey(lanTransfer)!
+        };
+        var duplicate = proposed
+            .GroupBy(pair => pair.Value, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault(group => group.Count() > 1);
+        if (duplicate != null)
+        {
+            ToastNotification.Show(
+                "快捷键重复",
+                $"{string.Join("、", duplicate.Select(pair => pair.Key))} 都使用了 {duplicate.Key}",
+                ToastNotification.ToastType.Warning);
+            RestoreHotkeyText(config.Hotkeys);
+            return;
+        }
+
+        var previous = new HotkeyConfig
+        {
+            Screenshot = config.Hotkeys.Screenshot,
+            Translation = config.Hotkeys.Translation,
+            Clipboard = config.Hotkeys.Clipboard,
+            Settings = config.Hotkeys.Settings,
+            LanTransfer = config.Hotkeys.LanTransfer
+        };
+
         try
         {
-            config.Hotkeys.Screenshot = screenshot;
-            config.Hotkeys.Translation = translation;
-            config.Hotkeys.Clipboard = clipboard;
-            config.Hotkeys.Settings = settings;
-            config.Hotkeys.LanTransfer = lanTransfer;
+            _configManager.Update(current => ApplyHotkeys(current.Hotkeys, proposed));
+            var failures = ((App)System.Windows.Application.Current)
+                .ReloadHotkeys()
+                .Where(result => !result.Success)
+                .ToArray();
+            if (failures.Length > 0)
+            {
+                _configManager.Update(current => ApplyHotkeys(current.Hotkeys, previous));
+                ((App)System.Windows.Application.Current).ReloadHotkeys();
+                RestoreHotkeyText(previous);
 
-            _configManager.Save(config);
-            ((App)System.Windows.Application.Current).ReloadHotkeys();
+                var details = string.Join("、", failures.Select(result => $"{result.FeatureName} {result.Hotkey}"));
+                ToastNotification.Show(
+                    "快捷键未生效",
+                    $"{details} 已被其他程序占用，已恢复原设置。",
+                    ToastNotification.ToastType.Warning);
+                return;
+            }
 
+            RestoreHotkeyText(config.Hotkeys);
             FlashSaved();
         }
         catch (Exception ex)
         {
+            try
+            {
+                _configManager.Update(current => ApplyHotkeys(current.Hotkeys, previous));
+                ((App)System.Windows.Application.Current).ReloadHotkeys();
+            }
+            catch (Exception rollbackEx)
+            {
+                Log.Error(rollbackEx, "Failed to roll back hotkey settings");
+            }
+            RestoreHotkeyText(previous);
             ToastNotification.Show("保存失败", ex.Message, ToastNotification.ToastType.Error);
         }
+    }
+
+    private void RestoreHotkeyText(HotkeyConfig hotkeys)
+    {
+        _txtScreenshotHotkey.Text = hotkeys.Screenshot;
+        _txtTranslationHotkey.Text = hotkeys.Translation;
+        _txtClipboardHotkey.Text = hotkeys.Clipboard;
+        _txtSettingsHotkey.Text = hotkeys.Settings;
+        _txtLanTransferHotkey.Text = hotkeys.LanTransfer;
+    }
+
+    private static void ApplyHotkeys(HotkeyConfig target, IReadOnlyDictionary<string, string> values)
+    {
+        target.Screenshot = values["截图"];
+        target.Translation = values["翻译"];
+        target.Clipboard = values["剪贴板"];
+        target.Settings = values["设置"];
+        target.LanTransfer = values["传输"];
+    }
+
+    private static void ApplyHotkeys(HotkeyConfig target, HotkeyConfig source)
+    {
+        target.Screenshot = source.Screenshot;
+        target.Translation = source.Translation;
+        target.Clipboard = source.Clipboard;
+        target.Settings = source.Settings;
+        target.LanTransfer = source.LanTransfer;
     }
 
     /// <summary>即时保存成功后在设置窗口中下部显示轻量提示。</summary>
@@ -217,9 +294,7 @@ public class GeneralSettingsPanel : StackPanel
     {
         try
         {
-            var config = _configManager.Get();
-            config.HideTrayIcon = enabled;
-            _configManager.Save(config);
+            _configManager.Update(config => config.HideTrayIcon = enabled);
             ((App)System.Windows.Application.Current).ReloadTrayIconVisibility();
             FlashSaved();
         }

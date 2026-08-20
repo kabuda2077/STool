@@ -9,6 +9,9 @@ namespace STool.Core;
 public class ConfigManager
 {
     private readonly string _configPath;
+    private readonly Func<string, string> _decrypt;
+    private readonly Func<string, string> _encrypt;
+    private readonly Func<string, bool> _isPortableEncrypted;
     private readonly object _gate = new();
     private AppConfig? _config;
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -18,56 +21,53 @@ public class ConfigManager
     };
 
     public ConfigManager()
+        : this(AppPaths.ConfigPath, SecureStorage.Decrypt, SecureStorage.Encrypt, SecureStorage.IsPortableEncrypted)
     {
         AppPaths.EnsureStandardDirectories();
-        _configPath = AppPaths.ConfigPath;
     }
 
+    internal ConfigManager(
+        string configPath,
+        Func<string, string>? decrypt = null,
+        Func<string, string>? encrypt = null,
+        Func<string, bool>? isPortableEncrypted = null)
+    {
+        _configPath = configPath;
+        _decrypt = decrypt ?? SecureStorage.Decrypt;
+        _encrypt = encrypt ?? SecureStorage.Encrypt;
+        _isPortableEncrypted = isPortableEncrypted ?? SecureStorage.IsPortableEncrypted;
+        Directory.CreateDirectory(Path.GetDirectoryName(_configPath) ?? ".");
+    }
+
+    /// <summary>Returns an isolated snapshot. Mutating it never changes the cached configuration.</summary>
     public AppConfig Get()
     {
         lock (_gate)
-        {
-            if (_config != null)
-                return _config;
-
-            if (File.Exists(_configPath))
-            {
-                try
-                {
-                    var json = File.ReadAllText(_configPath);
-                    _config = JsonSerializer.Deserialize<AppConfig>(json, JsonOptions) ?? new AppConfig();
-                    var configChanged = MigrateEncryptedSecrets(_config);
-                    configChanged |= MigrateDefaultHotkeys(_config);
-                    if (configChanged)
-                    {
-                        SaveInternal(_config);
-                    }
-                }
-                catch (Exception ex)
-                {
-                    // 不能静默丢弃:损坏的配置一旦被默认值覆盖保存,会丢失用户密钥。
-                    // 先备份损坏文件留待排查,再回退默认值,且不主动覆盖原文件。
-                    Log.Error(ex, "Failed to read config, backing up corrupt file and using defaults");
-                    BackupCorruptConfig();
-                    _config = new AppConfig();
-                }
-            }
-            else
-            {
-                _config = new AppConfig();
-                SaveInternal(_config);
-            }
-
-            return _config;
-        }
+            return Clone(GetOrLoadInternal());
     }
+
+    public AppConfig GetSnapshot() => Get();
 
     public void Save(AppConfig config)
     {
+        ArgumentNullException.ThrowIfNull(config);
         lock (_gate)
         {
-            _config = config;
-            SaveInternal(config);
+            _config = Clone(config);
+            SaveInternal(_config);
+        }
+    }
+
+    public AppConfig Update(Action<AppConfig> update)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        lock (_gate)
+        {
+            var next = Clone(GetOrLoadInternal());
+            update(next);
+            SaveInternal(next);
+            _config = next;
+            return Clone(next);
         }
     }
 
@@ -76,30 +76,86 @@ public class ConfigManager
         lock (_gate)
         {
             _config = null;
+            _ = GetOrLoadInternal();
         }
-        Get();
     }
 
-    /// <summary>
-    /// 原子写入:先写临时文件再替换,避免写一半崩溃导致 config.json 损坏、丢失加密密钥。
-    /// 调用方需持有 _gate 锁。
-    /// </summary>
+    private AppConfig GetOrLoadInternal()
+    {
+        if (_config != null)
+            return _config;
+
+        if (!File.Exists(_configPath))
+        {
+            _config = new AppConfig();
+            SaveInternal(_config);
+            return _config;
+        }
+
+        try
+        {
+            _config = ReadConfig(_configPath);
+        }
+        catch (Exception ex)
+        {
+            Log.Error(ex, "Failed to read config, backing up corrupt file and trying backup");
+            BackupCorruptConfig();
+            if (TryReadBackup(out var backup))
+            {
+                _config = backup;
+                SaveInternal(_config);
+                Log.Information("Configuration restored from backup");
+            }
+            else
+            {
+                _config = new AppConfig();
+                return _config;
+            }
+        }
+
+        var changed = MigrateEncryptedSecrets(_config);
+        changed |= MigrateDefaultHotkeys(_config);
+        if (changed)
+            SaveInternal(_config);
+        return _config;
+    }
+
+    private AppConfig ReadConfig(string path)
+    {
+        var json = File.ReadAllText(path);
+        return JsonSerializer.Deserialize<AppConfig>(json, JsonOptions)
+            ?? throw new JsonException("配置文件内容为空。");
+    }
+
+    private bool TryReadBackup(out AppConfig config)
+    {
+        config = null!;
+        var backupPath = _configPath + ".bak";
+        if (!File.Exists(backupPath))
+            return false;
+
+        try
+        {
+            config = ReadConfig(backupPath);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to read configuration backup");
+            return false;
+        }
+    }
+
     private void SaveInternal(AppConfig config)
     {
         var json = JsonSerializer.Serialize(config, JsonOptions);
         var tempPath = _configPath + ".tmp";
-
         File.WriteAllText(tempPath, json);
 
         if (File.Exists(_configPath))
-        {
-            // File.Replace 原子替换,并保留一个 .bak 以便回滚
             File.Replace(tempPath, _configPath, _configPath + ".bak");
-        }
         else
-        {
             File.Move(tempPath, _configPath);
-        }
     }
 
     private void BackupCorruptConfig()
@@ -107,9 +163,7 @@ public class ConfigManager
         try
         {
             if (File.Exists(_configPath))
-            {
                 File.Copy(_configPath, _configPath + ".corrupt", overwrite: true);
-            }
         }
         catch (Exception ex)
         {
@@ -117,10 +171,9 @@ public class ConfigManager
         }
     }
 
-    private static bool MigrateEncryptedSecrets(AppConfig config)
+    private bool MigrateEncryptedSecrets(AppConfig config)
     {
         var changed = false;
-
         changed |= ReencryptIfLegacy(config.Ocr.TencentSecretIdEncrypted, value => config.Ocr.TencentSecretIdEncrypted = value);
         changed |= ReencryptIfLegacy(config.Ocr.TencentSecretKeyEncrypted, value => config.Ocr.TencentSecretKeyEncrypted = value);
         changed |= ReencryptIfLegacy(config.Ocr.AiApiUrlEncrypted, value => config.Ocr.AiApiUrlEncrypted = value);
@@ -129,37 +182,36 @@ public class ConfigManager
         changed |= ReencryptIfLegacy(config.Translation.TencentSecretKeyEncrypted, value => config.Translation.TencentSecretKeyEncrypted = value);
         changed |= ReencryptIfLegacy(config.Translation.AiApiUrlEncrypted, value => config.Translation.AiApiUrlEncrypted = value);
         changed |= ReencryptIfLegacy(config.Translation.AiApiKeyEncrypted, value => config.Translation.AiApiKeyEncrypted = value);
-
         return changed;
     }
 
-    private static bool MigrateDefaultHotkeys(AppConfig config)
+    internal static bool MigrateDefaultHotkeys(AppConfig config)
     {
         if (!string.Equals(config.Hotkeys.Settings, "Alt+4", StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(config.Hotkeys.LanTransfer, "Alt+5", StringComparison.OrdinalIgnoreCase))
-        {
             return false;
-        }
 
         config.Hotkeys.Settings = "Alt+5";
         config.Hotkeys.LanTransfer = "Alt+4";
         return true;
     }
 
-    private static bool ReencryptIfLegacy(string? encryptedText, Action<string> setValue)
+    private bool ReencryptIfLegacy(string? encryptedText, Action<string> setValue)
     {
-        if (string.IsNullOrWhiteSpace(encryptedText) || SecureStorage.IsPortableEncrypted(encryptedText))
-        {
+        if (string.IsNullOrWhiteSpace(encryptedText) || _isPortableEncrypted(encryptedText))
             return false;
-        }
 
-        var plainText = SecureStorage.Decrypt(encryptedText);
+        var plainText = _decrypt(encryptedText);
         if (string.IsNullOrEmpty(plainText))
-        {
             return false;
-        }
 
-        setValue(SecureStorage.Encrypt(plainText));
+        setValue(_encrypt(plainText));
         return true;
+    }
+
+    private static AppConfig Clone(AppConfig config)
+    {
+        var json = JsonSerializer.Serialize(config, JsonOptions);
+        return JsonSerializer.Deserialize<AppConfig>(json, JsonOptions) ?? new AppConfig();
     }
 }

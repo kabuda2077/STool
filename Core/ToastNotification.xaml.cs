@@ -10,6 +10,7 @@ namespace STool.Core
     {
         private DispatcherTimer? _timer;
         private Action? _action;
+        private static ToastNotification? _activeSettingsSavedToast;
         private const int DEFAULT_DURATION = 2500; // 毫秒
 
         public enum ToastType
@@ -128,6 +129,13 @@ namespace STool.Core
         {
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
+                if (type == ToastType.Success && title == "设置已保存" &&
+                    _activeSettingsSavedToast is { IsVisible: true } active)
+                {
+                    active.ResetTimer(duration);
+                    return;
+                }
+
                 var toast = new ToastNotification();
                 toast.titleText.Text = title;
 
@@ -165,20 +173,35 @@ namespace STool.Core
                         break;
                 }
 
-                toast.Show();
+                if (type == ToastType.Success && title == "设置已保存")
+                {
+                    _activeSettingsSavedToast = toast;
+                    toast.Closed += (_, _) =>
+                    {
+                        if (ReferenceEquals(_activeSettingsSavedToast, toast))
+                            _activeSettingsSavedToast = null;
+                    };
+                }
 
-                // 自动关闭定时器
-                toast._timer = new DispatcherTimer
-                {
-                    Interval = TimeSpan.FromMilliseconds(duration)
-                };
-                toast._timer.Tick += (s, e) =>
-                {
-                    toast._timer.Stop();
-                    toast.Close();
-                };
-                toast._timer.Start();
+                toast.Show();
+                toast.ResetTimer(duration);
             });
+        }
+
+        private void ResetTimer(int duration)
+        {
+            _timer?.Stop();
+            _timer ??= new DispatcherTimer();
+            _timer.Interval = TimeSpan.FromMilliseconds(duration);
+            _timer.Tick -= Timer_Tick;
+            _timer.Tick += Timer_Tick;
+            _timer.Start();
+        }
+
+        private void Timer_Tick(object? sender, EventArgs e)
+        {
+            _timer?.Stop();
+            Close();
         }
 
         public static void ShowWithAction(

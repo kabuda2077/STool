@@ -116,7 +116,7 @@ public class WindowsOcrService : IOcrService
             return new OcrResult
             {
                 Success = false,
-                ErrorMessage = ex.Message,
+                ErrorMessage = STool.Core.NetworkErrorMessages.FromException(ex, cancellationToken),
                 Provider = "Windows Local"
             };
         }

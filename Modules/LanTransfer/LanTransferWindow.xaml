@@ -7,7 +7,7 @@
         core:ModernWindowChrome.ShowTopmostButton="True"
         Title="局域网传输"
         Width="720"
-        Height="560"
+        Height="620"
         MinWidth="560"
         MinHeight="440"
         WindowStartupLocation="CenterScreen"
@@ -128,7 +128,8 @@
                                  Height="36"
                                  IsReadOnly="True"
                                  VerticalContentAlignment="Center"/>
-                        <Button Grid.Column="2"
+                        <Button x:Name="browseReceiveDirectoryButton"
+                                Grid.Column="2"
                                 Style="{StaticResource ToolPanelSecondaryButton}"
                                 Content="更改"
                                 MinWidth="80"
@@ -158,7 +159,8 @@
                                        TextTrimming="CharacterEllipsis"
                                        VerticalAlignment="Center"/>
                         </Border>
-                        <Button Grid.Column="2"
+                        <Button x:Name="copyAddressButton"
+                                Grid.Column="2"
                                 Style="{StaticResource ToolPanelSecondaryButton}"
                                 Content="复制"
                                 ToolTip="复制地址"
@@ -189,7 +191,8 @@
                                            Foreground="{StaticResource PrimaryBrush}"
                                            VerticalAlignment="Center"/>
                             </Border>
-                            <Button Style="{StaticResource IconButton}"
+                            <Button x:Name="refreshCodeButton"
+                                    Style="{StaticResource IconButton}"
                                     ToolTip="刷新连接码"
                                     AutomationProperties.Name="刷新连接码"
                                     Margin="8,0,0,0"
@@ -207,7 +210,8 @@
                                 </Viewbox>
                             </Button>
                         </StackPanel>
-                        <Button Grid.Column="2"
+                        <Button x:Name="revokeDevicesButton"
+                                Grid.Column="2"
                                 Style="{StaticResource ToolPanelSecondaryButton}"
                                 Content="移除设备"
                                 ToolTip="移除所有已记住设备"
@@ -332,10 +336,12 @@
                     <StackPanel x:Name="shareActions"
                                 Grid.Column="1"
                                 Orientation="Horizontal">
-                        <Button Style="{StaticResource ToolPanelPrimaryButton}"
+                        <Button x:Name="addFilesButton"
+                                Style="{StaticResource ToolPanelPrimaryButton}"
                                 Content="添加文件"
                                 Click="AddFiles_Click"/>
-                        <Button Style="{StaticResource ToolPanelPrimaryButton}"
+                        <Button x:Name="addFolderButton"
+                                Style="{StaticResource ToolPanelPrimaryButton}"
                                 Content="添加文件夹"
                                 Margin="7,0,0,0"
                                 Click="AddFolder_Click"/>

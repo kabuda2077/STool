@@ -3,6 +3,8 @@ using System.Diagnostics;
 using System.IO;
 using System.IO.Compression;
 
+using Serilog;
+
 namespace STool.Modules.LanTransfer;
 
 internal sealed class PreparedArchiveManager : IAsyncDisposable
@@ -25,7 +27,8 @@ internal sealed class PreparedArchiveManager : IAsyncDisposable
         var tempRoot = Path.Combine(Path.GetFullPath(receiveRoot), ".stool-transfer");
         _sessionRoot = Path.Combine(tempRoot, "archives-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(_sessionRoot);
-        try { File.SetAttributes(tempRoot, File.GetAttributes(tempRoot) | FileAttributes.Hidden); } catch { }
+        try { File.SetAttributes(tempRoot, File.GetAttributes(tempRoot) | FileAttributes.Hidden); }
+        catch (Exception ex) { Log.Debug(ex, "Failed to hide archive temporary directory {Path}", tempRoot); }
     }
 
     public event Action<TransferProgressInfo>? ProgressChanged;
@@ -107,7 +110,9 @@ internal sealed class PreparedArchiveManager : IAsyncDisposable
 
         if (job.PreparationTask != null)
         {
-            try { await job.PreparationTask; } catch { }
+            try { await job.PreparationTask; }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { Log.Debug(ex, "Archive preparation ended with an error during cancellation"); }
         }
         TryDeleteFile(job.FullPath);
         job.Dispose();
@@ -338,7 +343,9 @@ internal sealed class PreparedArchiveManager : IAsyncDisposable
         var preparationTasks = jobs.Select(job => job.PreparationTask).Where(task => task != null).Cast<Task>().ToArray();
         if (preparationTasks.Length > 0)
         {
-            try { await Task.WhenAll(preparationTasks); } catch { }
+            try { await Task.WhenAll(preparationTasks); }
+            catch (OperationCanceledException) { }
+            catch (Exception ex) { Log.Debug(ex, "Archive preparation tasks ended with an error during disposal"); }
         }
         foreach (var job in jobs)
         {
@@ -359,12 +366,14 @@ internal sealed class PreparedArchiveManager : IAsyncDisposable
 
     private static void TryDeleteFile(string path)
     {
-        try { if (File.Exists(path)) File.Delete(path); } catch { }
+        try { if (File.Exists(path)) File.Delete(path); }
+        catch (Exception ex) { Log.Debug(ex, "Failed to delete prepared archive file {Path}", path); }
     }
 
     private static void TryDeleteDirectory(string path)
     {
-        try { if (Directory.Exists(path)) Directory.Delete(path, true); } catch { }
+        try { if (Directory.Exists(path)) Directory.Delete(path, true); }
+        catch (Exception ex) { Log.Debug(ex, "Failed to delete prepared archive directory {Path}", path); }
     }
 
     private sealed class ArchiveJob(

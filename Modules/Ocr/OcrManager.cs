@@ -15,7 +15,7 @@ public class OcrManager : IDisposable
 {
     private readonly ConfigManager _configManager;
     private IOcrService? _primaryService;
-    private string? _primaryServiceSignature;
+    private OcrServiceOptions? _primaryServiceOptions;
     private WindowsOcrService? _fallbackLocalService;
 
     public OcrManager(ConfigManager configManager)
@@ -125,8 +125,8 @@ public class OcrManager : IDisposable
 
     private IOcrService? GetOrCreatePrimaryService(OcrConfig config)
     {
-        var signature = CreateSignature(config);
-        if (_primaryService != null && _primaryServiceSignature == signature)
+        var options = OcrServiceOptions.From(config);
+        if (_primaryService != null && _primaryServiceOptions == options)
         {
             return _primaryService;
         }
@@ -139,14 +139,20 @@ public class OcrManager : IDisposable
             OcrProvider.WindowsLocal => new WindowsOcrService(),
             _ => null
         };
-        _primaryServiceSignature = signature;
+        _primaryServiceOptions = options;
 
         return _primaryService;
     }
 
-    private static string CreateSignature(OcrConfig config)
+    private sealed record OcrServiceOptions(
+        OcrProvider Provider,
+        string? TencentSecretId,
+        string? TencentSecretKey,
+        string? AiApiUrl,
+        string? AiApiKey,
+        string? AiModel)
     {
-        return string.Join("|",
+        public static OcrServiceOptions From(OcrConfig config) => new(
             config.Provider,
             config.TencentSecretIdEncrypted,
             config.TencentSecretKeyEncrypted,

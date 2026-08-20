@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using STool.Core;
@@ -16,6 +18,8 @@ public class TranslationSettingsPanel : StackPanel
     private System.Windows.Controls.ComboBox _cmbProvider = null!;
     private System.Windows.Controls.ComboBox _cmbTranslationMode = null!;
     private System.Windows.Controls.ComboBox _cmbScreenshotMode = null!;
+    private TextBlock _statusText = null!;
+    private readonly Dictionary<TranslationProvider, bool?> _serviceTestResults = new();
     private Border _tencentSection = null!;
     private Border _aiSection = null!;
     private Expander _tencentExpander = null!;
@@ -51,7 +55,9 @@ public class TranslationSettingsPanel : StackPanel
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "腾讯云翻译", Tag = TranslationProvider.Tencent });
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "AI 翻译", Tag = TranslationProvider.OpenAI });
         _cmbProvider.SelectionChanged += CmbProvider_SelectionChanged;
-        providerSection.Children.Add(SettingsLayout.CreateInlineField("当前引擎", _cmbProvider, isLast: true));
+        providerSection.Children.Add(SettingsLayout.CreateInlineField("当前引擎", _cmbProvider));
+        _statusText = SettingsLayout.CreateHint(string.Empty, inline: false);
+        providerSection.Children.Add(SettingsLayout.CreateInlineField("服务状态", _statusText, isLast: true));
         Children.Add(WrapSection(providerSection));
 
         // ── 默认策略 ──
@@ -201,6 +207,29 @@ public class TranslationSettingsPanel : StackPanel
     private void CmbProvider_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         UpdateProviderSections();
+        UpdateServiceStatus();
+    }
+
+    private string FormatCloudStatus(bool configured, string serviceName)
+    {
+        if (!configured)
+            return $"{serviceName} 未配置";
+        var provider = serviceName == "腾讯云"
+            ? TranslationProvider.Tencent
+            : TranslationProvider.OpenAI;
+        _serviceTestResults.TryGetValue(provider, out var result);
+        return result switch
+        {
+            true => $"{serviceName} 最近测试成功",
+            false => $"{serviceName} 最近测试失败",
+            null => $"{serviceName} 配置完整，尚未测试"
+        };
+    }
+
+    private void ResetServiceTestStatus(TranslationProvider provider)
+    {
+        _serviceTestResults[provider] = null;
+        UpdateServiceStatus();
     }
 
     private void UpdateProviderSections()
@@ -216,6 +245,30 @@ public class TranslationSettingsPanel : StackPanel
 
         _tencentExpander.IsExpanded = provider == TranslationProvider.Tencent;
         _aiExpander.IsExpanded = provider == TranslationProvider.OpenAI;
+    }
+
+    private void UpdateServiceStatus()
+    {
+        if (_statusText == null || _cmbProvider == null)
+            return;
+
+        var provider = (_cmbProvider.SelectedItem as ComboBoxItem)?.Tag is TranslationProvider selected
+            ? selected
+            : TranslationProvider.Google;
+        _statusText.Text = provider switch
+        {
+            TranslationProvider.Google => "免费端点无需密钥，繁忙时可能限流",
+            TranslationProvider.Tencent => FormatCloudStatus(
+                !string.IsNullOrWhiteSpace(_txtTencentSecretId?.Text) &&
+                !string.IsNullOrWhiteSpace(_pwdTencentSecretKey?.Password),
+                "腾讯云"),
+            TranslationProvider.OpenAI => FormatCloudStatus(
+                !string.IsNullOrWhiteSpace(_txtAiApiUrl?.Text) &&
+                !string.IsNullOrWhiteSpace(_pwdAiApiKey?.Password) &&
+                !string.IsNullOrWhiteSpace(_cmbAiModel?.Text),
+                "AI 翻译"),
+            _ => string.Empty
+        };
     }
 
     private void CmbAiPlatform_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -256,10 +309,14 @@ public class TranslationSettingsPanel : StackPanel
                     _cmbAiModel.Text = models[0];
                 }
 
+                _serviceTestResults[TranslationProvider.OpenAI] = true;
+                UpdateServiceStatus();
                 ToastNotification.Show("模型已获取", $"共 {models.Count} 个模型", ToastNotification.ToastType.Success);
             }
             catch (Exception ex)
             {
+                _serviceTestResults[TranslationProvider.OpenAI] = false;
+                UpdateServiceStatus();
                 ToastNotification.Show("获取模型失败", ex.Message, ToastNotification.ToastType.Error);
             }
         });
@@ -277,15 +334,21 @@ public class TranslationSettingsPanel : StackPanel
                 var result = await AiTranslationService.TestAsync(_txtAiApiUrl.Text, _pwdAiApiKey.Password, GetAiModel());
                 if (result.Success)
                 {
+                    _serviceTestResults[TranslationProvider.OpenAI] = true;
+                    UpdateServiceStatus();
                     ToastNotification.Show("测试成功", result.TranslatedText, ToastNotification.ToastType.Success);
                 }
                 else
                 {
+                    _serviceTestResults[TranslationProvider.OpenAI] = false;
+                    UpdateServiceStatus();
                     ToastNotification.Show("测试失败", result.ErrorMessage ?? "未知错误", ToastNotification.ToastType.Error);
                 }
             }
             catch (Exception ex)
             {
+                _serviceTestResults[TranslationProvider.OpenAI] = false;
+                UpdateServiceStatus();
                 ToastNotification.Show("测试失败", ex.Message, ToastNotification.ToastType.Error);
             }
         });
@@ -371,6 +434,7 @@ public class TranslationSettingsPanel : StackPanel
         }
         _cmbAiModel.Text = config.AiModel ?? "";
         UpdateApiUrlPreview();
+        UpdateServiceStatus();
     }
 
     private void UpdateApiUrlPreview()
@@ -395,6 +459,11 @@ public class TranslationSettingsPanel : StackPanel
     private void EnableAutoSave()
     {
         _autoSave = new SettingsAutoSaveController(this, SaveSettings);
+        _txtTencentSecretId.TextChanged += (_, _) => ResetServiceTestStatus(TranslationProvider.Tencent);
+        _pwdTencentSecretKey.PasswordChanged += (_, _) => ResetServiceTestStatus(TranslationProvider.Tencent);
+        _txtAiApiUrl.TextChanged += (_, _) => ResetServiceTestStatus(TranslationProvider.OpenAI);
+        _pwdAiApiKey.PasswordChanged += (_, _) => ResetServiceTestStatus(TranslationProvider.OpenAI);
+        _cmbAiModel.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((_, _) => ResetServiceTestStatus(TranslationProvider.OpenAI)));
         _autoSave.TrackImmediate(_cmbProvider);
         _autoSave.TrackImmediate(_cmbTranslationMode);
         _autoSave.TrackImmediate(_cmbScreenshotMode);
@@ -433,29 +502,26 @@ public class TranslationSettingsPanel : StackPanel
             return false;
         }
 
-        config.Translation.Provider = provider;
-        config.Translation.TranslationMode = translationMode;
-        config.Translation.ScreenshotMode = screenshotMode;
-        config.Translation.SourceLanguage = "auto";
-        config.Translation.TargetLanguage = TranslationManager.ResolveTargetLanguage(string.Empty, config.Translation.TranslationMode);
+        var secretIdEncrypted = EncryptIfChangedOrClear(tencentSecretId, config.Translation.TencentSecretIdEncrypted);
+        var secretKeyEncrypted = EncryptIfChangedOrClear(tencentSecretKey, config.Translation.TencentSecretKeyEncrypted);
+        var apiUrlEncrypted = EncryptIfChangedOrClear(aiApiUrl, config.Translation.AiApiUrlEncrypted);
+        var apiKeyEncrypted = EncryptIfChangedOrClear(aiApiKey, config.Translation.AiApiKeyEncrypted);
+        var targetLanguage = TranslationManager.ResolveTargetLanguage(string.Empty, translationMode);
 
-        config.Translation.TencentSecretIdEncrypted = EncryptIfChangedOrClear(
-            tencentSecretId,
-            config.Translation.TencentSecretIdEncrypted);
-        config.Translation.TencentSecretKeyEncrypted = EncryptIfChangedOrClear(
-            tencentSecretKey,
-            config.Translation.TencentSecretKeyEncrypted);
-
-        config.Translation.AiPlatform = aiPlatform;
-        config.Translation.AiApiUrlEncrypted = EncryptIfChangedOrClear(
-            aiApiUrl,
-            config.Translation.AiApiUrlEncrypted);
-        config.Translation.AiApiKeyEncrypted = EncryptIfChangedOrClear(
-            aiApiKey,
-            config.Translation.AiApiKeyEncrypted);
-        config.Translation.AiModel = aiModel;
-
-        _configManager.Save(config);
+        _configManager.Update(current =>
+        {
+            current.Translation.Provider = provider;
+            current.Translation.TranslationMode = translationMode;
+            current.Translation.ScreenshotMode = screenshotMode;
+            current.Translation.SourceLanguage = "auto";
+            current.Translation.TargetLanguage = targetLanguage;
+            current.Translation.TencentSecretIdEncrypted = secretIdEncrypted;
+            current.Translation.TencentSecretKeyEncrypted = secretKeyEncrypted;
+            current.Translation.AiPlatform = aiPlatform;
+            current.Translation.AiApiUrlEncrypted = apiUrlEncrypted;
+            current.Translation.AiApiKeyEncrypted = apiKeyEncrypted;
+            current.Translation.AiModel = aiModel;
+        });
         return true;
     }
 

@@ -160,16 +160,6 @@
         </Setter>
     </Style>
 
-    <!-- Settings section container (bordered, used by InPlaceTranslationWindow) -->
-    <Style x:Key="SettingsSection" TargetType="Border">
-        <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-        <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>
-        <Setter Property="BorderThickness" Value="1"/>
-        <Setter Property="CornerRadius" Value="8"/>
-        <Setter Property="Padding" Value="14"/>
-        <Setter Property="Margin" Value="0,0,0,10"/>
-    </Style>
-
     <!-- 色块分层:无边框白底卡片,靠柔和阴影从画布浮起(替代边框分组) -->
     <Style x:Key="SurfaceCard" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>

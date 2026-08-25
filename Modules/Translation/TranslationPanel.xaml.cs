@@ -70,9 +70,7 @@ public partial class TranslationPanel : Window
         UpdateProviderButtons();
 
         if (!string.IsNullOrWhiteSpace(txtSource.Text))
-        {
             _ = TranslateAsync();
-        }
     }
 
     private void UpdateProviderButtons()
@@ -130,9 +128,7 @@ public partial class TranslationPanel : Window
         _translationManager.SaveConfiguredTranslationMode(GetTranslationMode());
 
         if (!string.IsNullOrWhiteSpace(txtSource.Text))
-        {
             _ = TranslateAsync();
-        }
     }
 
     private void TxtSource_TextChanged(object sender, TextChangedEventArgs e)
@@ -140,6 +136,9 @@ public partial class TranslationPanel : Window
         var hasText = !string.IsNullOrEmpty(txtSource.Text);
         srcWatermark.Visibility = hasText ? Visibility.Collapsed : Visibility.Visible;
         sourceActions.Visibility = hasText ? Visibility.Visible : Visibility.Collapsed;
+
+        if (_busy)
+            CancelCurrentTranslation();
     }
 
     private void TxtTarget_TextChanged(object sender, TextChangedEventArgs e)
@@ -151,7 +150,7 @@ public partial class TranslationPanel : Window
     private async Task TranslateAsync()
     {
         var sourceText = txtSource.Text.Trim();
-        if (string.IsNullOrEmpty(sourceText) || _busy || _closing)
+        if (string.IsNullOrEmpty(sourceText) || _closing)
             return;
 
         _translationCts?.Cancel();
@@ -167,21 +166,14 @@ public partial class TranslationPanel : Window
             txtTarget.Text = string.Empty;
             loadingIndicator.Visibility = Visibility.Visible;
 
-            var sourceLang = "auto";
-            var targetLang = TranslationManager.ResolveTargetLanguage(sourceText, GetTranslationMode());
-
             var result = await _translationManager.TranslateAsync(
                 sourceText,
-                sourceLang,
-                targetLang,
+                "auto",
+                TranslationManager.ResolveTargetLanguage(sourceText, GetTranslationMode()),
                 _provider,
                 translationCts.Token);
 
-            // 结果与错误都直接显示在结果区,翻译完成不再弹出右下角提示
-            if (!_closing &&
-                !translationCts.IsCancellationRequested &&
-                requestVersion == Interlocked.Read(ref _translationVersion) &&
-                string.Equals(txtSource.Text.Trim(), sourceSnapshot, StringComparison.Ordinal))
+            if (IsCurrentRequest(translationCts, requestVersion, sourceSnapshot))
             {
                 txtTarget.Text = result.Success
                     ? result.TranslatedText
@@ -190,29 +182,46 @@ public partial class TranslationPanel : Window
         }
         catch (OperationCanceledException) when (translationCts.IsCancellationRequested || _closing)
         {
-            // 窗口关闭时取消请求,不把取消显示成翻译失败。
         }
         catch (Exception ex)
         {
-            if (!_closing &&
-                !translationCts.IsCancellationRequested &&
-                requestVersion == Interlocked.Read(ref _translationVersion))
+            if (IsCurrentRequest(translationCts, requestVersion, sourceSnapshot))
                 txtTarget.Text = $"翻译失败：{NetworkErrorMessages.FromException(ex, translationCts.Token)}";
         }
         finally
         {
-            if (ReferenceEquals(_translationCts, translationCts))
+            var isCurrent = ReferenceEquals(_translationCts, translationCts);
+            if (isCurrent)
                 _translationCts = null;
 
             translationCts.Dispose();
-            if (!_closing)
-            {
-                _busy = false;
-                btnTranslateSource.ToolTip = "翻译";
-                loadingIndicator.Visibility = Visibility.Collapsed;
-                tgtWatermark.Visibility = string.IsNullOrEmpty(txtTarget.Text) ? Visibility.Visible : Visibility.Collapsed;
-            }
+            if (isCurrent && !_closing)
+                ResetTranslationUi();
         }
+    }
+
+    private bool IsCurrentRequest(CancellationTokenSource request, long version, string sourceText) =>
+        !_closing &&
+        !request.IsCancellationRequested &&
+        ReferenceEquals(_translationCts, request) &&
+        version == Interlocked.Read(ref _translationVersion) &&
+        string.Equals(txtSource.Text.Trim(), sourceText, StringComparison.Ordinal);
+
+    private void CancelCurrentTranslation()
+    {
+        Interlocked.Increment(ref _translationVersion);
+        var request = _translationCts;
+        _translationCts = null;
+        request?.Cancel();
+        ResetTranslationUi();
+    }
+
+    private void ResetTranslationUi()
+    {
+        _busy = false;
+        btnTranslateSource.ToolTip = "翻译";
+        loadingIndicator.Visibility = Visibility.Collapsed;
+        tgtWatermark.Visibility = string.IsNullOrEmpty(txtTarget.Text) ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private string GetTranslationMode()
@@ -221,28 +230,31 @@ public partial class TranslationPanel : Window
     }
 
     /// <summary>复制译文到剪贴板;无结果或翻译中返回 false。</summary>
-    private bool CopyText()
+    private async Task<bool> CopyTextAsync()
     {
         if (_busy || string.IsNullOrEmpty(txtTarget.Text))
             return false;
         try
         {
-            System.Windows.Clipboard.SetText(txtTarget.Text);
+            var text = txtTarget.Text;
+            await STool.Modules.Clipboard.ClipboardManager.SetClipboardWithRetryAsync(
+                () => System.Windows.Clipboard.SetText(text));
             return true;
         }
-        catch
+        catch (Exception ex)
         {
-            return false;   // 忽略偶发的剪贴板占用异常
+            ToastNotification.Show("复制失败", ex.Message, ToastNotification.ToastType.Error);
+            return false;
         }
     }
 
-    private void BtnCopyOnly_Click(object sender, RoutedEventArgs e) => CopyText();
+    private async void BtnCopyOnly_Click(object sender, RoutedEventArgs e) => await CopyTextAsync();
 
     private void BtnTranslateSource_Click(object sender, RoutedEventArgs e)
     {
         if (_busy)
         {
-            _translationCts?.Cancel();
+            CancelCurrentTranslation();
             return;
         }
 
@@ -256,15 +268,15 @@ public partial class TranslationPanel : Window
         txtSource.Focus();
     }
 
-    private void BtnCopyHide_Click(object sender, RoutedEventArgs e)
+    private async void BtnCopyHide_Click(object sender, RoutedEventArgs e)
     {
-        CopyText();
-        Close();
+        if (await CopyTextAsync())
+            Close();
     }
 
-    private void BtnCopyInput_Click(object sender, RoutedEventArgs e)
+    private async void BtnCopyInput_Click(object sender, RoutedEventArgs e)
     {
-        if (!CopyText())
+        if (!await CopyTextAsync())
             return;
 
         var hwnd = _targetHwnd;
@@ -290,7 +302,7 @@ public partial class TranslationPanel : Window
         timer.Start();
     }
 
-    private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    private async void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
     {
         // Ctrl+Enter: 翻译
         if (e.Key == Key.Enter && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
@@ -302,8 +314,8 @@ public partial class TranslationPanel : Window
         else if (e.Key == Key.C && (Keyboard.Modifiers & (ModifierKeys.Control | ModifierKeys.Shift)) == (ModifierKeys.Control | ModifierKeys.Shift))
         {
             e.Handled = true;
-            CopyText();
-            Close();
+            if (await CopyTextAsync())
+                Close();
         }
         // Ctrl+L: 循环切换语言/翻译模式
         else if (e.Key == Key.L && (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control)
@@ -333,6 +345,7 @@ public partial class TranslationPanel : Window
         _closing = true;
         Interlocked.Increment(ref _translationVersion);
         _translationCts?.Cancel();
+        _translationCts = null;
         loadingIndicator.Visibility = Visibility.Collapsed;
         txtSource.Clear();
         txtTarget.Clear();

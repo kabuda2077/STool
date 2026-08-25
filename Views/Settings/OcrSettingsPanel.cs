@@ -1,7 +1,6 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Controls.Primitives;
 using STool.Core;
 using STool.Models;
 using STool.Modules.Translation;
@@ -14,8 +13,6 @@ public class OcrSettingsPanel : StackPanel
     private SettingsAutoSaveController _autoSave = null!;
     private System.Windows.Controls.ComboBox _cmbProvider = null!;
     private System.Windows.Controls.ComboBox _cmbFallbackPolicy = null!;
-    private TextBlock _statusText = null!;
-    private bool? _lastAiServiceTestSucceeded;
 
     // 腾讯云
     private System.Windows.Controls.TextBox _txtTencentSecretId = null!;
@@ -55,9 +52,8 @@ public class OcrSettingsPanel : StackPanel
         baseSection.Children.Add(SettingsLayout.CreateInlineFieldWithHint(
             "失败时",
             _cmbFallbackPolicy,
-            "云服务异常时执行的策略"));
-        _statusText = SettingsLayout.CreateHint(string.Empty, inline: false);
-        baseSection.Children.Add(SettingsLayout.CreateInlineField("服务状态", _statusText, isLast: true));
+            "云服务异常时执行的策略",
+            isLast: true));
         Children.Add(WrapSection(baseSection));
 
         // ── 腾讯云设置(可折叠,行内布局) ──
@@ -167,7 +163,6 @@ public class OcrSettingsPanel : StackPanel
         }
         _cmbAiModel.Text = config.AiModel ?? "";
         UpdateApiUrlPreview();
-        UpdateServiceStatus();
     }
 
     private void UpdateApiUrlPreview()
@@ -192,12 +187,6 @@ public class OcrSettingsPanel : StackPanel
     private void EnableAutoSave()
     {
         _autoSave = new SettingsAutoSaveController(this, SaveSettings);
-        _cmbProvider.SelectionChanged += (_, _) => UpdateServiceStatus();
-        _txtTencentSecretId.TextChanged += (_, _) => UpdateServiceStatus();
-        _pwdTencentSecretKey.PasswordChanged += (_, _) => UpdateServiceStatus();
-        _txtAiApiUrl.TextChanged += (_, _) => ResetServiceTestStatus();
-        _pwdAiApiKey.PasswordChanged += (_, _) => ResetServiceTestStatus();
-        _cmbAiModel.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent, new TextChangedEventHandler((_, _) => ResetServiceTestStatus()));
         _autoSave.TrackImmediate(_cmbProvider);
         _autoSave.TrackImmediate(_cmbFallbackPolicy);
         _autoSave.TrackImmediate(_cmbAiPlatform);
@@ -207,55 +196,6 @@ public class OcrSettingsPanel : StackPanel
         _autoSave.TrackDebounced(_pwdAiApiKey);
         _autoSave.TrackDebounced(_cmbAiModel);
         Children.Add(new Border { Height = 12 });
-    }
-
-    private void UpdateServiceStatus()
-    {
-        if (_statusText == null || _cmbProvider == null)
-            return;
-
-        var provider = (_cmbProvider.SelectedItem as ComboBoxItem)?.Tag is OcrProvider selected
-            ? selected
-            : OcrProvider.WindowsLocal;
-        _statusText.Text = provider switch
-        {
-            OcrProvider.WindowsLocal => IsWindowsOcrAvailable()
-                ? "Windows 本地 OCR 可用"
-                : "Windows 本地 OCR 当前不可用",
-            OcrProvider.Tencent => !string.IsNullOrWhiteSpace(_txtTencentSecretId?.Text) &&
-                                   !string.IsNullOrWhiteSpace(_pwdTencentSecretKey?.Password)
-                ? "腾讯云配置完整，尚未测试"
-                : "腾讯云未配置",
-            OcrProvider.AI => FormatAiStatus(
-                !string.IsNullOrWhiteSpace(_txtAiApiUrl?.Text) &&
-                !string.IsNullOrWhiteSpace(_pwdAiApiKey?.Password) &&
-                !string.IsNullOrWhiteSpace(_cmbAiModel?.Text)),
-            _ => string.Empty
-        };
-    }
-
-    private void ResetServiceTestStatus()
-    {
-        _lastAiServiceTestSucceeded = null;
-        UpdateServiceStatus();
-    }
-
-    private string FormatAiStatus(bool configured)
-    {
-        if (!configured)
-            return "AI Vision 未配置";
-        return _lastAiServiceTestSucceeded switch
-        {
-            true => "AI Vision 最近测试成功",
-            false => "AI Vision 最近测试失败",
-            null => "AI Vision 配置完整，尚未测试"
-        };
-    }
-
-    private static bool IsWindowsOcrAvailable()
-    {
-        using var service = new STool.Modules.Ocr.WindowsOcrService();
-        return service.IsAvailable();
     }
 
     private bool SaveSettings()
@@ -374,14 +314,10 @@ public class OcrSettingsPanel : StackPanel
                     _cmbAiModel.Text = models[0];
                 }
 
-                _lastAiServiceTestSucceeded = true;
-                UpdateServiceStatus();
                 ToastNotification.Show("模型已获取", $"共 {models.Count} 个模型", ToastNotification.ToastType.Success);
             }
             catch (Exception ex)
             {
-                _lastAiServiceTestSucceeded = false;
-                UpdateServiceStatus();
                 ToastNotification.Show("获取模型失败", ex.Message, ToastNotification.ToastType.Error);
             }
         });

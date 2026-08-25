@@ -1,12 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using Serilog;
 using Brush = System.Windows.Media.Brush;
 using Brushes = System.Windows.Media.Brushes;
@@ -68,7 +66,7 @@ public partial class CaptureOverlay
         var selector = translationManager.TryCreateContentSelector();
         if (selector == null)
         {
-            Log.Information("[ScreenshotTranslate] Smart mode unavailable; falling back to fast mode");
+            Log.Information("[ScreenshotTranslate] Smart mode unavailable; falling back to whole-block translation");
             return false;
         }
 
@@ -90,7 +88,7 @@ public partial class CaptureOverlay
         cancellationToken.ThrowIfCancellationRequested();
         if (translated == null || translated.Count == 0)
         {
-            Log.Information("[ScreenshotTranslate] Smart selection empty/failed; falling back to fast mode");
+            Log.Information("[ScreenshotTranslate] Smart selection empty/failed; falling back to whole-block translation");
             return false;
         }
 
@@ -972,31 +970,6 @@ public partial class CaptureOverlay
         translationOverlayScroll.VerticalScrollBarVisibility = h < 72
             ? ScrollBarVisibility.Disabled
             : ScrollBarVisibility.Auto;
-    }
-
-    private static BitmapSource ToBitmapSource(System.Drawing.Bitmap bmp)
-    {
-        using var ms = new MemoryStream();
-        bmp.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-        ms.Position = 0;
-        var img = new BitmapImage();
-        img.BeginInit();
-        img.StreamSource = ms;
-        img.CacheOption = BitmapCacheOption.OnLoad;
-        img.EndInit();
-        img.Freeze();
-        return img;
-    }
-
-    private static System.Drawing.Bitmap BitmapSourceToBitmap(BitmapSource src)
-    {
-        var encoder = new PngBitmapEncoder();
-        encoder.Frames.Add(BitmapFrame.Create(src));
-        using var ms = new MemoryStream();
-        encoder.Save(ms);
-        ms.Position = 0;
-        using var streamBitmap = new System.Drawing.Bitmap(ms);
-        return new System.Drawing.Bitmap(streamBitmap);
     }
 
     private void CloseOverlay()

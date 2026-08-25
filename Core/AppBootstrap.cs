@@ -52,11 +52,7 @@ public class AppBootstrap : IDisposable
             as STool.Modules.Clipboard.ClipboardManager;
         clipboardManager?.Start();
 
-        StartupWarmup.Schedule(() =>
-        {
-            var manager = GetService<STool.Modules.Clipboard.ClipboardManager>();
-            return manager == null ? null : new STool.Modules.Clipboard.ClipboardPanel(manager);
-        });
+        StartupWarmup.Schedule();
     }
 
     private void ConfigureServices(IServiceCollection services)
@@ -66,7 +62,6 @@ public class AppBootstrap : IDisposable
         services.AddSingleton<STool.Modules.Ocr.OcrManager>();
         services.AddSingleton<STool.Modules.Translation.TranslationManager>();
         services.AddSingleton<STool.Modules.Clipboard.ClipboardManager>();
-        // 后续添加其他服务
     }
 
     private NotifyIcon CreateNotifyIcon()

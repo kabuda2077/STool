@@ -1,5 +1,6 @@
 using System;
 using System.Drawing;
+using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Interop;
@@ -29,5 +30,16 @@ internal static class BitmapInterop
         {
             DeleteObject(handle);
         }
+    }
+
+    public static Bitmap ToBitmap(BitmapSource source)
+    {
+        var encoder = new PngBitmapEncoder();
+        encoder.Frames.Add(BitmapFrame.Create(source));
+        using var stream = new MemoryStream();
+        encoder.Save(stream);
+        stream.Position = 0;
+        using var streamBitmap = new Bitmap(stream);
+        return new Bitmap(streamBitmap);
     }
 }

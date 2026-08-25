@@ -17,14 +17,23 @@ namespace STool.Modules.Translation;
 public class TranslationManager : IDisposable
 {
     private readonly ConfigManager _configManager;
+    private readonly Func<TranslationProvider, TranslationConfig, ITranslationService?>? _serviceFactory;
+    private readonly SemaphoreSlim _translationGate = new(1, 1);
     private ITranslationService? _service;
     private TranslationServiceOptions? _serviceOptions;
     private ScreenContentSelector? _contentSelector;
     private string? _contentSelectorSignature;
 
-    public TranslationManager(ConfigManager configManager)
+    public TranslationManager(ConfigManager configManager) : this(configManager, null)
+    {
+    }
+
+    internal TranslationManager(
+        ConfigManager configManager,
+        Func<TranslationProvider, TranslationConfig, ITranslationService?>? serviceFactory)
     {
         _configManager = configManager;
+        _serviceFactory = serviceFactory;
     }
 
     public TranslationProvider GetConfiguredProvider()
@@ -166,32 +175,37 @@ public class TranslationManager : IDisposable
         sourceLanguage ??= config.SourceLanguage;
         targetLanguage ??= ResolveTargetLanguage(text, config.TranslationMode);
 
-        var service = GetOrCreateService(provider, config);
-
-        if (service == null || !service.IsAvailable())
+        // ponytail: serialize provider changes; add service leases only if concurrent translation becomes necessary.
+        await _translationGate.WaitAsync(cancellationToken);
+        try
         {
-            Log.Warning($"Translation service {provider} not available");
-            return new TranslationResult
+            var service = GetOrCreateService(provider, config);
+
+            if (service == null || !service.IsAvailable())
             {
-                Success = false,
-                ErrorMessage = $"翻译服务 {provider} 未配置",
-                Provider = provider.ToString()
-            };
+                Log.Warning("Translation service {Provider} not available", provider);
+                return new TranslationResult
+                {
+                    Success = false,
+                    ErrorMessage = $"翻译服务 {provider} 未配置",
+                    Provider = provider.ToString()
+                };
+            }
+
+            Log.Information("Translating with provider: {Provider}", provider);
+            var result = await service.TranslateAsync(text, sourceLanguage, targetLanguage, cancellationToken);
+
+            if (result.Success)
+                Log.Information("Translation succeeded with provider: {Provider}", provider);
+            else
+                Log.Warning("Translation failed with provider {Provider}: {ErrorMessage}", provider, result.ErrorMessage);
+
+            return result;
         }
-
-        Log.Information($"Translating with provider: {provider}");
-        var result = await service.TranslateAsync(text, sourceLanguage, targetLanguage, cancellationToken);
-
-        if (result.Success)
+        finally
         {
-            Log.Information($"Translation succeeded with provider: {provider}");
+            _translationGate.Release();
         }
-        else
-        {
-            Log.Warning($"Translation failed with provider {provider}: {result.ErrorMessage}");
-        }
-
-        return result;
     }
 
     public static string ResolveTargetLanguage(string text, string? mode)
@@ -413,13 +427,15 @@ public class TranslationManager : IDisposable
         }
 
         _service?.Dispose();
-        _service = provider switch
-        {
-            TranslationProvider.Tencent => CreateTencentService(config),
-            TranslationProvider.OpenAI => CreateAiService(config),
-            TranslationProvider.Google => new GoogleTranslationService(),
-            _ => null
-        };
+        _service = _serviceFactory != null
+            ? _serviceFactory(provider, config)
+            : provider switch
+            {
+                TranslationProvider.Tencent => CreateTencentService(config),
+                TranslationProvider.OpenAI => CreateAiService(config),
+                TranslationProvider.Google => new GoogleTranslationService(),
+                _ => null
+            };
         _serviceOptions = options;
 
         return _service;

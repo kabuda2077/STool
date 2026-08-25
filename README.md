@@ -101,7 +101,7 @@ STool 并不打算成为通用的应用启动器或插件平台。它舍弃了�
 
 ## 快速开始
 
-1. 前往 [Releases](https://github.com/kabuda2077/STool/releases/latest)，下载 `STool_v1.4.0_Portable.zip`。
+1. 前往 [Releases](https://github.com/kabuda2077/STool/releases/latest)，下载 `STool_v1.5.0_Portable.zip`。
 2. 将压缩包完整解压到固定目录，不要直接在 ZIP 内运行，也不要只复制 `STool.exe`。
 3. 双击 `STool.exe`。程序启动后会进入系统托盘。
 4. 使用快捷键唤出需要的功能。
@@ -203,6 +203,6 @@ STool 采用单实例运行。如果已经在后台运行，再次启动会尝�
 
 ## 下载
 
-最新稳定版：[STool v1.4.0](https://github.com/kabuda2077/STool/releases/latest)
+最新稳定版：[STool v1.5.0](https://github.com/kabuda2077/STool/releases/latest)
 
 项目主页：[github.com/kabuda2077/STool](https://github.com/kabuda2077/STool)

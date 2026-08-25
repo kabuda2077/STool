@@ -82,6 +82,25 @@ public partial class ClipboardPanel : Window
         };
         tabSegmentGrid.SizeChanged += (_, _) => UpdateTabSlider();
         _thumbnailCache.ItemEvicted += OnThumbnailEvicted;
+        _manager.ItemAdded += Manager_ItemAdded;
+
+        LoadRecent();
+    }
+
+    private void Manager_ItemAdded(object? sender, ClipboardItem item)
+    {
+        if (_closing || Dispatcher.HasShutdownStarted)
+            return;
+
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
+            {
+                if (!_closing)
+                    LoadRecent();
+            }));
+            return;
+        }
 
         LoadRecent();
     }
@@ -938,6 +957,7 @@ public partial class ClipboardPanel : Window
     protected override void OnClosed(EventArgs e)
     {
         _closing = true;
+        _manager.ItemAdded -= Manager_ItemAdded;
         _searchDebounce.Stop();
         _tabContentDelay.Stop();
         _tabContentDelay.Tick -= TabContentDelay_Tick;

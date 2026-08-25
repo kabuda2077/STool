@@ -63,6 +63,24 @@ public class ConfigManagerTests
     }
 
     [Fact]
+    public void Save_WhenWriteFails_KeepsCachedAndPersistedConfiguration()
+    {
+        using var fixture = new ConfigFixture();
+        fixture.Manager.Save(new AppConfig { HideTrayIcon = true });
+        using var lockedTemp = new FileStream(
+            fixture.ConfigPath + ".tmp",
+            FileMode.Create,
+            FileAccess.ReadWrite,
+            FileShare.None);
+
+        Assert.ThrowsAny<IOException>(() =>
+            fixture.Manager.Save(new AppConfig { HideTrayIcon = false }));
+
+        Assert.True(fixture.Manager.Get().HideTrayIcon);
+        Assert.True(fixture.CreateManager().Get().HideTrayIcon);
+    }
+
+    [Fact]
     public void Reload_CorruptPrimary_RestoresValidBackup()
     {
         using var fixture = new ConfigFixture();

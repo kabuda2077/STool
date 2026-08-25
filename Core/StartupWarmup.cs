@@ -7,19 +7,15 @@ namespace STool.Core;
 
 internal static class StartupWarmup
 {
-    public static void Schedule(Func<STool.Modules.Clipboard.ClipboardPanel?> clipboardFactory)
+    public static void Schedule()
     {
         var dispatcher = System.Windows.Application.Current?.Dispatcher;
         if (dispatcher == null)
             return;
 
-        // Screenshot has the largest first-use cost. Other panels wait until application idle.
         dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => WarmUp(
             "Screenshot",
             STool.Modules.Screenshot.CaptureOverlay.CreateForWarmUp)));
-        dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() => WarmUp(
-            "Clipboard",
-            clipboardFactory)));
         dispatcher.BeginInvoke(DispatcherPriority.ApplicationIdle, new Action(() =>
             MemoryDiagnostics.LogCheckpoint("StartupReady")));
     }

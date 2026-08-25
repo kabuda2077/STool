@@ -73,11 +73,11 @@ public class GeneralSettingsPanel : StackPanel
         _txtClipboardHotkey = CreateHotkeyBox();
         hotkeysSection.Children.Add(SettingsLayout.CreateInlineField("剪贴板", _txtClipboardHotkey, SettingsLayout.HotkeyLabelWidth));
 
-        _txtSettingsHotkey = CreateHotkeyBox();
-        hotkeysSection.Children.Add(SettingsLayout.CreateInlineField("设置", _txtSettingsHotkey, SettingsLayout.HotkeyLabelWidth));
-
         _txtLanTransferHotkey = CreateHotkeyBox();
-        hotkeysSection.Children.Add(SettingsLayout.CreateInlineField("传输", _txtLanTransferHotkey, SettingsLayout.HotkeyLabelWidth, isLast: true));
+        hotkeysSection.Children.Add(SettingsLayout.CreateInlineField("传输", _txtLanTransferHotkey, SettingsLayout.HotkeyLabelWidth));
+
+        _txtSettingsHotkey = CreateHotkeyBox();
+        hotkeysSection.Children.Add(SettingsLayout.CreateInlineField("设置", _txtSettingsHotkey, SettingsLayout.HotkeyLabelWidth, isLast: true));
 
         // 即时保存:快捷键录制完(失焦)自动校验并保存
         foreach (var box in new[] { _txtScreenshotHotkey, _txtTranslationHotkey, _txtClipboardHotkey, _txtSettingsHotkey, _txtLanTransferHotkey })

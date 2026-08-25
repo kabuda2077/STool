@@ -180,6 +180,41 @@ public class LanTransferTests
     }
 
     [Fact]
+    public async Task JsonReader_AcceptsKnownBoundedContent()
+    {
+        const string json = "{\"token\":\"abc\",\"code\":null,\"remember\":true}";
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes(json));
+
+        var result = await LanTransferServer.ReadJsonAsync<AuthExchangeRequest>(stream, stream.Length);
+
+        Assert.NotNull(result);
+        Assert.Equal("abc", result.Token);
+        Assert.True(result.Remember);
+    }
+
+    [Theory]
+    [InlineData(-1)]
+    [InlineData(65537)]
+    public async Task JsonReader_RejectsUnknownOrOversizedContent(long contentLength)
+    {
+        await using var stream = new MemoryStream(Encoding.UTF8.GetBytes("{}"));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            LanTransferServer.ReadJsonAsync<AuthExchangeRequest>(stream, contentLength));
+    }
+
+    [Fact]
+    public async Task JsonReader_AllowsLimitAndReportsMalformedJsonAsInvalidData()
+    {
+        await using var limitStream = new MemoryStream(Encoding.UTF8.GetBytes("{}"));
+        await LanTransferServer.ReadJsonAsync<AuthExchangeRequest>(limitStream, 64 * 1024);
+
+        await using var malformed = new MemoryStream(Encoding.UTF8.GetBytes("{broken"));
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            LanTransferServer.ReadJsonAsync<AuthExchangeRequest>(malformed, malformed.Length));
+    }
+
+    [Fact]
     public void DownloadProgress_MergesParallelAndRepeatedRanges()
     {
         var tracker = new DownloadProgressTracker();

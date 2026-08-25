@@ -53,8 +53,9 @@ public class ConfigManager
         ArgumentNullException.ThrowIfNull(config);
         lock (_gate)
         {
-            _config = Clone(config);
-            SaveInternal(_config);
+            var next = Clone(config);
+            SaveInternal(next);
+            _config = next;
         }
     }
 

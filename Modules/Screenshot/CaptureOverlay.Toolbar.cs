@@ -93,7 +93,7 @@ public partial class CaptureOverlay
         try
         {
             using var bmp = RenderSelectionBitmap();
-            var image = ToBitmapSource(bmp);
+            var image = BitmapInterop.ToBitmapSource(bmp);
             await STool.Modules.Clipboard.ClipboardManager.SetClipboardWithRetryAsync(
                 () => System.Windows.Clipboard.SetImage(image));
             CloseOverlay();

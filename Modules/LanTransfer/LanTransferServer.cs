@@ -34,7 +34,6 @@ internal sealed class LanTransferServer : IAsyncDisposable
     private CancellationTokenSource? _lifetime;
     private Task? _acceptLoop;
     private int _requestId;
-    private int _activeTransfers;
 
     public LanTransferServer(
         NetworkEndpoint endpoint,
@@ -1232,20 +1231,29 @@ internal sealed class LanTransferServer : IAsyncDisposable
     {
         transferGate ??= _transferGate;
         await transferGate.WaitAsync(cancellationToken);
-        Interlocked.Increment(ref _activeTransfers);
         try { await action(); }
-        finally
-        {
-            Interlocked.Decrement(ref _activeTransfers);
-            transferGate.Release();
-        }
+        finally { transferGate.Release(); }
     }
 
-    private static async Task<T?> ReadJsonAsync<T>(HttpListenerRequest request, CancellationToken cancellationToken)
+    private static Task<T?> ReadJsonAsync<T>(HttpListenerRequest request, CancellationToken cancellationToken) =>
+        ReadJsonAsync<T>(request.InputStream, request.ContentLength64, cancellationToken);
+
+    internal static async Task<T?> ReadJsonAsync<T>(
+        Stream stream,
+        long contentLength,
+        CancellationToken cancellationToken = default)
     {
-        if (request.ContentLength64 > 64 * 1024)
+        if (contentLength is < 0 or > 64 * 1024)
             throw new InvalidDataException("请求内容过大。 ");
-        return await JsonSerializer.DeserializeAsync<T>(request.InputStream, JsonOptions, cancellationToken);
+
+        try
+        {
+            return await JsonSerializer.DeserializeAsync<T>(stream, JsonOptions, cancellationToken);
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException("请求内容格式无效。 ", ex);
+        }
     }
 
     private static async Task WriteAssetAsync(HttpListenerResponse response, string fileName, string contentType, CancellationToken cancellationToken)

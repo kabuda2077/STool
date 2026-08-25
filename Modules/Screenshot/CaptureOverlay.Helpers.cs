@@ -69,7 +69,7 @@ public partial class CaptureOverlay
                 ApplyMosaicAnnotations(crop, mosaicAnnotations);
 
             // 合成标注层
-            var baseSource = ToBitmapSource(crop);
+            var baseSource = BitmapInterop.ToBitmapSource(crop);
             var rtb = new RenderTargetBitmap(pw, ph, 96, 96, PixelFormats.Pbgra32);
             var visual = new DrawingVisual();
             using (var ctx = visual.RenderOpen())
@@ -106,7 +106,7 @@ public partial class CaptureOverlay
             }
 
             rtb.Render(visual);
-            var result = BitmapSourceToBitmap(rtb);
+            var result = BitmapInterop.ToBitmap(rtb);
             MemoryDiagnostics.LogCheckpoint("ScreenshotRenderCompleted");
             return result;
         }

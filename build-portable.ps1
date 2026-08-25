@@ -2,7 +2,7 @@
 # 生成框架依赖的单文件 exe（需要用户安装 .NET 9 Desktop Runtime）
 
 param(
-    [string]$Version = "1.4.0"
+    [string]$Version = "1.5.0"
 )
 
 $ErrorActionPreference = "Stop"
@@ -65,8 +65,8 @@ STool v$Version - 便携版
   * 支持原位翻译（快速模式 / 智能模式）
 - 翻译工具 (Alt+2)
 - 剪贴板历史 (Alt+3)
-- 设置面板 (Alt+4)
-- 局域网文件传输 (Alt+5)
+- 局域网文件传输 (Alt+4)
+- 设置面板 (Alt+5)
   * Android 手机通过浏览器扫码连接
   * 支持文件与文件夹、分块上传和断点续传
 - OCR 文字识别
@@ -116,7 +116,7 @@ https://dotnet.microsoft.com/download/dotnet/9.0
 
 ---
 
-项目地址: https://github.com/yourusername/STool
+项目地址: https://github.com/kabuda2077/STool
 "@
 
 # 使用 UTF-8 with BOM 写入，确保 Windows 记事本能正确显示中文

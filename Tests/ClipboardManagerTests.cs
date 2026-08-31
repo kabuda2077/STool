@@ -7,6 +7,24 @@ namespace STool.Tests;
 public class ClipboardManagerTests
 {
     [Fact]
+    public void ClipboardMonitor_Suppression_CoversAllMessagesForOneSequence()
+    {
+        using var monitor = new ClipboardMonitor();
+
+        monitor.BeginUpdateSuppression();
+        Assert.True(monitor.ShouldSuppressUpdate(41));
+
+        monitor.CompleteUpdateSuppression(42);
+        Assert.True(monitor.ShouldSuppressUpdate(42));
+        Assert.True(monitor.ShouldSuppressUpdate(42));
+        Assert.False(monitor.ShouldSuppressUpdate(43));
+
+        monitor.BeginUpdateSuppression();
+        monitor.CancelUpdateSuppression();
+        Assert.False(monitor.ShouldSuppressUpdate(43));
+    }
+
+    [Fact]
     public async Task SetClipboardWithRetryAsync_RetriesBusyOperation()
     {
         var attempts = 0;

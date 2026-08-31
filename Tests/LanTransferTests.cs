@@ -366,6 +366,31 @@ public class LanTransferTests
     }
 
     [Fact]
+    public async Task TransferSession_CompletedTransfer_StaysDownloadableForSameDeviceOnly()
+    {
+        await using var sessions = new TransferSessionManager();
+        var created = sessions.CreateOutgoing(
+            "config.json", 10915, 1, ["C:\\Downloads\\config.json"], "C:\\Downloads", preparing: false);
+
+        Assert.True(sessions.TryClaim(created.Id, "phone"));
+        Assert.True(sessions.TryBeginRequest(created.Id));
+        sessions.ReportProgress(created.Id, 10915, 10915);
+        sessions.EndRequest(created.Id);
+
+        Assert.True(sessions.TryGet(created.Id, out var completed));
+        Assert.Equal(TransferState.Completed, completed!.State);
+
+        // 宽限期内同一设备的并行/重试请求仍可读取
+        Assert.True(sessions.TryClaim(created.Id, "phone"));
+        Assert.False(sessions.TryClaim(created.Id, "other-phone"));
+
+        // 但不再参与状态机,不会把完成任务拉回传输中
+        Assert.False(sessions.TryBeginRequest(created.Id));
+        Assert.True(sessions.TryGet(created.Id, out var afterRetry));
+        Assert.Equal(TransferState.Completed, afterRetry!.State);
+    }
+
+    [Fact]
     public async Task TransferSession_RepeatedPausePreservesPreparingState()
     {
         await using var sessions = new TransferSessionManager();

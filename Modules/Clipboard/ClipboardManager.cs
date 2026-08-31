@@ -188,7 +188,7 @@ public class ClipboardManager : IDisposable
                 case ClipboardItemType.Text:
                     if (!string.IsNullOrEmpty(item.TextContent))
                     {
-                        await SetClipboardWithRetryAsync(
+                        await SetClipboardWithoutRecaptureAsync(
                             () => System.Windows.Clipboard.SetText(item.TextContent),
                             cancellationToken);
                         restored = true;
@@ -210,7 +210,7 @@ public class ClipboardManager : IDisposable
                             );
                             bitmapSource.Freeze();
 
-                            await SetClipboardWithRetryAsync(
+                            await SetClipboardWithoutRecaptureAsync(
                                 () => System.Windows.Clipboard.SetImage(bitmapSource),
                                 cancellationToken);
                             restored = true;
@@ -227,7 +227,7 @@ public class ClipboardManager : IDisposable
                     {
                         var fileDropList = new System.Collections.Specialized.StringCollection();
                         fileDropList.AddRange(item.FilePaths);
-                        await SetClipboardWithRetryAsync(
+                        await SetClipboardWithoutRecaptureAsync(
                             () => System.Windows.Clipboard.SetFileDropList(fileDropList),
                             cancellationToken);
                         restored = true;
@@ -238,7 +238,6 @@ public class ClipboardManager : IDisposable
             if (!restored)
                 throw new InvalidOperationException("剪贴板记录内容已不可用。");
 
-            _monitor.SuppressNextUpdate();
             Log.Information("Restored clipboard item: {ItemId}", item.Id);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -250,6 +249,26 @@ public class ClipboardManager : IDisposable
             Log.Error(ex, "Failed to restore clipboard item {ItemId}", item.Id);
             throw;
         }
+    }
+
+    private Task SetClipboardWithoutRecaptureAsync(
+        Action setClipboard,
+        CancellationToken cancellationToken)
+    {
+        return SetClipboardWithRetryAsync(() =>
+        {
+            _monitor.BeginUpdateSuppression();
+            try
+            {
+                setClipboard();
+                _monitor.CompleteUpdateSuppression();
+            }
+            catch
+            {
+                _monitor.CancelUpdateSuppression();
+                throw;
+            }
+        }, cancellationToken);
     }
 
     internal static async Task SetClipboardWithRetryAsync(

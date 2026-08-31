@@ -105,8 +105,10 @@ internal sealed class TransferSessionManager : IAsyncDisposable
             if (session.OwnerToken != null && !string.Equals(session.OwnerToken, ownerToken, StringComparison.Ordinal))
                 return false;
             session.OwnerToken ??= ownerToken;
+            // Completed 保留在可认领状态:客户端下载管理器常在最后一个字节送达后
+            // 才发起并行/重试请求,宽限期内它们仍应读到同一内容。
             return session.State is TransferState.AwaitingConfirmation or TransferState.WaitingForResume or
-                TransferState.Transferring or TransferState.Paused;
+                TransferState.Transferring or TransferState.Paused or TransferState.Completed;
         }
     }
 
@@ -161,11 +163,19 @@ internal sealed class TransferSessionManager : IAsyncDisposable
 
     public void BeginRequest(string id)
     {
-        var session = GetSession(id);
+        if (!TryBeginRequest(id))
+            throw new OperationCanceledException("传输任务已结束。 ");
+    }
+
+    /// <summary>登记一次活跃请求;任务已进入终态时返回 false,调用方可按只读方式继续处理。</summary>
+    public bool TryBeginRequest(string id)
+    {
+        if (!_sessions.TryGetValue(id, out var session))
+            return false;
         lock (session.Gate)
         {
             if (IsTerminal(session.State))
-                throw new OperationCanceledException("传输任务已结束。 ");
+                return false;
             if (session.ActiveRequests == 0 && session.State is
                 (TransferState.AwaitingConfirmation or TransferState.WaitingForResume))
             {
@@ -178,6 +188,7 @@ internal sealed class TransferSessionManager : IAsyncDisposable
             session.LastProgressTimestamp = Stopwatch.GetTimestamp();
         }
         Publish(session);
+        return true;
     }
 
     public void ReportProgress(string id, long transferred, long total, bool completeWhenReached = true)

@@ -15,6 +15,10 @@ internal sealed class LanTransferServer : IAsyncDisposable
     private const int FileTransferBufferSize = 512 * 1024;
     private const int ProgressReportBytes = 4 * 1024 * 1024;
     private static readonly TimeSpan ProgressReportInterval = TimeSpan.FromMilliseconds(100);
+    // 任务完成后保留下载地址的宽限期:手机下载管理器会在首个请求取完小文件后
+    // 再发起并行/重试请求,立即失效会让它们收到 401 并把整个下载判为失败。
+    private static readonly TimeSpan CompletedDownloadGrace = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan TerminalSessionGrace = TimeSpan.FromSeconds(2);
     private const int MaxParallelRangeRequests = 12;
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
     private readonly NetworkEndpoint _endpoint;
@@ -855,23 +859,19 @@ internal sealed class LanTransferServer : IAsyncDisposable
         if (snapshot.State == TransferState.Completed)
         {
             _downloadProgress.Remove(snapshot.Id);
-            if (_outgoing.TryRemove(snapshot.Id, out var outgoing))
+            // 先只把源项从待发送列表移除;下载载荷保留到会话清理为止,
+            // 以便客户端下载管理器在最后一个字节之后发起的并行/重试请求仍能读到同一内容。
+            if (_outgoing.TryGetValue(snapshot.Id, out var outgoing))
             {
-                RemoveDownloadProgress(outgoing);
                 foreach (var sourceId in outgoing.SourceIds)
                     _sharedFiles.Remove(sourceId);
-                foreach (var payload in outgoing.Payloads.Where(payload => payload.NeedsArchive))
-                {
-                    _archivePayloads.TryRemove(payload.ArchiveJobId, out _);
-                    _archives.MarkDownloaded(payload.ArchiveJobId);
-                }
             }
-            ScheduleSessionRemoval(snapshot.Id);
+            ScheduleSessionRemoval(snapshot.Id, CompletedDownloadGrace);
         }
         else if (snapshot.State is TransferState.Canceled or TransferState.Rejected)
         {
             _downloadProgress.Remove(snapshot.Id);
-            ScheduleSessionRemoval(snapshot.Id);
+            ScheduleSessionRemoval(snapshot.Id, TerminalSessionGrace);
         }
     }
 
@@ -894,13 +894,30 @@ internal sealed class LanTransferServer : IAsyncDisposable
         }
     }
 
-    private void ScheduleSessionRemoval(string id)
+    /// <summary>宽限期结束后释放已完成任务的下载载荷和临时归档。</summary>
+    private void ReleaseCompletedOutgoing(string id)
+    {
+        if (!_outgoing.TryRemove(id, out var outgoing))
+            return;
+
+        RemoveDownloadProgress(outgoing);
+        foreach (var sourceId in outgoing.SourceIds)
+            _sharedFiles.Remove(sourceId);
+        foreach (var payload in outgoing.Payloads.Where(payload => payload.NeedsArchive))
+        {
+            _archivePayloads.TryRemove(payload.ArchiveJobId, out _);
+            _archives.MarkDownloaded(payload.ArchiveJobId);
+        }
+    }
+
+    private void ScheduleSessionRemoval(string id, TimeSpan delay)
     {
         _ = Task.Run(async () =>
         {
             try
             {
-                await Task.Delay(TimeSpan.FromSeconds(2), _lifetime?.Token ?? CancellationToken.None);
+                await Task.Delay(delay, _lifetime?.Token ?? CancellationToken.None);
+                ReleaseCompletedOutgoing(id);
                 _sessions.Remove(id);
             }
             catch (OperationCanceledException)
@@ -990,58 +1007,65 @@ internal sealed class LanTransferServer : IAsyncDisposable
             response.Headers["Content-Range"] = $"bytes {start}-{end}/{length}";
         if (request.HttpMethod == "HEAD")
             return;
-        if (length == 0)
+
+        // 任务已结束时不再参与状态机:宽限期内的并行/重试请求只做只读发送,
+        // 避免把已完成的任务反复拉回“传输中”或重算进度。
+        var trackSession = _sessions.TryBeginRequest(transferId);
+        try
         {
-            _sessions.BeginRequest(transferId);
+            if (length == 0)
+            {
+                if (trackSession)
+                    ReportPayloadProgress(transferId, payloadId, 0, 0);
+                return;
+            }
+
+            var remote = request.RemoteEndPoint?.Address?.ToString() ?? "unknown";
+            var trackerId = GetPayloadTrackerId(transferId, payloadId);
+            var progressKey = _downloadProgress.Begin(trackerId, remote, length, start);
+            var rangeStopwatch = Stopwatch.StartNew();
+            using var linkedCancellation = trackSession
+                ? CancellationTokenSource.CreateLinkedTokenSource(
+                    cancellationToken,
+                    _sessions.GetCancellationToken(transferId))
+                : CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            var transferToken = linkedCancellation.Token;
             try
             {
-                ReportPayloadProgress(transferId, payloadId, 0, 0);
+                await using var input = new FileStream(
+                    fullPath, FileMode.Open, FileAccess.Read, FileShare.Read,
+                    FileTransferBufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                input.Seek(start, SeekOrigin.Begin);
+                var sent = await CopyRangeAsync(
+                    input,
+                    response.OutputStream,
+                    progressKey,
+                    start,
+                    end - start + 1,
+                    length,
+                    transferToken,
+                    transferId,
+                    payloadId,
+                    trackSession);
+                var elapsedSeconds = Math.Max(0.001, rangeStopwatch.Elapsed.TotalSeconds);
+                Log.Information(
+                    "LAN transfer range completed fileId={FileId} start={Start} bytes={Bytes} elapsedMs={ElapsedMs} megabytesPerSec={MegabytesPerSec:F1} tracked={Tracked}",
+                    transferId,
+                    start,
+                    sent,
+                    rangeStopwatch.ElapsedMilliseconds,
+                    sent / 1024d / 1024d / elapsedSeconds,
+                    trackSession);
             }
             finally
             {
-                _sessions.EndRequest(transferId);
+                _downloadProgress.End(progressKey);
             }
-            return;
-        }
-
-        var remote = request.RemoteEndPoint?.Address?.ToString() ?? "unknown";
-        var trackerId = GetPayloadTrackerId(transferId, payloadId);
-        var progressKey = _downloadProgress.Begin(trackerId, remote, length, start);
-        var rangeStopwatch = Stopwatch.StartNew();
-        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(
-            cancellationToken,
-            _sessions.GetCancellationToken(transferId));
-        var transferToken = linkedCancellation.Token;
-        _sessions.BeginRequest(transferId);
-        try
-        {
-            await using var input = new FileStream(
-                fullPath, FileMode.Open, FileAccess.Read, FileShare.Read,
-                FileTransferBufferSize, FileOptions.Asynchronous | FileOptions.SequentialScan);
-            input.Seek(start, SeekOrigin.Begin);
-            var sent = await CopyRangeAsync(
-                input,
-                response.OutputStream,
-                progressKey,
-                start,
-                end - start + 1,
-                length,
-                transferToken,
-                transferId,
-                payloadId);
-            var elapsedSeconds = Math.Max(0.001, rangeStopwatch.Elapsed.TotalSeconds);
-            Log.Information(
-                "LAN transfer range completed fileId={FileId} start={Start} bytes={Bytes} elapsedMs={ElapsedMs} megabytesPerSec={MegabytesPerSec:F1}",
-                transferId,
-                start,
-                sent,
-                rangeStopwatch.ElapsedMilliseconds,
-                sent / 1024d / 1024d / elapsedSeconds);
         }
         finally
         {
-            _downloadProgress.End(progressKey);
-            _sessions.EndRequest(transferId);
+            if (trackSession)
+                _sessions.EndRequest(transferId);
         }
     }
 
@@ -1054,7 +1078,8 @@ internal sealed class LanTransferServer : IAsyncDisposable
         long totalLength,
         CancellationToken cancellationToken,
         string transferId,
-        string payloadId)
+        string payloadId,
+        bool trackSession)
     {
         var buffer = ArrayPool<byte>.Shared.Rent(FileTransferBufferSize);
         var remaining = rangeLength;
@@ -1069,7 +1094,8 @@ internal sealed class LanTransferServer : IAsyncDisposable
                 return;
 
             var coveredBytes = _downloadProgress.Record(progressKey, pendingStart, pendingBytes);
-            ReportPayloadProgress(transferId, payloadId, coveredBytes, totalLength);
+            if (trackSession)
+                ReportPayloadProgress(transferId, payloadId, coveredBytes, totalLength);
             pendingStart += pendingBytes;
             pendingBytes = 0;
             lastReportTimestamp = Stopwatch.GetTimestamp();
@@ -1079,7 +1105,8 @@ internal sealed class LanTransferServer : IAsyncDisposable
         {
             while (remaining > 0)
             {
-                await _sessions.WaitIfPausedAsync(transferId, cancellationToken);
+                if (trackSession)
+                    await _sessions.WaitIfPausedAsync(transferId, cancellationToken);
                 var read = await input.ReadAsync(
                     buffer.AsMemory(0, (int)Math.Min(buffer.Length, remaining)),
                     cancellationToken);

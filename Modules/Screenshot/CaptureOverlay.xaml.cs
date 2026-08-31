@@ -64,8 +64,6 @@ public partial class CaptureOverlay : Window
     private System.Threading.CancellationTokenSource? _translationCts;
     private EventHandler? _firstRenderingHandler;
 
-    // P/Invoke for ForceForeground
-    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetWindowPos(
@@ -204,8 +202,6 @@ public partial class CaptureOverlay : Window
         }
         LogStartupStep("SourceInitialized");
         EnsureInteractionReady("SourceInitialized");
-        ForceForeground();
-        LogStartupStep("SourceInitialized foreground requested");
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -265,32 +261,6 @@ public partial class CaptureOverlay : Window
         }
 
         return IntPtr.Zero;
-    }
-
-    /// <summary>
-    /// 轻量请求前台焦点。不要 AttachThreadInput 到前台进程;某些窗口状态下会偶发拖住
-    /// 截图窗口第一帧/输入队列数秒,鼠标表现为长时间忙碌光标。
-    /// </summary>
-    private void ForceForeground()
-    {
-        try
-        {
-            var hwnd = _selfHwnd != IntPtr.Zero ? _selfHwnd : new WindowInteropHelper(this).Handle;
-            if (hwnd == IntPtr.Zero) return;
-
-            SetForegroundWindow(hwnd);
-            Activate();
-            Focus();
-            Keyboard.Focus(this);
-
-            // 仅在未夺到键盘焦点时告警(Esc/Enter 可能失效),正常成功不刷日志
-            if (!IsKeyboardFocusWithin)
-                Log.Warning("[Capture] ForceForeground did not gain keyboard focus");
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "[Capture] ForceForeground failed");
-        }
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)

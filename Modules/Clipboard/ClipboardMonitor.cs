@@ -32,11 +32,15 @@ public class ClipboardMonitor : IDisposable
     private static extern IntPtr GetForegroundWindow();
 
     [DllImport("user32.dll")]
+    private static extern uint GetClipboardSequenceNumber();
+
+    [DllImport("user32.dll")]
     private static extern int GetWindowThreadProcessId(IntPtr hwnd, out int processId);
 
     private HwndSource? _hwndSource;
     private bool _isMonitoring;
-    private bool _suppressNextUpdate;
+    private int _suppressingInternalWrite;
+    private long _suppressedSequenceNumber = -1;
     private bool _disposed;
 
     public event EventHandler<ClipboardItem>? ClipboardChanged;
@@ -114,11 +118,8 @@ public class ClipboardMonitor : IDisposable
     {
         try
         {
-            if (_suppressNextUpdate)
-            {
-                _suppressNextUpdate = false;
+            if (ShouldSuppressUpdate(GetClipboardSequenceNumber()))
                 return;
-            }
 
             var item = CaptureClipboardContent();
             if (item != null)
@@ -132,10 +133,25 @@ public class ClipboardMonitor : IDisposable
         }
     }
 
-    public void SuppressNextUpdate()
+    public void BeginUpdateSuppression() =>
+        Volatile.Write(ref _suppressingInternalWrite, 1);
+
+    public void CompleteUpdateSuppression() =>
+        CompleteUpdateSuppression(GetClipboardSequenceNumber());
+
+    internal void CompleteUpdateSuppression(uint sequenceNumber)
     {
-        _suppressNextUpdate = true;
+        if (sequenceNumber != 0)
+            Interlocked.Exchange(ref _suppressedSequenceNumber, sequenceNumber);
+        Volatile.Write(ref _suppressingInternalWrite, 0);
     }
+
+    public void CancelUpdateSuppression() =>
+        Volatile.Write(ref _suppressingInternalWrite, 0);
+
+    internal bool ShouldSuppressUpdate(uint sequenceNumber) =>
+        Volatile.Read(ref _suppressingInternalWrite) != 0 ||
+        sequenceNumber != 0 && Interlocked.Read(ref _suppressedSequenceNumber) == sequenceNumber;
 
     private ClipboardItem? CaptureClipboardContent()
     {

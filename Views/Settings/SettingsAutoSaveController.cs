@@ -79,12 +79,7 @@ internal sealed class SettingsAutoSaveController
             var saved = _save();
             _dirty = false;
             if (saved)
-            {
-                ToastNotification.Show(
-                    "设置已保存",
-                    type: ToastNotification.ToastType.Success,
-                    duration: 1600);
-            }
+                ToastNotification.ShowSettingsSaved();
         }
         catch (Exception ex)
         {

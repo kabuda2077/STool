@@ -28,6 +28,12 @@
                         Style="{StaticResource NavigationButton}"
                         Content="通用"/>
 
+                <Button x:Name="btnClipboardSettings"
+                        Click="BtnClipboardSettings_Click"
+                        Style="{StaticResource NavigationButton}"
+                        Margin="0,6,0,0"
+                        Content="剪贴板"/>
+
                 <Button x:Name="btnOcrSettings"
                         Click="BtnOcrSettings_Click"
                         Style="{StaticResource NavigationButton}"

@@ -181,20 +181,33 @@ public partial class LanTransferWindow : Window
 
     private void AttachServer(LanTransferServer server)
     {
-        server.FileReceived += Server_FileReceived;
         server.BatchReceived += Server_BatchReceived;
         server.TransferChanged += Server_TransferChanged;
         server.OutgoingItemCompleted += Server_OutgoingItemCompleted;
         server.ClientActivity += Server_ClientActivity;
+        server.AccessCodesRotated += Server_AccessCodesRotated;
     }
 
     private void DetachServer(LanTransferServer server)
     {
-        server.FileReceived -= Server_FileReceived;
         server.BatchReceived -= Server_BatchReceived;
         server.TransferChanged -= Server_TransferChanged;
         server.OutgoingItemCompleted -= Server_OutgoingItemCompleted;
         server.ClientActivity -= Server_ClientActivity;
+        server.AccessCodesRotated -= Server_AccessCodesRotated;
+    }
+
+    /// <summary>配对成功或触发限流后服务端会自动换码，二维码与验证码随之刷新。</summary>
+    private void Server_AccessCodesRotated()
+    {
+        if (_closing)
+            return;
+
+        Dispatcher.BeginInvoke(() =>
+        {
+            if (!_closing && _server?.IsRunning == true)
+                UpdateConnectionDetails();
+        });
     }
 
     private void SetServerState(ServerLifecycleState state, string? status = null)
@@ -308,14 +321,17 @@ public partial class LanTransferWindow : Window
             return;
 
         var lastActivity = Interlocked.Read(ref _lastClientActivityTimestamp);
-        var connected = _server.ActiveTransferCount > 0 ||
-            lastActivity != 0 && Stopwatch.GetElapsedTime(lastActivity) <= ClientPresenceTimeout;
+        var connected = IsClientPresent(lastActivity, Stopwatch.GetTimestamp());
         if (connected == _phoneConnected)
             return;
 
         _phoneConnected = connected;
         SetStatus(connected ? "手机已连接" : "等待手机连接", connected);
     }
+
+    internal static bool IsClientPresent(long lastActivityTimestamp, long currentTimestamp) =>
+        lastActivityTimestamp != 0 &&
+        Stopwatch.GetElapsedTime(lastActivityTimestamp, currentTimestamp) <= ClientPresenceTimeout;
 
     private void ResetClientPresence()
     {
@@ -374,20 +390,28 @@ public partial class LanTransferWindow : Window
         }
     }
 
-    private void CopyAddress_Click(object sender, RoutedEventArgs e)
+    private async void CopyAddress_Click(object sender, RoutedEventArgs e)
     {
         if (_server == null)
             return;
-        System.Windows.Clipboard.SetText(_server.Address);
-        ToastNotification.Show("地址已复制");
+
+        try
+        {
+            await ClipboardWriter.SetTextAsync(_server.Address);
+            ToastNotification.Show("地址已复制");
+        }
+        catch (Exception ex)
+        {
+            ToastNotification.Show("复制失败", ex.Message, ToastNotification.ToastType.Error);
+        }
     }
 
     private void RefreshCode_Click(object sender, RoutedEventArgs e)
     {
         if (_server == null)
             return;
+        // 换码会触发 AccessCodesRotated，由它刷新二维码与验证码。
         _server.RotateAccessCodes();
-        UpdateConnectionDetails();
         ToastNotification.Show("连接码已刷新");
     }
 
@@ -518,21 +542,6 @@ public partial class LanTransferWindow : Window
         if (_serverState == ServerLifecycleState.Running &&
             e.Data.GetData(System.Windows.DataFormats.FileDrop) is string[] paths)
             await AddSharedPathsAsync(paths);
-    }
-
-    private void Server_FileReceived(ReceivedFileInfo info)
-    {
-        // Compatibility path for clients that do not create upload batches.
-        var entry = new TransferHistoryEntry(
-            info.Id,
-            info.Name,
-            TransferDirection.ToComputer,
-            info.Size,
-            1,
-            info.FullPath,
-            false,
-            DateTimeOffset.UtcNow);
-        Dispatcher.BeginInvoke(() => AddHistoryEntry(entry));
     }
 
     private void Server_BatchReceived(ReceivedBatchInfo info)

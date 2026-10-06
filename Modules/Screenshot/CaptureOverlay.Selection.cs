@@ -1,23 +1,20 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Linq;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
-using System.Windows.Shapes;
-using System.Windows.Controls;
 using Serilog;
 using STool.Modules.Screenshot.Annotations;
 using Cursor = System.Windows.Input.Cursor;
 using Cursors = System.Windows.Input.Cursors;
-using Rectangle = System.Windows.Shapes.Rectangle;
 using Panel = System.Windows.Controls.Panel;
+using Rectangle = System.Windows.Shapes.Rectangle;
 
 namespace STool.Modules.Screenshot;
 
 /// <summary>
-/// CaptureOverlay 选区交互（窗口检测、手柄拖拽、新建/移动/缩放选区）
+/// CaptureOverlay 选区交互（窗口检测、手柄拖拽、新建/移动/缩放选区、键盘微调）
 /// </summary>
 public partial class CaptureOverlay
 {
@@ -75,17 +72,13 @@ public partial class CaptureOverlay
             _windowRects.Clear();
             _windowRects.AddRange(rects);
 
-            Log.Information(
+            Log.Debug(
                 "[CaptureStartup] Window enumeration completed windows={WindowCount} in {ElapsedMs}ms",
                 _windowRects.Count,
                 sw.ElapsedMilliseconds);
 
             if (!_confirmed && _dragMode == DragMode.None)
-            {
-                _selection = DetectSelectionOrDefault();
-                UpdateVisuals();
-                UpdateMosaicSource(force: true);
-            }
+                SetSelectionIfChanged(DetectSelectionOrDefault());
         }
         catch (Exception ex)
         {
@@ -101,6 +94,16 @@ public partial class CaptureOverlay
             if (r.Contains(c))
                 return ClampSelection(PhysicalToSelection(r));
         return DefaultSelectionRect();
+    }
+
+    /// <summary>悬停识别时选区没变就不刷新蒙版和工具条。</summary>
+    private void SetSelectionIfChanged(Rect selection)
+    {
+        if (selection == _selection)
+            return;
+
+        _selection = selection;
+        UpdateVisuals();
     }
 
     private Rect PhysicalToSelection(System.Drawing.Rectangle r) => CoordinateMapper.PhysicalToCanvas(r);
@@ -135,7 +138,6 @@ public partial class CaptureOverlay
             Panel.SetZIndex(h, 50);
         }
         _handlesReady = true;
-        Panel.SetZIndex(toolbar, 100);
     }
 
     private static Cursor HandleCursor(string role) => role switch
@@ -149,6 +151,9 @@ public partial class CaptureOverlay
     private void Handle_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (_currentTool != AnnotationTool.None) return;
+        CancelCurrentTranslation();
+        HideTranslationOverlay();
+        _ocrCts?.Cancel();
         _activeHandle = (string)((Rectangle)sender).Tag;
         _dragMode = DragMode.Resize;
         _dragStart = e.GetPosition(overlayCanvas);
@@ -167,6 +172,8 @@ public partial class CaptureOverlay
         _dragMode = DragMode.None;
         _activeHandle = "";
         toolbar.Visibility = _confirmed ? Visibility.Visible : Visibility.Collapsed;
+        if (_confirmed)
+            HideMagnifier();
         UpdateCursorState();
         UpdateVisuals();
     }
@@ -179,7 +186,9 @@ public partial class CaptureOverlay
         if (_currentTool != AnnotationTool.None) return;        // 标注模式交给 annotationCanvas
         if (IsOverToolbar(e)) return;
 
+        CancelCurrentTranslation();
         HideTranslationOverlay();
+        _ocrCts?.Cancel();
 
         var p = e.GetPosition(overlayCanvas);
         _dragStart = p;
@@ -198,6 +207,8 @@ public partial class CaptureOverlay
         _dragMode = (_confirmed && _selection.Contains(p)) ? DragMode.Move : DragMode.NewSelection;
         if (_dragMode == DragMode.NewSelection)
             Mouse.OverrideCursor = Cursors.Cross;
+        else
+            HideMagnifier();
 
         toolbar.Visibility = Visibility.Collapsed;   // 选取过程中隐藏工具条
         overlayCanvas.CaptureMouse();
@@ -208,17 +219,18 @@ public partial class CaptureOverlay
         base.OnMouseMove(e);
         if (_closing || !_interactionReady) return;
 
+        var p = e.GetPosition(overlayCanvas);
+
         // 悬停识别窗口(未确认、且未按下拖拽时)
         if (!_confirmed && _dragMode == DragMode.None)
         {
-            _selection = DetectSelectionOrDefault();
-            UpdateVisuals();
+            SetSelectionIfChanged(DetectSelectionOrDefault());
+            UpdateMagnifier(p);
             return;
         }
 
         if (_dragMode == DragMode.None) return;
 
-        var p = e.GetPosition(overlayCanvas);
         var dx = p.X - _dragStart.X;
         var dy = p.Y - _dragStart.Y;
 
@@ -235,6 +247,7 @@ public partial class CaptureOverlay
                     Math.Min(_dragStart.Y, p.Y),
                     Math.Abs(p.X - _dragStart.X),
                     Math.Abs(p.Y - _dragStart.Y));
+                UpdateMagnifier(p);
                 break;
 
             case DragMode.Move:
@@ -245,6 +258,7 @@ public partial class CaptureOverlay
 
             case DragMode.Resize:
                 _selection = ResizeRect(_selectionAtStart, _activeHandle, dx, dy);
+                UpdateMagnifier(p);
                 break;
         }
         UpdateVisuals();
@@ -257,6 +271,7 @@ public partial class CaptureOverlay
         if (_dragMode == DragMode.None) return;
         _dragMode = DragMode.None;
         overlayCanvas.ReleaseMouseCapture();
+        HideMagnifier();
 
         if (!_confirmed)
         {
@@ -264,22 +279,15 @@ public partial class CaptureOverlay
             if (_dragMoved && (_selection.Width < 8 || _selection.Height < 8))
                 _selection = DetectSelectionOrDefault();
             _confirmed = true;
-            toolbar.Visibility = Visibility.Visible;
-            UpdateCursorState();
-            UpdateVisuals();
-            UpdateMosaicSource(force: true);
-            return;
         }
-
-        // 已确认后的收尾
-        if (_selection.Width < 8 || _selection.Height < 8)
+        else if (_selection.Width < 8 || _selection.Height < 8)
         {
             _selection = DefaultSelectionRect();
         }
+
         toolbar.Visibility = Visibility.Visible;   // 选取完成 → 显示工具条
         UpdateCursorState();
         UpdateVisuals();
-        UpdateMosaicSource(force: true);
     }
 
     private Rect ResizeRect(Rect s, string role, double dx, double dy)
@@ -289,12 +297,58 @@ public partial class CaptureOverlay
         if (role.Contains('R')) r += dx;
         if (role.Contains('T')) t += dy;
         if (role.Contains('B')) b += dy;
-        if (role == "T" || role == "B") { /* 仅纵向 */ }
         // 规整 + 夹紧
         l = Clamp(l, 0, ActualW); r = Clamp(r, 0, ActualW);
         t = Clamp(t, 0, ActualH); b = Clamp(b, 0, ActualH);
         var x = Math.Min(l, r); var y = Math.Min(t, b);
         var w = Math.Max(8, Math.Abs(r - l)); var h = Math.Max(8, Math.Abs(b - t));
         return new Rect(x, y, w, h);
+    }
+
+    /// <summary>
+    /// 方向键微调。选区确定前逐像素移动光标（配合放大镜定位起点）；确定后移动选区，
+    /// Ctrl 调整右下边界。Shift 每次 10 像素。direction:0 左、1 上、2 右、3 下。
+    /// </summary>
+    private bool NudgeWithKeyboard(int direction, bool ctrl, bool shift)
+    {
+        if (!_interactionReady || _dragMode != DragMode.None)
+            return false;
+
+        var (dx, dy) = direction switch
+        {
+            0 => (-1, 0),
+            1 => (0, -1),
+            2 => (1, 0),
+            _ => (0, 1)
+        };
+        var step = shift ? 10 : 1;
+
+        if (!_confirmed)
+        {
+            var cursor = System.Windows.Forms.Cursor.Position;
+            SetCursorPos(cursor.X + dx * step, cursor.Y + dy * step);
+            return true;
+        }
+
+        CancelCurrentTranslation();
+        HideTranslationOverlay();
+        _ocrCts?.Cancel();
+        var stepX = step / CoordinateMapper.PixelsPerDipX;
+        var stepY = step / CoordinateMapper.PixelsPerDipY;
+        if (ctrl)
+        {
+            var width = Math.Max(8, _selection.Width + dx * stepX);
+            var height = Math.Max(8, _selection.Height + dy * stepY);
+            _selection = ClampSelection(new Rect(_selection.X, _selection.Y, width, height));
+        }
+        else
+        {
+            var x = Clamp(_selection.X + dx * stepX, 0, ActualW - _selection.Width);
+            var y = Clamp(_selection.Y + dy * stepY, 0, ActualH - _selection.Height);
+            _selection = new Rect(x, y, _selection.Width, _selection.Height);
+        }
+
+        UpdateVisuals();
+        return true;
     }
 }

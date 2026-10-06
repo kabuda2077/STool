@@ -25,8 +25,14 @@ internal static class AiApiRequestSender
         HttpClient httpClient,
         IReadOnlyList<string> candidates,
         Func<string, HttpRequestMessage> createRequest,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        TimeSpan? requestTimeout = null)
     {
+        // ResponseHeadersRead 让 HttpClient.Timeout 只覆盖响应头；读取正文也必须有截止时间。
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(requestTimeout ?? HttpDefaults.NetworkTimeout);
+        var requestToken = deadline.Token;
+
         if (candidates.Count == 0)
         {
             throw new InvalidOperationException("没有可用的 AI API 请求地址。");
@@ -41,9 +47,9 @@ internal static class AiApiRequestSender
             using var response = await httpClient.SendAsync(
                 request,
                 HttpCompletionOption.ResponseHeadersRead,
-                cancellationToken);
+                requestToken).ConfigureAwait(false);
             var headersElapsed = stopwatch.ElapsedMilliseconds;
-            var body = await response.Content.ReadAsStringAsync(cancellationToken);
+            var body = await response.Content.ReadAsStringAsync(requestToken).ConfigureAwait(false);
             lastResult = new AiApiHttpResult(
                 endpoint,
                 response.StatusCode,

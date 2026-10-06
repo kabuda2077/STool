@@ -1,0 +1,9 @@
+<Project>
+  <!-- WinForms 仅用于少量互操作。去掉 SDK 自动注入的命名空间，避免与 WPF 的
+       Button/Clipboard/Color 等重名；需要的文件显式 using。 -->
+  <Target Name="RemoveDesktopImplicitUsings" BeforeTargets="GenerateGlobalUsings">
+    <ItemGroup>
+      <Using Remove="System.Drawing;System.Windows.Forms" />
+    </ItemGroup>
+  </Target>
+</Project>

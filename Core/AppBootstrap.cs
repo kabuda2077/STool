@@ -1,75 +1,95 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
-using System.IO;
-using System.Windows;
+using System.Linq;
 using System.Windows.Forms;
-using Microsoft.Extensions.DependencyInjection;
 using Serilog;
+using STool.Models;
+using STool.Modules.Clipboard;
+using STool.Modules.LanTransfer;
+using STool.Modules.Ocr;
+using STool.Modules.Screenshot;
+using STool.Modules.Translation;
+using STool.Views;
 
 namespace STool.Core;
 
-public class AppBootstrap : IDisposable
+/// <summary>应用外壳：创建后台服务、托盘图标和全局热键，并按热键打开各功能窗口。</summary>
+public sealed class AppBootstrap : IAppShell, IDisposable
 {
-    private readonly NotifyIcon _notifyIcon;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly HotkeyManager _hotkeyManager;
     private readonly ConfigManager _configManager;
+    private readonly HotkeyManager _hotkeyManager;
+    private readonly OcrManager _ocrManager;
+    private readonly TranslationManager _translationManager;
+    private readonly ClipboardManager? _clipboardManager;
+    private readonly NotifyIcon _notifyIcon;
     private readonly WindowCoordinator _windows = new();
+    private string _appliedLogLevel = "Information";
 
     public AppBootstrap()
     {
-        // 初始化日志
-        AppPaths.EnsureStandardDirectories();
-
-        Log.Logger = new LoggerConfiguration()
-            .WriteTo.File(
-                Path.Combine(AppPaths.LogsDirectory, "app.log"),
-                rollingInterval: RollingInterval.Day,
-                retainedFileCountLimit: 7
-            )
-            .CreateLogger();
-
+        // 数据目录不可写时直接抛出，由 App 提示用户换目录后退出，避免留下无托盘无热键的空进程。
+        AppPaths.EnsureWritableDataDirectory();
+        AppLogging.Configure(_appliedLogLevel);
         Log.Information("STool starting...");
 
-        // 初始化依赖注入
-        var services = new ServiceCollection();
-        ConfigureServices(services);
-        _serviceProvider = services.BuildServiceProvider();
+        _configManager = new ConfigManager();
+        var config = _configManager.Get();
+        ApplyDiagnostics(config.Diagnostics);
 
-        // 获取核心服务
-        _configManager = _serviceProvider.GetRequiredService<ConfigManager>();
-        _hotkeyManager = _serviceProvider.GetRequiredService<HotkeyManager>();
+        _hotkeyManager = new HotkeyManager();
+        _ocrManager = new OcrManager(_configManager);
+        _translationManager = new TranslationManager(_configManager);
+        _clipboardManager = TryCreateClipboardManager();
 
-        // 初始化托盘图标
-        _notifyIcon = CreateNotifyIcon();
-
-        // 初始化快捷键
+        _notifyIcon = CreateNotifyIcon(config);
         _hotkeyManager.Initialize();
         RegisterConfiguredHotkeys(notifyFailures: true);
-
-        // 启动剪贴板监听
-        var clipboardManager = _serviceProvider.GetService(typeof(STool.Modules.Clipboard.ClipboardManager))
-            as STool.Modules.Clipboard.ClipboardManager;
-        clipboardManager?.Start();
 
         StartupWarmup.Schedule();
     }
 
-    private void ConfigureServices(IServiceCollection services)
+    private ClipboardManager? TryCreateClipboardManager()
     {
-        services.AddSingleton<ConfigManager>();
-        services.AddSingleton<HotkeyManager>();
-        services.AddSingleton<STool.Modules.Ocr.OcrManager>();
-        services.AddSingleton<STool.Modules.Translation.TranslationManager>();
-        services.AddSingleton<STool.Modules.Clipboard.ClipboardManager>();
+        ClipboardManager? manager = null;
+        try
+        {
+            manager = new ClipboardManager(_configManager);
+            manager.Start();
+            return manager;
+        }
+        catch (Exception ex)
+        {
+            manager?.Dispose();
+            // 剪贴板数据库异常只影响剪贴板历史，其余功能照常启动。
+            Log.Error(ex, "Clipboard history is unavailable");
+            ToastNotification.Show(
+                "剪贴板历史不可用",
+                ex.Message,
+                ToastNotification.ToastType.Warning,
+                duration: 5000);
+            return null;
+        }
     }
 
-    private NotifyIcon CreateNotifyIcon()
+    private void ApplyDiagnostics(DiagnosticsConfig diagnostics)
+    {
+        MemoryDiagnostics.Enabled = diagnostics.Enabled;
+        var level = AppLogging.ParseLevel(diagnostics.LogLevel).ToString();
+        if (string.Equals(level, _appliedLogLevel, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        AppLogging.Configure(level);
+        _appliedLogLevel = level;
+        Log.Information("Log level changed to {LogLevel}", level);
+    }
+
+    private NotifyIcon CreateNotifyIcon(AppConfig config)
     {
         var notifyIcon = new NotifyIcon
         {
             Icon = AppIcons.LoadTrayIcon(),
-            Visible = !_configManager.Get().HideTrayIcon,
+            Visible = !config.HideTrayIcon,
             Text = "STool - 快捷工具"
         };
 
@@ -85,18 +105,37 @@ public class AppBootstrap : IDisposable
 
     private void ShowTrayMenu()
     {
-        _configManager.Reload();
         var config = _configManager.Get();
 
         var menu = new TrayMenuWindow();
         menu.AddItem("截图", config.Hotkeys.Screenshot, OnScreenshotHotkey);
         menu.AddItem("翻译", config.Hotkeys.Translation, OnTranslationHotkey);
         menu.AddItem("剪贴板历史", config.Hotkeys.Clipboard, OnClipboardHotkey);
+        menu.AddItem("局域网传输", config.Hotkeys.LanTransfer, OnLanTransferHotkey);
+        if (_clipboardManager != null)
+        {
+            menu.AddSeparator();
+            menu.AddItem(
+                config.Clipboard.Enabled ? "暂停记录剪贴板" : "恢复记录剪贴板",
+                string.Empty,
+                ToggleClipboardRecording);
+        }
         menu.AddSeparator();
         menu.AddItem("设置", config.Hotkeys.Settings, ShowSettings);
         menu.AddSeparator();
-        menu.AddItem("退出 STool", string.Empty, () => OnExit(null, EventArgs.Empty), danger: true);
+        menu.AddItem("退出 STool", string.Empty, ExitApplication, danger: true);
         menu.ShowNearCursor();
+    }
+
+    private void ToggleClipboardRecording()
+    {
+        var enabled = _configManager
+            .Update(config => config.Clipboard.Enabled = !config.Clipboard.Enabled)
+            .Clipboard.Enabled;
+        ApplyClipboardSettings();
+        ToastNotification.Show(
+            enabled ? "已恢复记录剪贴板" : "已暂停记录剪贴板",
+            type: ToastNotification.ToastType.Info);
     }
 
     private IReadOnlyList<HotkeyRegistrationResult> RegisterConfiguredHotkeys(bool notifyFailures = false)
@@ -141,24 +180,27 @@ public class AppBootstrap : IDisposable
     public IReadOnlyList<HotkeyRegistrationResult> ReloadHotkeys(bool notifyFailures = false)
     {
         _hotkeyManager.UnregisterAll();
-        _configManager.Reload();
         return RegisterConfiguredHotkeys(notifyFailures);
+    }
+
+    public void SuspendHotkeys()
+    {
+        _hotkeyManager.UnregisterAll();
     }
 
     public void ReloadTrayIconVisibility()
     {
-        _configManager.Reload();
         _notifyIcon.Visible = !_configManager.Get().HideTrayIcon;
     }
 
-    /// <summary>
-    /// 临时挂起所有全局快捷键。用于快捷键录入框获得焦点时,
-    /// 避免系统级热键拦截按键(否则按 Ctrl+Alt+A 等会触发功能而非被录入)。
-    /// 失焦时调用 ReloadHotkeys() 恢复。
-    /// </summary>
-    public void SuspendGlobalHotkeys()
+    public void ApplyClipboardSettings()
     {
-        _hotkeyManager.UnregisterAll();
+        _clipboardManager?.ApplySettings();
+    }
+
+    public void ApplyDiagnosticsSettings()
+    {
+        ApplyDiagnostics(_configManager.Get().Diagnostics);
     }
 
     private void OnScreenshotHotkey()
@@ -180,15 +222,19 @@ public class AppBootstrap : IDisposable
 
     private void ShowScreenshotOverlay()
     {
-        var startupTimer = Stopwatch.StartNew();
-        var existing = _windows.Get<STool.Modules.Screenshot.CaptureOverlay>("screenshot");
+        var diagnosticsEnabled = _configManager.Get().Diagnostics.Enabled;
+        var startupTimer = diagnosticsEnabled ? Stopwatch.StartNew() : null;
+        var existing = _windows.Get<CaptureOverlay>("screenshot");
         var overlay = _windows.ShowSingle("screenshot", () =>
         {
-            var created = new STool.Modules.Screenshot.CaptureOverlay(startupTimer);
-            Log.Information("[CaptureStartup] Overlay constructed in {ElapsedMs}ms", startupTimer.ElapsedMilliseconds);
+            var created = new CaptureOverlay(
+                new CaptureOverlayServices(_ocrManager, _translationManager, diagnosticsEnabled),
+                startupTimer);
+            if (startupTimer != null)
+                Log.Information("[CaptureStartup] Overlay constructed in {ElapsedMs}ms", startupTimer.ElapsedMilliseconds);
             return created;
         });
-        if (existing == null)
+        if (existing == null && startupTimer != null)
         {
             Log.Information("[CaptureStartup] Show returned in {ElapsedMs}ms", startupTimer.ElapsedMilliseconds);
             overlay.SchedulePostShowDiagnostics();
@@ -198,58 +244,50 @@ public class AppBootstrap : IDisposable
     private void OnTranslationHotkey()
     {
         Log.Information("Translation hotkey triggered");
-
-        var translationManager = _serviceProvider.GetService(typeof(STool.Modules.Translation.TranslationManager))
-            as STool.Modules.Translation.TranslationManager;
-
-        if (translationManager == null)
-        {
-            Log.Warning("TranslationManager not found");
-            return;
-        }
-
-        _windows.ShowSingle(
-            "translation",
-            () => new STool.Modules.Translation.TranslationPanel(translationManager));
+        _windows.ShowSingle("translation", () => new TranslationPanel(_translationManager));
     }
 
     private void OnClipboardHotkey()
     {
         Log.Information("Clipboard hotkey triggered");
-
-        var clipboardManager = _serviceProvider.GetService(typeof(STool.Modules.Clipboard.ClipboardManager))
-            as STool.Modules.Clipboard.ClipboardManager;
-
-        if (clipboardManager == null)
+        if (_clipboardManager == null)
         {
-            Log.Warning("ClipboardManager not found");
+            ToastNotification.Show(
+                "剪贴板历史不可用",
+                "剪贴板数据库初始化失败，详情见 Data\\Logs 中的日志。",
+                ToastNotification.ToastType.Warning);
             return;
         }
 
-        _windows.ShowSingle(
-            "clipboard",
-            () => new STool.Modules.Clipboard.ClipboardPanel(clipboardManager));
+        _windows.ShowSingle("clipboard", () => new ClipboardPanel(_clipboardManager));
     }
 
     private void OnLanTransferHotkey()
     {
         Log.Information("LAN transfer hotkey triggered");
-        _windows.ShowSingle(
-            "lan-transfer",
-            () => new STool.Modules.LanTransfer.LanTransferWindow(_configManager));
+        _windows.ShowSingle("lan-transfer", () => new LanTransferWindow(_configManager));
     }
 
     public void ShowSettings()
     {
-        var existing = _windows.Get<STool.Views.SettingsWindow>("settings");
-        var settings = _windows.ShowSingle(
-            "settings",
-            () => new STool.Views.SettingsWindow(_configManager));
+        var existing = _windows.Get<SettingsWindow>("settings");
+        var settings = _windows.ShowSingle("settings", () => new SettingsWindow(_configManager, this));
         if (existing == null)
-            settings.Closed += (_, _) => ReloadHotkeys();
+            settings.Closed += (_, _) => OnSettingsClosed();
     }
 
-    private void OnExit(object? sender, EventArgs e)
+    private void OnSettingsClosed()
+    {
+        // 设置窗口关闭时重新读取配置文件，手动编辑 config.json 的改动也能在此时生效。
+        _configManager.Reload();
+        var config = _configManager.Get();
+        ApplyDiagnostics(config.Diagnostics);
+        ReloadHotkeys();
+        ReloadTrayIconVisibility();
+        ApplyClipboardSettings();
+    }
+
+    private void ExitApplication()
     {
         Log.Information("STool exiting...");
         System.Windows.Application.Current.Shutdown();
@@ -260,12 +298,9 @@ public class AppBootstrap : IDisposable
         _windows.Dispose();
         _notifyIcon.Dispose();
         _hotkeyManager.Dispose();
-        (_serviceProvider as IDisposable)?.Dispose();
+        _clipboardManager?.Dispose();
+        _translationManager.Dispose();
+        _ocrManager.Dispose();
         Log.CloseAndFlush();
-    }
-
-    public T? GetService<T>() where T : class
-    {
-        return _serviceProvider.GetService(typeof(T)) as T;
     }
 }

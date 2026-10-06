@@ -13,11 +13,11 @@ public partial class OcrResultWindow : Window
         txtProvider.Text = $"提供商: {provider}";
     }
 
-    private void BtnCopy_Click(object sender, RoutedEventArgs e)
+    private async void BtnCopy_Click(object sender, RoutedEventArgs e)
     {
         try
         {
-            System.Windows.Clipboard.SetText(txtResult.Text);
+            await ClipboardWriter.SetTextAsync(txtResult.Text);
             ToastNotification.Show("已复制到剪贴板", type: ToastNotification.ToastType.Success);
             Close();
         }

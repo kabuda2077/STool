@@ -1,5 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
+using System;
 using System.Windows;
 using System.Windows.Threading;
 using Serilog;
@@ -47,14 +46,46 @@ public partial class App : System.Windows.Application
             return;
         }
 
-        // 初始化应用
-        _bootstrap = new AppBootstrap();
+        // 初始化失败时必须退出：否则进程没有托盘和热键，却一直占着单实例锁，
+        // 用户再次启动也只会唤醒这个空进程。
+        try
+        {
+            _bootstrap = new AppBootstrap();
+        }
+        catch (Exception ex)
+        {
+            ReportStartupFailure(ex);
+            _singleInstance.Dispose();
+            _singleInstance = null;
+            Shutdown(1);
+            return;
+        }
+
         _singleInstance.StartActivationListener(() =>
         {
             Dispatcher.Invoke(() => _bootstrap?.ShowSettings());
         });
 
         base.OnStartup(e);
+    }
+
+    private static void ReportStartupFailure(Exception exception)
+    {
+        try
+        {
+            Log.Fatal(exception, "STool failed to start");
+            Log.CloseAndFlush();
+        }
+        catch
+        {
+            // 日志本身也可能因为数据目录不可写而失败。
+        }
+
+        var message = exception is DataDirectoryUnavailableException dataDirectory
+            ? $"STool 无法写入数据目录：\n{dataDirectory.Directory}\n\n请把 STool 完整解压到有写入权限的文件夹（例如 D:\\Tools\\STool），不要放在 Program Files 下或直接在压缩包内运行。"
+            : $"STool 启动失败：{exception.Message}\n\n如数据目录可写，详细信息已记录到 Data\\Logs。";
+
+        System.Windows.MessageBox.Show(message, "STool 无法启动", MessageBoxButton.OK, MessageBoxImage.Error);
     }
 
     private static bool TryGetLanTransferConfigurePort(string[] args, out int port)
@@ -74,31 +105,6 @@ public partial class App : System.Windows.Application
         _bootstrap?.Dispose();
         _singleInstance?.Dispose();
         base.OnExit(e);
-    }
-
-    public T? GetService<T>() where T : class
-    {
-        return _bootstrap?.GetService<T>();
-    }
-
-    public IReadOnlyList<HotkeyRegistrationResult> ReloadHotkeys(bool notifyFailures = false)
-    {
-        return _bootstrap?.ReloadHotkeys(notifyFailures) ?? Array.Empty<HotkeyRegistrationResult>();
-    }
-
-    public void ReloadTrayIconVisibility()
-    {
-        _bootstrap?.ReloadTrayIconVisibility();
-    }
-
-    public void SuspendHotkeys()
-    {
-        _bootstrap?.SuspendGlobalHotkeys();
-    }
-
-    public void ShowSettings()
-    {
-        _bootstrap?.ShowSettings();
     }
 
     /// <summary>

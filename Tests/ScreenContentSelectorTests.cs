@@ -1,80 +1,10 @@
 using STool.Modules.Translation;
-using STool.Modules.Screenshot;
 using Xunit;
 
 namespace STool.Tests;
 
 public class ScreenContentSelectorTests
 {
-    [Fact]
-    public void TryParseIndices_PlainArray_ParsesAll()
-    {
-        var result = ScreenContentSelector.TryParseIndices("[0, 2, 3]", 5);
-        Assert.NotNull(result);
-        Assert.Equal(new[] { 0, 2, 3 }, result);
-    }
-
-    [Fact]
-    public void TryParseIndices_CodeFenceWrapped_StillParses()
-    {
-        var result = ScreenContentSelector.TryParseIndices("```json\n[1,2]\n```", 5);
-        Assert.NotNull(result);
-        Assert.Equal(new[] { 1, 2 }, result);
-    }
-
-    [Fact]
-    public void TryParseIndices_WithSurroundingProse_ExtractsArray()
-    {
-        var result = ScreenContentSelector.TryParseIndices("Sure, here are the indices: [2, 4]. Done.", 5);
-        Assert.NotNull(result);
-        Assert.Equal(new[] { 2, 4 }, result);
-    }
-
-    [Fact]
-    public void TryParseIndices_OutOfRangeAndDuplicates_AreDropped()
-    {
-        var result = ScreenContentSelector.TryParseIndices("[0, 0, 9, 2, -1]", 3);
-        Assert.NotNull(result);
-        Assert.Equal(new[] { 0, 2 }, result);
-    }
-
-    [Fact]
-    public void TryParseIndices_Unsorted_ReturnsAscending()
-    {
-        var result = ScreenContentSelector.TryParseIndices("[3,1,2]", 5);
-        Assert.NotNull(result);
-        Assert.Equal(new[] { 1, 2, 3 }, result);
-    }
-
-    [Fact]
-    public void TryParseIndices_EmptyArray_ReturnsEmpty()
-    {
-        var result = ScreenContentSelector.TryParseIndices("[]", 5);
-        Assert.NotNull(result);
-        Assert.Empty(result);
-    }
-
-    [Fact]
-    public void TryParseIndices_NoArray_ReturnsNull()
-    {
-        Assert.Null(ScreenContentSelector.TryParseIndices("no indices here", 5));
-    }
-
-    [Fact]
-    public void TryParseIndices_ZeroLineCount_ReturnsNull()
-    {
-        Assert.Null(ScreenContentSelector.TryParseIndices("[0,1]", 0));
-    }
-
-    [Fact]
-    public void BuildPrompt_NumbersLinesAndIncludesText()
-    {
-        var prompt = ScreenContentSelector.BuildPrompt(new[] { "hello", "world" });
-        Assert.Contains("0: hello", prompt);
-        Assert.Contains("1: world", prompt);
-        Assert.Contains("JSON array", prompt);
-    }
-
     [Fact]
     public void TryParseTranslations_PlainArray_ParsesItems()
     {
@@ -114,6 +44,12 @@ public class ScreenContentSelectorTests
     }
 
     [Fact]
+    public void TryParseTranslations_NoArray_ReturnsNull()
+    {
+        Assert.Null(ScreenContentSelector.TryParseTranslations("no json here", new HashSet<int> { 0 }));
+    }
+
+    [Fact]
     public void BuildTranslatePrompt_IncludesCoordinatesAndTarget()
     {
         var prompt = ScreenContentSelector.BuildTranslatePrompt(
@@ -138,23 +74,5 @@ public class ScreenContentSelectorTests
             .ToArray();
 
         Assert.Equal(expected, ScreenContentSelector.CalculateTranslateMaxTokens(lines));
-    }
-
-    [Theory]
-    [InlineData("This actress cut her hair and wore a full wig.", "zh", true)]
-    [InlineData("Primary-Ad-7788", "zh", false)]
-    [InlineData("207 Reply Award Share", "zh", false)]
-    [InlineData("回复 奖励 分享", "en", false)]
-    [InlineData("这位女演员本季剪了头发。", "zh", false)]
-    [InlineData("这位女演员本季剪了头发。", "en", true)]
-    public void FastFilter_KeepsSourceContentAndDropsUiMetadata(string text, string targetLanguage, bool expected)
-    {
-        var line = new CaptureOverlay.TranslationLine(
-            text,
-            new System.Drawing.Rectangle(100, 100, 500, 30));
-
-        var result = CaptureOverlay.IsLikelyTranslatableContent(line, 1200, 800, targetLanguage);
-
-        Assert.Equal(expected, result);
     }
 }

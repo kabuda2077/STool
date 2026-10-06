@@ -1,24 +1,26 @@
 using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Windows.Input;
-using Serilog;
+using STool.Core;
 using STool.Modules.Screenshot.Annotations;
-using Brush = System.Windows.Media.Brush;
-using Brushes = System.Windows.Media.Brushes;
 
 namespace STool.Modules.Screenshot;
 
 /// <summary>
-/// CaptureOverlay 渲染与输出（视觉更新、蒙版、合成最终图片）
+/// CaptureOverlay 渲染（视觉更新、蒙版、马赛克图层、放大镜）
 /// </summary>
 public partial class CaptureOverlay
 {
+    private const int MagnifierColumns = 15;
+    private const int MagnifierRows = 11;
+    private const double MagnifierOffset = 18;
+
+    private BitmapSource? _mosaicLayer;
+    private ImageBrush? _magnifierBrush;
+    private string _magnifierColorHex = string.Empty;
+
     private double ActualW => overlayCanvas.ActualWidth > 0 ? overlayCanvas.ActualWidth : Width;
     private double ActualH => overlayCanvas.ActualHeight > 0 ? overlayCanvas.ActualHeight : Height;
 
@@ -34,11 +36,9 @@ public partial class CaptureOverlay
         selectionBorder.Height = _selection.Height;
 
         // 挖洞蒙版
-        var outer = new RectangleGeometry(new Rect(0, 0, ActualW, ActualH));
-        var inner = new RectangleGeometry(_selection);
         var group = new GeometryGroup { FillRule = FillRule.EvenOdd };
-        group.Children.Add(outer);
-        group.Children.Add(inner);
+        group.Children.Add(new RectangleGeometry(new Rect(0, 0, ActualW, ActualH)));
+        group.Children.Add(new RectangleGeometry(_selection));
         maskPath.Data = group;
 
         // 手柄位置
@@ -53,71 +53,52 @@ public partial class CaptureOverlay
         Canvas.SetLeft(sizeLabel, Math.Max(2, _selection.X));
         Canvas.SetTop(sizeLabel, labelTop);
 
-        // 标注层贴合选区
-        Canvas.SetLeft(annotationCanvas, _selection.X);
-        Canvas.SetTop(annotationCanvas, _selection.Y);
-        annotationCanvas.Width = _selection.Width;
-        annotationCanvas.Height = _selection.Height;
-        annotationCanvas.Clip = new RectangleGeometry(new Rect(0, 0, _selection.Width, _selection.Height));
-
-        // 原位翻译层贴合选区
-        Canvas.SetLeft(translationBlockCanvas, _selection.X);
-        Canvas.SetTop(translationBlockCanvas, _selection.Y);
-        translationBlockCanvas.Width = _selection.Width;
-        translationBlockCanvas.Height = _selection.Height;
-        translationBlockCanvas.Clip = new RectangleGeometry(new Rect(0, 0, _selection.Width, _selection.Height));
-
-        Canvas.SetLeft(translationOverlay, _selection.X);
-        Canvas.SetTop(translationOverlay, _selection.Y);
-        translationOverlay.Width = _selection.Width;
-        translationOverlay.Height = _selection.Height;
-        translationOverlay.Clip = new RectangleGeometry(new Rect(0, 0, _selection.Width, _selection.Height));
+        // 标注层与原位翻译层贴合选区
+        PlaceOnSelection(annotationCanvas);
+        PlaceOnSelection(translationBlockCanvas);
+        PlaceOnSelection(translationOverlay);
         ApplyTranslationOverlayLayout();
+
+        // 选区移动后马赛克要显示新位置下方的内容
+        if (_mosaicLayer != null)
+            _annotation?.SetMosaicSource(_mosaicLayer, MosaicSourceRect());
 
         PositionToolbar();
     }
 
-    private void UpdateMosaicSource(bool force = false)
+    private void PlaceOnSelection(FrameworkElement element)
     {
-        if (_annotation == null || _frozen == null)
-            return;
-
-        if (!force && _mosaicSourceSelection == _selection)
-            return;
-
-        _mosaicSourceSelection = _selection;
-
-        var pixelRect = SelectionBitmapRect;
-        var px = pixelRect.X;
-        var py = pixelRect.Y;
-        var pw = pixelRect.Width;
-        var ph = pixelRect.Height;
-        px = Math.Clamp(px, 0, Math.Max(0, _frozen.Width - 1));
-        py = Math.Clamp(py, 0, Math.Max(0, _frozen.Height - 1));
-        pw = Math.Min(pw, _frozen.Width - px);
-        ph = Math.Min(ph, _frozen.Height - py);
-
-        _annotation.MosaicSampler = SampleMosaicPreviewColor;
+        Canvas.SetLeft(element, _selection.X);
+        Canvas.SetTop(element, _selection.Y);
+        element.Width = _selection.Width;
+        element.Height = _selection.Height;
+        element.Clip = new RectangleGeometry(new Rect(0, 0, _selection.Width, _selection.Height));
     }
 
-    private System.Windows.Media.Color SampleMosaicPreviewColor(Rect rect)
+    /// <summary>
+    /// 首次使用马赛克时生成整屏像素化图层:按块大小缩小后以最近邻放大显示,
+    /// 预览与导出共用,块大小不随 DPI 变化。
+    /// </summary>
+    private void EnsureMosaicLayer()
     {
-        if (_frozen == null)
-            return System.Windows.Media.Color.FromRgb(160, 160, 166);
+        if (_mosaicLayer != null || _capture == null || _annotation == null)
+            return;
 
-        var x = (int)Math.Round((_selection.X + rect.X) * BitmapScaleX);
-        var y = (int)Math.Round((_selection.Y + rect.Y) * BitmapScaleY);
-        var width = Math.Max(1, (int)Math.Round(rect.Width * BitmapScaleX));
-        var height = Math.Max(1, (int)Math.Round(rect.Height * BitmapScaleY));
-
-        var region = new System.Drawing.Rectangle(x, y, width, height);
-        region.Intersect(new System.Drawing.Rectangle(0, 0, _frozen.Width, _frozen.Height));
-        if (region.Width <= 0 || region.Height <= 0)
-            return System.Windows.Media.Color.FromRgb(160, 160, 166);
-
-        var color = AverageColor(_frozen, region.X, region.Y, region.Width, region.Height);
-        return System.Windows.Media.Color.FromArgb(color.A, color.R, color.G, color.B);
+        var blockPixels = Math.Max(4, (int)Math.Round(MosaicAnnotation.BlockSize * CoordinateMapper.PixelsPerDipX));
+        var scale = 1.0 / blockPixels;
+        var reduced = new TransformedBitmap(_capture.Source, new ScaleTransform(scale, scale));
+        var layer = new WriteableBitmap(reduced);
+        layer.Freeze();
+        _mosaicLayer = layer;
+        _annotation.SetMosaicSource(layer, MosaicSourceRect());
     }
+
+    /// <summary>整屏马赛克图层在标注画布(选区)局部坐标中的位置。</summary>
+    private Rect MosaicSourceRect() => new(
+        -_selection.X,
+        -_selection.Y,
+        CoordinateMapper.CanvasSize.Width,
+        CoordinateMapper.CanvasSize.Height);
 
     private void PositionHandles()
     {
@@ -143,4 +124,56 @@ public partial class CaptureOverlay
         }
     }
 
+    // ---------- 放大镜与取色 ----------
+
+    private void UpdateMagnifier(System.Windows.Point canvasPoint)
+    {
+        if (_magnifierBrush == null || _capture == null)
+            return;
+
+        var px = Math.Clamp((int)Math.Floor(canvasPoint.X * BitmapScaleX), 0, _capture.Width - 1);
+        var py = Math.Clamp((int)Math.Floor(canvasPoint.Y * BitmapScaleY), 0, _capture.Height - 1);
+        _magnifierBrush.Viewbox = new Rect(px - MagnifierColumns / 2, py - MagnifierRows / 2, MagnifierColumns, MagnifierRows);
+
+        var color = _capture.Bitmap.GetPixel(px, py);
+        _magnifierColorHex = $"#{color.R:X2}{color.G:X2}{color.B:X2}";
+        magnifierColor.Text = _magnifierColorHex;
+        magnifierSwatch.Background = new SolidColorBrush(System.Windows.Media.Color.FromRgb(color.R, color.G, color.B));
+        magnifierPosition.Text = $"{px + _virtualScreenBounds.Left}, {py + _virtualScreenBounds.Top}";
+
+        magnifier.Visibility = Visibility.Visible;
+        magnifier.Measure(new System.Windows.Size(double.PositiveInfinity, double.PositiveInfinity));
+        var width = magnifier.DesiredSize.Width;
+        var height = magnifier.DesiredSize.Height;
+        var left = canvasPoint.X + MagnifierOffset;
+        var top = canvasPoint.Y + MagnifierOffset;
+        if (left + width > ActualW - 2)
+            left = canvasPoint.X - MagnifierOffset - width;
+        if (top + height > ActualH - 2)
+            top = canvasPoint.Y - MagnifierOffset - height;
+        Canvas.SetLeft(magnifier, Math.Max(2, left));
+        Canvas.SetTop(magnifier, Math.Max(2, top));
+    }
+
+    private void HideMagnifier()
+    {
+        magnifier.Visibility = Visibility.Collapsed;
+    }
+
+    private async void CopyPixelColor()
+    {
+        var hex = _magnifierColorHex;
+        if (string.IsNullOrEmpty(hex))
+            return;
+
+        try
+        {
+            await ClipboardWriter.SetTextAsync(hex);
+            ToastNotification.Show("已复制颜色", hex, ToastNotification.ToastType.Success, duration: 1600);
+        }
+        catch (Exception ex)
+        {
+            ToastNotification.Show("复制失败", ex.Message, ToastNotification.ToastType.Error);
+        }
+    }
 }

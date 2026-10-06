@@ -14,7 +14,6 @@ namespace STool.Modules.Translation;
 public partial class TranslationPanel : Window
 {
     [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
-    [DllImport("user32.dll")] private static extern bool SetForegroundWindow(IntPtr hWnd);
 
     private readonly TranslationManager _translationManager;
     private TranslationProvider _provider = TranslationProvider.Google;
@@ -236,9 +235,7 @@ public partial class TranslationPanel : Window
             return false;
         try
         {
-            var text = txtTarget.Text;
-            await STool.Modules.Clipboard.ClipboardManager.SetClipboardWithRetryAsync(
-                () => System.Windows.Clipboard.SetText(text));
+            await ClipboardWriter.SetTextAsync(txtTarget.Text);
             return true;
         }
         catch (Exception ex)
@@ -281,25 +278,19 @@ public partial class TranslationPanel : Window
 
         var hwnd = _targetHwnd;
         Hide();
-        if (hwnd != IntPtr.Zero)
-            SetForegroundWindow(hwnd);
-
-        // 延迟少许确保焦点已切回原应用,再发送粘贴
-        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(120) };
-        timer.Tick += (_, _) =>
+        try
         {
-            timer.Stop();
-            try
-            {
-                System.Windows.Forms.SendKeys.SendWait("^v");
-            }
-            catch (Exception ex)
-            {
-                ToastNotification.Show("内容已复制", $"自动输入失败：{ex.Message}", ToastNotification.ToastType.Info);
-            }
+            if (!await ForegroundPaste.PasteToAsync(hwnd, focusDelayMs: 120))
+                ToastNotification.Show("内容已复制", "无法切回原窗口，请手动粘贴。", ToastNotification.ToastType.Info);
+        }
+        catch (Exception ex)
+        {
+            ToastNotification.Show("内容已复制", $"自动输入失败：{ex.Message}", ToastNotification.ToastType.Info);
+        }
+        finally
+        {
             Close();
-        };
-        timer.Start();
+        }
     }
 
     private async void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)

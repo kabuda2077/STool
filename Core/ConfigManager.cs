@@ -20,6 +20,12 @@ public class ConfigManager
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase
     };
 
+    // Get() 每次都返回深拷贝，快照不需要缩进格式。
+    private static readonly JsonSerializerOptions CloneOptions = new()
+    {
+        PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+    };
+
     public ConfigManager()
         : this(AppPaths.ConfigPath, SecureStorage.Decrypt, SecureStorage.Encrypt, SecureStorage.IsPortableEncrypted)
     {
@@ -45,8 +51,6 @@ public class ConfigManager
         lock (_gate)
             return Clone(GetOrLoadInternal());
     }
-
-    public AppConfig GetSnapshot() => Get();
 
     public void Save(AppConfig config)
     {
@@ -212,7 +216,7 @@ public class ConfigManager
 
     private static AppConfig Clone(AppConfig config)
     {
-        var json = JsonSerializer.Serialize(config, JsonOptions);
-        return JsonSerializer.Deserialize<AppConfig>(json, JsonOptions) ?? new AppConfig();
+        var json = JsonSerializer.SerializeToUtf8Bytes(config, CloneOptions);
+        return JsonSerializer.Deserialize<AppConfig>(json, CloneOptions) ?? new AppConfig();
     }
 }

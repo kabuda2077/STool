@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Windows;
 using System.Windows.Controls;
@@ -12,18 +13,24 @@ namespace STool.Views.Settings;
 
 public class GeneralSettingsPanel : StackPanel
 {
+    private const string RunKeyPath = @"SOFTWARE\Microsoft\Windows\CurrentVersion\Run";
+    private const string RunValueName = "STool";
+
     private readonly ConfigManager _configManager;
+    private readonly IAppShell _shell;
     private System.Windows.Controls.CheckBox _chkAutoStart = null!;
     private System.Windows.Controls.CheckBox _chkHideTrayIcon = null!;
+    private System.Windows.Controls.CheckBox _chkDiagnostics = null!;
     private System.Windows.Controls.TextBox _txtScreenshotHotkey = null!;
     private System.Windows.Controls.TextBox _txtTranslationHotkey = null!;
     private System.Windows.Controls.TextBox _txtClipboardHotkey = null!;
     private System.Windows.Controls.TextBox _txtSettingsHotkey = null!;
     private System.Windows.Controls.TextBox _txtLanTransferHotkey = null!;
 
-    public GeneralSettingsPanel(ConfigManager configManager)
+    public GeneralSettingsPanel(ConfigManager configManager, IAppShell shell)
     {
         _configManager = configManager;
+        _shell = shell;
         InitializeUI();
         LoadSettings();
     }
@@ -43,13 +50,9 @@ public class GeneralSettingsPanel : StackPanel
             enabled =>
             {
                 if (SetAutoStart(enabled))
-                {
-                    FlashSaved();
-                }
+                    ToastNotification.ShowSettingsSaved();
                 else
-                {
                     _chkAutoStart.IsChecked = !enabled;
-                }
             }));
 
         _chkHideTrayIcon = SettingsLayout.CreateSwitch();
@@ -60,7 +63,7 @@ public class GeneralSettingsPanel : StackPanel
             SaveHideTrayIcon,
             isLast: true));
 
-        Children.Add(WrapSection(launchSection));
+        Children.Add(SettingsLayout.CreateSection(launchSection));
 
         // ── 快捷键设置(紧凑双列) ──
         var hotkeysSection = SettingsLayout.CreateSectionContent("快捷键设置");
@@ -92,14 +95,20 @@ public class GeneralSettingsPanel : StackPanel
             16);
         hotkeysSection.Children.Add(hotkeyHint);
 
-        Children.Add(WrapSection(hotkeysSection));
+        Children.Add(SettingsLayout.CreateSection(hotkeysSection));
+
+        // ── 诊断 ──
+        var diagnosticsSection = SettingsLayout.CreateSectionContent("诊断");
+        _chkDiagnostics = SettingsLayout.CreateSwitch();
+        diagnosticsSection.Children.Add(SettingsLayout.CreateSwitchRow(
+            "记录诊断日志",
+            "排查卡顿或异常时开启，额外记录内存占用与截图启动耗时",
+            _chkDiagnostics,
+            SaveDiagnostics,
+            isLast: true));
+        Children.Add(SettingsLayout.CreateSection(diagnosticsSection));
 
         Children.Add(new Border { Height = 12 });
-    }
-
-    private Border WrapSection(StackPanel section)
-    {
-        return SettingsLayout.CreateSection(section);
     }
 
     private System.Windows.Controls.TextBox CreateHotkeyBox()
@@ -108,7 +117,8 @@ public class GeneralSettingsPanel : StackPanel
         {
             Style = (Style)FindResource("HotkeyTextBox"),
             Height = SettingsLayout.InputHeight,
-            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch
+            HorizontalAlignment = System.Windows.HorizontalAlignment.Stretch,
+            Shell = _shell
         };
     }
 
@@ -116,11 +126,10 @@ public class GeneralSettingsPanel : StackPanel
     {
         var config = _configManager.Get();
 
-        // 加载开机自启状态
         _chkAutoStart.IsChecked = IsAutoStartEnabled();
         _chkHideTrayIcon.IsChecked = config.HideTrayIcon;
+        _chkDiagnostics.IsChecked = config.Diagnostics.Enabled;
 
-        // 加载快捷键
         _txtScreenshotHotkey.Text = config.Hotkeys.Screenshot;
         _txtTranslationHotkey.Text = config.Hotkeys.Translation;
         _txtClipboardHotkey.Text = config.Hotkeys.Clipboard;
@@ -191,15 +200,14 @@ public class GeneralSettingsPanel : StackPanel
 
         try
         {
-            _configManager.Update(current => ApplyHotkeys(current.Hotkeys, proposed));
-            var failures = ((App)System.Windows.Application.Current)
-                .ReloadHotkeys()
+            var updated = _configManager.Update(current => ApplyHotkeys(current.Hotkeys, proposed));
+            var failures = _shell.ReloadHotkeys()
                 .Where(result => !result.Success)
                 .ToArray();
             if (failures.Length > 0)
             {
                 _configManager.Update(current => ApplyHotkeys(current.Hotkeys, previous));
-                ((App)System.Windows.Application.Current).ReloadHotkeys();
+                _shell.ReloadHotkeys();
                 RestoreHotkeyText(previous);
 
                 var details = string.Join("、", failures.Select(result => $"{result.FeatureName} {result.Hotkey}"));
@@ -210,15 +218,15 @@ public class GeneralSettingsPanel : StackPanel
                 return;
             }
 
-            RestoreHotkeyText(config.Hotkeys);
-            FlashSaved();
+            RestoreHotkeyText(updated.Hotkeys);
+            ToastNotification.ShowSettingsSaved();
         }
         catch (Exception ex)
         {
             try
             {
                 _configManager.Update(current => ApplyHotkeys(current.Hotkeys, previous));
-                ((App)System.Windows.Application.Current).ReloadHotkeys();
+                _shell.ReloadHotkeys();
             }
             catch (Exception rollbackEx)
             {
@@ -256,32 +264,35 @@ public class GeneralSettingsPanel : StackPanel
         target.LanTransfer = source.LanTransfer;
     }
 
-    /// <summary>即时保存成功后在设置窗口中下部显示轻量提示。</summary>
-    private void FlashSaved()
-    {
-        ToastNotification.Show(
-            "设置已保存",
-            type: ToastNotification.ToastType.Success,
-            duration: 1600);
-    }
-
     private static bool ValidateHotkey(string hotkey, string label)
     {
         if (HotkeyManager.IsValidHotkey(hotkey))
-        {
             return true;
-        }
 
         ToastNotification.Show("快捷键格式无效", $"{label} 请使用类似 Ctrl+Alt+A 或 Ctrl+Shift+F1 的格式", ToastNotification.ToastType.Warning);
         return false;
     }
 
-    private bool IsAutoStartEnabled()
+    /// <summary>
+    /// 读取开机自启状态。便携版可能被整体移动到新目录，此时注册表里还是旧路径，
+    /// 发现后直接改成当前路径，避免开关显示开启但实际启动失败。
+    /// </summary>
+    private static bool IsAutoStartEnabled()
     {
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", false);
-            return key?.GetValue("STool") != null;
+            using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
+            if (key?.GetValue(RunValueName) is not string registered)
+                return false;
+
+            var currentPath = Environment.ProcessPath;
+            if (!string.IsNullOrWhiteSpace(currentPath) && !IsSamePath(registered, currentPath))
+            {
+                key.SetValue(RunValueName, Quote(currentPath));
+                Log.Information("Updated auto-start path from {OldPath} to {NewPath}", registered, currentPath);
+            }
+
+            return true;
         }
         catch (Exception ex)
         {
@@ -290,13 +301,28 @@ public class GeneralSettingsPanel : StackPanel
         }
     }
 
+    internal static bool IsSamePath(string registeredCommand, string executablePath)
+    {
+        var registered = registeredCommand.Trim().Trim('"');
+        try
+        {
+            return string.Equals(Path.GetFullPath(registered), Path.GetFullPath(executablePath), StringComparison.OrdinalIgnoreCase);
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
+        }
+    }
+
+    private static string Quote(string path) => $"\"{path}\"";
+
     private void SaveHideTrayIcon(bool enabled)
     {
         try
         {
             _configManager.Update(config => config.HideTrayIcon = enabled);
-            ((App)System.Windows.Application.Current).ReloadTrayIconVisibility();
-            FlashSaved();
+            _shell.ReloadTrayIconVisibility();
+            ToastNotification.ShowSettingsSaved();
         }
         catch (Exception ex)
         {
@@ -305,24 +331,39 @@ public class GeneralSettingsPanel : StackPanel
         }
     }
 
-    private bool SetAutoStart(bool enabled)
+    private void SaveDiagnostics(bool enabled)
     {
         try
         {
-            using var key = Registry.CurrentUser.OpenSubKey(@"SOFTWARE\Microsoft\Windows\CurrentVersion\Run", true);
-            if (key == null) return false;
+            _configManager.Update(config => config.Diagnostics.Enabled = enabled);
+            _shell.ApplyDiagnosticsSettings();
+            ToastNotification.ShowSettingsSaved();
+        }
+        catch (Exception ex)
+        {
+            _chkDiagnostics.IsChecked = !enabled;
+            ToastNotification.Show("保存失败", ex.Message, ToastNotification.ToastType.Error);
+        }
+    }
+
+    private static bool SetAutoStart(bool enabled)
+    {
+        try
+        {
+            using var key = Registry.CurrentUser.OpenSubKey(RunKeyPath, writable: true);
+            if (key == null)
+                return false;
 
             if (enabled)
             {
-                var exePath = System.Diagnostics.Process.GetCurrentProcess().MainModule?.FileName;
-                if (exePath != null)
-                {
-                    key.SetValue("STool", exePath);
-                }
+                var exePath = Environment.ProcessPath;
+                if (string.IsNullOrWhiteSpace(exePath))
+                    return false;
+                key.SetValue(RunValueName, Quote(exePath));
             }
             else
             {
-                key.DeleteValue("STool", false);
+                key.DeleteValue(RunValueName, false);
             }
 
             return true;

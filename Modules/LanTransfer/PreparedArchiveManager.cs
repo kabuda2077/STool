@@ -31,14 +31,14 @@ internal sealed class PreparedArchiveManager : IAsyncDisposable
         catch (Exception ex) { Log.Debug(ex, "Failed to hide archive temporary directory {Path}", tempRoot); }
     }
 
-    public event Action<TransferProgressInfo>? ProgressChanged;
+    public event Action<ArchiveProgressInfo>? ProgressChanged;
 
     public int ActiveCount
     {
         get
         {
             lock (_gate)
-                return _jobs.Values.Count(job => job.Snapshot().Status == "preparing");
+                return _jobs.Values.Count(job => job.Snapshot().Status == ArchiveStatusNames.Preparing);
         }
     }
 
@@ -57,8 +57,8 @@ internal sealed class PreparedArchiveManager : IAsyncDisposable
                 _jobs.TryGetValue(existingId, out var existing))
             {
                 var existingStatus = existing.Snapshot();
-                if (existingStatus.Status == "preparing" ||
-                    (existingStatus.Status == "ready" && File.Exists(existing.FullPath)))
+                if (existingStatus.Status == ArchiveStatusNames.Preparing ||
+                    (existingStatus.Status == ArchiveStatusNames.Ready && File.Exists(existing.FullPath)))
                 {
                     return existingStatus;
                 }
@@ -140,7 +140,7 @@ internal sealed class PreparedArchiveManager : IAsyncDisposable
             if (_jobs.TryGetValue(id, out var job))
             {
                 var status = job.Snapshot();
-                if (status.Status == "ready" && File.Exists(job.FullPath))
+                if (status.Status == ArchiveStatusNames.Ready && File.Exists(job.FullPath))
                 {
                     download = new PreparedArchiveDownload(job.Id, job.Name, job.FullPath);
                     return true;
@@ -214,20 +214,19 @@ internal sealed class PreparedArchiveManager : IAsyncDisposable
 
             var archiveSize = new FileInfo(job.FullPath).Length;
             job.SetReady(archiveSize);
-            ProgressChanged?.Invoke(new TransferProgressInfo(
+            ProgressChanged?.Invoke(new ArchiveProgressInfo(
                 job.Id,
                 job.Name,
                 job.TotalBytes,
                 job.TotalBytes,
-                false,
-                "准备完成"));
+                ArchiveProgressStage.Ready));
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             TryDeleteFile(job.FullPath);
             job.SetFailed("准备已取消");
-            ProgressChanged?.Invoke(new TransferProgressInfo(
-                job.Id, job.Name, job.ProcessedBytes, job.TotalBytes, false, "准备取消"));
+            ProgressChanged?.Invoke(new ArchiveProgressInfo(
+                job.Id, job.Name, job.ProcessedBytes, job.TotalBytes, ArchiveProgressStage.Canceled));
         }
         catch (Exception ex)
         {
@@ -235,8 +234,8 @@ internal sealed class PreparedArchiveManager : IAsyncDisposable
             job.SetFailed(ex is IOException
                 ? "临时 ZIP 创建失败，请检查接收目录的可用空间。"
                 : ex.Message);
-            ProgressChanged?.Invoke(new TransferProgressInfo(
-                job.Id, job.Name, job.ProcessedBytes, job.TotalBytes, false, "准备失败"));
+            ProgressChanged?.Invoke(new ArchiveProgressInfo(
+                job.Id, job.Name, job.ProcessedBytes, job.TotalBytes, ArchiveProgressStage.Failed));
         }
     }
 
@@ -280,13 +279,12 @@ internal sealed class PreparedArchiveManager : IAsyncDisposable
     private void ReportPreparationProgress(ArchiveJob job)
     {
         var status = job.Snapshot();
-        ProgressChanged?.Invoke(new TransferProgressInfo(
+        ProgressChanged?.Invoke(new ArchiveProgressInfo(
             job.Id,
             job.Name,
             status.ProcessedBytes,
             status.TotalBytes,
-            false,
-            "准备中"));
+            ArchiveProgressStage.Preparing));
     }
 
     private void EnsureDiskSpace(long sourceBytes)
@@ -387,7 +385,7 @@ internal sealed class PreparedArchiveManager : IAsyncDisposable
         CancellationTokenSource cancellation) : IDisposable
     {
         private readonly object _gate = new();
-        private string _status = "preparing";
+        private ArchiveProgressStage _stage = ArchiveProgressStage.Preparing;
         private long _processedBytes;
         private long _size;
         private string? _error;
@@ -420,7 +418,7 @@ internal sealed class PreparedArchiveManager : IAsyncDisposable
             {
                 _processedBytes = TotalBytes;
                 _size = size;
-                _status = "ready";
+                _stage = ArchiveProgressStage.Ready;
             }
         }
 
@@ -428,7 +426,7 @@ internal sealed class PreparedArchiveManager : IAsyncDisposable
         {
             lock (_gate)
             {
-                _status = "failed";
+                _stage = ArchiveProgressStage.Failed;
                 _error = error;
             }
         }
@@ -456,16 +454,22 @@ internal sealed class PreparedArchiveManager : IAsyncDisposable
         {
             lock (_gate)
             {
+                var status = _stage switch
+                {
+                    ArchiveProgressStage.Ready => ArchiveStatusNames.Ready,
+                    ArchiveProgressStage.Preparing => ArchiveStatusNames.Preparing,
+                    _ => ArchiveStatusNames.Failed
+                };
                 return new PreparedArchiveStatus(
                     Id,
                     Name,
-                    _status,
+                    status,
                     _processedBytes,
                     TotalBytes,
                     _size,
                     FileCount,
                     _error,
-                    _status == "ready" ? $"/api/archives/{Id}/download" : null);
+                    _stage == ArchiveProgressStage.Ready ? $"/api/archives/{Id}/download" : null);
             }
         }
     }

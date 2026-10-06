@@ -1,6 +1,26 @@
 <Project>
   <PropertyGroup>
-    <BaseOutputPath>artifacts\bin\</BaseOutputPath>
-    <BaseIntermediateOutputPath>artifacts\obj\</BaseIntermediateOutputPath>
+    <!-- 产品版本号的唯一来源。打包脚本通过 -p:Version=x.y.z 覆盖。 -->
+    <Version>1.5.0</Version>
+    <Nullable>enable</Nullable>
+    <WarningsAsErrors>$(WarningsAsErrors);nullable</WarningsAsErrors>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AnalysisLevel>9.0</AnalysisLevel>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+  </PropertyGroup>
+
+  <!--
+    所有构建产物统一放在仓库根目录的 artifacts 下:
+      主项目    artifacts\bin\<Configuration>\...(保持原有路径)
+      其他项目  artifacts\bin\<项目名>\<Configuration>\...
+    WPF 编译时生成的 *_wpftmp 临时项目与主项目同目录,因此沿用主项目的路径。
+  -->
+  <PropertyGroup>
+    <SToolArtifactsRoot>$(MSBuildThisFileDirectory)artifacts\</SToolArtifactsRoot>
+    <_SToolArtifactsSubfolder Condition="'$(MSBuildProjectDirectory)\' != '$(MSBuildThisFileDirectory)'">$(MSBuildProjectName)\</_SToolArtifactsSubfolder>
+    <BaseOutputPath>$(SToolArtifactsRoot)bin\$(_SToolArtifactsSubfolder)</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(SToolArtifactsRoot)obj\$(_SToolArtifactsSubfolder)</BaseIntermediateOutputPath>
+    <!-- 旧版本在各项目目录下生成过 artifacts,排除掉以免其中的生成代码被当作源码编译。 -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);artifacts\**</DefaultItemExcludes>
   </PropertyGroup>
 </Project>

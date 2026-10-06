@@ -1,6 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.ComponentModel;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -9,9 +9,8 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Interop;
-using System.Windows.Media;
-using System.Windows.Media.Imaging;
 using System.Windows.Threading;
+using Serilog;
 using STool.Core;
 
 namespace STool.Modules.Clipboard;
@@ -20,41 +19,27 @@ public partial class ClipboardPanel : Window
 {
     private enum Tab { All, Text, Image, File, Favorite }
 
+    private const int PageSize = 60;
+    private const double LoadMoreThreshold = 240;
+    private static readonly TimeSpan TabContentDelay = TimeSpan.FromMilliseconds(70);
+
     [System.Runtime.InteropServices.DllImport("user32.dll")]
     private static extern IntPtr GetForegroundWindow();
 
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern bool SetForegroundWindow(IntPtr hWnd);
-
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-
-    private const byte VK_CONTROL = 0x11;
-    private const byte VK_V = 0x56;
-    private const uint KEYEVENTF_KEYUP = 0x0002;
-
     private readonly ClipboardManager _manager;
-    private List<ClipboardItem> _allRaw = new();
-    private Tab _tab = Tab.All;
-    private string _searchText = string.Empty;
     private readonly IntPtr _targetHwnd;
-    private string? _lastCopiedItemId;
-
-    // D: ViewModel 按 Id 缓存,切分类/搜索时复用,避免重复造 VM 与重复解码
-    private readonly Dictionary<string, ClipboardItemViewModel> _vmCache = new();
-
-    // C: 搜索去抖
+    private readonly ObservableCollection<ClipboardItemViewModel> _items = new();
+    private readonly Dictionary<string, ClipboardItem> _itemsById = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, ClipboardItemViewModel> _viewModelsById = new(StringComparer.Ordinal);
     private readonly DispatcherTimer _searchDebounce;
     private readonly DispatcherTimer _tabContentDelay;
-    private static readonly TimeSpan TabContentDelay = TimeSpan.FromMilliseconds(70);
-
-    // B: 缩略图后台解码并发限流(最多 3 个同时解码)
-    private static readonly SemaphoreSlim ThumbThrottle = new(3);
-    private const long LargeImageBytes = 2 * 1024 * 1024;
-    private readonly ThumbnailCache _thumbnailCache = new();
-    private readonly CancellationTokenSource _thumbnailLifetime = new();
-    private CancellationTokenSource _thumbnailGeneration = new();
     private readonly SemaphoreSlim _clipboardRestoreGate = new(1, 1);
+    private Tab _tab = Tab.All;
+    private string _searchText = string.Empty;
+    private int _queryGeneration;
+    private bool _queryDirty = true;
+    private bool _loadingPage;
+    private bool _hasMore;
     private bool _closing;
 
     public ClipboardPanel(ClipboardManager manager)
@@ -62,6 +47,7 @@ public partial class ClipboardPanel : Window
         _manager = manager;
         _targetHwnd = GetForegroundWindow();
         InitializeComponent();
+        itemsList.ItemsSource = _items;
 
         _tabContentDelay = new DispatcherTimer(DispatcherPriority.Background)
         {
@@ -73,18 +59,159 @@ public partial class ClipboardPanel : Window
         _searchDebounce.Tick += (_, _) =>
         {
             _searchDebounce.Stop();
-            ApplyFilter();
+            ReloadItems();
         };
         Loaded += (_, _) =>
         {
             UpdateTabSlider();
             MemoryDiagnostics.LogCheckpoint("ClipboardOpened");
+
+            // Run after the window's initial activation so typing can start a search
+            // immediately without requiring a click in the search box.
+            Dispatcher.BeginInvoke(DispatcherPriority.Input, new Action(FocusSearch));
         };
         tabSegmentGrid.SizeChanged += (_, _) => UpdateTabSlider();
         _thumbnailCache.ItemEvicted += OnThumbnailEvicted;
         _manager.ItemAdded += Manager_ItemAdded;
 
-        LoadRecent();
+        ReloadItems();
+    }
+
+    private void FocusSearch()
+    {
+        if (_closing)
+            return;
+
+        txtSearch.Focus();
+        Keyboard.Focus(txtSearch);
+        txtSearch.CaretIndex = txtSearch.Text.Length;
+    }
+
+    // ---------- 数据加载 ----------
+
+    private void ReloadItems() => _ = LoadPageAsync(reset: true);
+
+    private void InvalidateQuery()
+    {
+        _queryGeneration++;
+        _queryDirty = true;
+        _hasMore = false;
+        itemsList.IsEnabled = false;
+    }
+
+    /// <summary>按当前分类和关键词分页查询。reset 时从头加载，否则追加下一页；过期的查询结果会被丢弃。</summary>
+    private async Task LoadPageAsync(bool reset)
+    {
+        if (_closing || (!reset && (_loadingPage || !_hasMore)))
+            return;
+
+        if (reset)
+        {
+            _searchDebounce.Stop();
+            _tabContentDelay.Stop();
+            ResetThumbnailGeneration();
+            InvalidateQuery();
+        }
+
+        var generation = _queryGeneration;
+        _loadingPage = true;
+        var query = new ClipboardQuery(
+            TabType(_tab),
+            _tab == Tab.Favorite,
+            string.IsNullOrWhiteSpace(_searchText) ? null : _searchText.Trim(),
+            reset ? 0 : _items.Count,
+            PageSize + 1);
+
+        List<ClipboardItem> page;
+        try
+        {
+            page = await Task.Run(() => _manager.Query(query));
+        }
+        catch (Exception ex)
+        {
+            if (generation == _queryGeneration)
+                _loadingPage = false;
+            if (ex is not ObjectDisposedException && !_closing)
+            {
+                Log.Warning(ex, "Failed to query clipboard history");
+                ToastNotification.Show("读取剪贴板历史失败", ex.Message, ToastNotification.ToastType.Error);
+            }
+            return;
+        }
+
+        if (_closing || generation != _queryGeneration)
+            return;
+
+        _hasMore = page.Count > PageSize;
+        if (_hasMore)
+            page.RemoveAt(page.Count - 1);
+
+        if (reset)
+            ClearItems();
+
+        foreach (var item in page)
+        {
+            if (!_itemsById.ContainsKey(item.Id))
+                AppendItem(item);
+        }
+
+        UpdateEmptyState();
+        if (reset && _items.Count > 0)
+        {
+            itemsList.SelectedIndex = 0;
+            itemsList.ScrollIntoView(_items[0]);
+        }
+        _loadingPage = false;
+        _queryDirty = false;
+        itemsList.IsEnabled = true;
+    }
+
+    private static ClipboardItemType? TabType(Tab tab) => tab switch
+    {
+        Tab.Text => ClipboardItemType.Text,
+        Tab.Image => ClipboardItemType.Image,
+        Tab.File => ClipboardItemType.File,
+        _ => null
+    };
+
+    private bool MatchesTab(ClipboardItem item) => _tab switch
+    {
+        Tab.Favorite => item.IsFavorite,
+        Tab.All => true,
+        _ => TabType(_tab) == item.Type
+    };
+
+    private void AppendItem(ClipboardItem item)
+    {
+        var vm = ToViewModel(item);
+        _itemsById[item.Id] = item;
+        _viewModelsById[item.Id] = vm;
+        _items.Add(vm);
+    }
+
+    private void RemoveItem(string id)
+    {
+        _itemsById.Remove(id);
+        if (!_viewModelsById.Remove(id, out var vm))
+            return;
+
+        _items.Remove(vm);
+        if (!string.IsNullOrEmpty(vm.ThumbnailCacheKey))
+            _thumbnailCache.Remove(vm.ThumbnailCacheKey);
+        vm.ImageSource = null;
+    }
+
+    private void ClearItems()
+    {
+        foreach (var vm in _items)
+        {
+            vm.ImageSource = null;
+            vm.ThumbRequested = false;
+        }
+
+        _items.Clear();
+        _itemsById.Clear();
+        _viewModelsById.Clear();
     }
 
     private void Manager_ItemAdded(object? sender, ClipboardItem item)
@@ -92,58 +219,42 @@ public partial class ClipboardPanel : Window
         if (_closing || Dispatcher.HasShutdownStarted)
             return;
 
-        if (!Dispatcher.CheckAccess())
+        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => OnItemAdded(item)));
+    }
+
+    /// <summary>新记录或被重新复制的记录插到最前，不重建整个列表。</summary>
+    private void OnItemAdded(ClipboardItem item)
+    {
+        if (_closing)
+            return;
+
+        // 关键词匹配以数据库中的完整文本为准，搜索时直接重新查询。
+        if (!string.IsNullOrWhiteSpace(_searchText) || _loadingPage || _queryDirty)
         {
-            Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
-            {
-                if (!_closing)
-                    LoadRecent();
-            }));
+            ReloadItems();
             return;
         }
 
-        LoadRecent();
+        if (!MatchesTab(item))
+            return;
+
+        var selected = itemsList.SelectedItem;
+        RemoveItem(item.Id);
+        var vm = ToViewModel(item);
+        _itemsById[item.Id] = item;
+        _viewModelsById[item.Id] = vm;
+        _items.Insert(0, vm);
+        if (selected == null)
+            itemsList.SelectedIndex = 0;
+        else if (selected is ClipboardItemViewModel selectedVm && selectedVm.Id == item.Id)
+            itemsList.SelectedItem = vm;
+        UpdateEmptyState();
     }
 
-    private void LoadRecent()
+    private void UpdateEmptyState()
     {
-        var fresh = _manager.GetRecent(200);
-
-        // D: 数据刷新时,清理缓存中已不存在的条目,避免无限增长
-        var liveIds = new HashSet<string>(fresh.Select(i => i.Id));
-        foreach (var staleId in _vmCache.Keys.Where(id => !liveIds.Contains(id)).ToList())
-            RemoveCachedViewModel(staleId);
-
-        _allRaw = fresh;
-        ApplyFilter();
-    }
-
-    private void ApplyFilter()
-    {
-        _tabContentDelay.Stop();
-        ResetThumbnailGeneration();
-
-        IEnumerable<ClipboardItem> q = _allRaw;
+        var any = _items.Count > 0;
         var hasSearch = !string.IsNullOrWhiteSpace(_searchText);
-
-        q = _tab switch
-        {
-            Tab.Text => q.Where(i => i.Type == ClipboardItemType.Text),
-            Tab.Image => q.Where(i => i.Type == ClipboardItemType.Image),
-            Tab.File => q.Where(i => i.Type == ClipboardItemType.File),
-            Tab.Favorite => q.Where(i => i.IsFavorite),
-            _ => q
-        };
-
-        if (hasSearch)
-        {
-            q = q.Where(MatchesSearch);
-        }
-
-        var vms = q.Select(GetOrCreateViewModel).ToList();
-        itemsList.ItemsSource = vms;
-
-        var any = vms.Count > 0;
         emptyState.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
         itemsList.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
         emptyClipboardIcon.Visibility = hasSearch ? Visibility.Collapsed : Visibility.Visible;
@@ -153,35 +264,26 @@ public partial class ClipboardPanel : Window
         btnClearAll.ToolTip = GetClearButtonTooltip();
     }
 
-    private bool MatchesSearch(ClipboardItem item)
+    private void ItemsList_ScrollChanged(object sender, ScrollChangedEventArgs e)
     {
-        var keyword = _searchText.Trim();
-        if (keyword.Length == 0)
+        if (_hasMore && !_loadingPage && e.ExtentHeight > 0 &&
+            e.VerticalOffset + e.ViewportHeight >= e.ExtentHeight - LoadMoreThreshold)
         {
-            return true;
+            _ = LoadPageAsync(reset: false);
         }
-
-        return Contains(item.TextContent, keyword)
-            || Contains(item.SourceApp, keyword)
-            || Contains(item.Tag, keyword)
-            || Contains(item.ImagePath, keyword)
-            || (item.FilePaths?.Any(path => Contains(path, keyword)) == true);
     }
 
-    private static bool Contains(string? text, string keyword)
-    {
-        return !string.IsNullOrEmpty(text)
-            && text.IndexOf(keyword, StringComparison.CurrentCultureIgnoreCase) >= 0;
-    }
+    // ---------- 搜索与分类 ----------
 
     private void TxtSearch_TextChanged(object sender, TextChangedEventArgs e)
     {
         _searchText = txtSearch.Text;
+        InvalidateQuery();
         var hasSearch = !string.IsNullOrWhiteSpace(_searchText);
         searchPlaceholder.Visibility = hasSearch ? Visibility.Collapsed : Visibility.Visible;
         btnClearSearch.Visibility = hasSearch ? Visibility.Visible : Visibility.Collapsed;
 
-        // C: 去抖,停止输入 200ms 后再过滤,避免每键全量重建
+        // 去抖,停止输入 200ms 后再查询
         _searchDebounce.Stop();
         _searchDebounce.Start();
     }
@@ -199,16 +301,22 @@ public partial class ClipboardPanel : Window
                     : ReferenceEquals(sender, tabFile) ? Tab.File
                     : ReferenceEquals(sender, tabFavorite) ? Tab.Favorite
                     : Tab.All;
+        SelectTab(nextTab);
+    }
+
+    private void SelectTab(Tab nextTab)
+    {
         if (nextTab == _tab)
             return;
 
         _tab = nextTab;
+        InvalidateQuery();
         UpdateTabs();
 
         _tabContentDelay.Stop();
         if (MotionSettings.ShouldReduceMotion)
         {
-            ApplyFilter();
+            ReloadItems();
             return;
         }
 
@@ -219,7 +327,7 @@ public partial class ClipboardPanel : Window
     {
         _tabContentDelay.Stop();
         if (!_closing)
-            ApplyFilter();
+            ReloadItems();
     }
 
     private void UpdateTabs()
@@ -253,22 +361,123 @@ public partial class ClipboardPanel : Window
             IsLoaded);
     }
 
+    // ---------- 键盘 ----------
+
+    private void Window_PreviewKeyDown(object sender, System.Windows.Input.KeyEventArgs e)
+    {
+        if (e.Key == Key.Escape)
+        {
+            e.Handled = true;
+            if (imagePreviewOverlay.Visibility == Visibility.Visible)
+                HideImagePreview();
+            else
+                Close();
+            return;
+        }
+
+        if (imagePreviewOverlay.Visibility == Visibility.Visible)
+            return;
+
+        var modifiers = Keyboard.Modifiers;
+        if (modifiers == ModifierKeys.Control)
+        {
+            var tab = e.Key switch
+            {
+                Key.D1 or Key.NumPad1 => Tab.All,
+                Key.D2 or Key.NumPad2 => Tab.Text,
+                Key.D3 or Key.NumPad3 => Tab.Image,
+                Key.D4 or Key.NumPad4 => Tab.File,
+                Key.D5 or Key.NumPad5 => Tab.Favorite,
+                _ => (Tab?)null
+            };
+            if (tab != null)
+            {
+                e.Handled = true;
+                SelectTab(tab.Value);
+                return;
+            }
+
+            if (e.Key == Key.F)
+            {
+                e.Handled = true;
+                FocusSearch();
+                txtSearch.SelectAll();
+                return;
+            }
+        }
+
+        switch (e.Key)
+        {
+            case Key.Down:
+                e.Handled = true;
+                MoveSelection(1);
+                break;
+            case Key.Up:
+                e.Handled = true;
+                MoveSelection(-1);
+                break;
+            case Key.PageDown:
+                e.Handled = true;
+                MoveSelection(8);
+                break;
+            case Key.PageUp:
+                e.Handled = true;
+                MoveSelection(-8);
+                break;
+            case Key.Enter:
+                e.Handled = true;
+                // 防抖尚未结束时先执行最新查询，不能粘贴旧列表中的第一条。
+                _ = ActivateSelectionAsync(paste: modifiers != ModifierKeys.Control);
+                break;
+        }
+    }
+
+    private void MoveSelection(int delta)
+    {
+        if (_items.Count == 0)
+            return;
+
+        var current = itemsList.SelectedIndex;
+        var index = current < 0 ? (delta > 0 ? 0 : _items.Count - 1) : Math.Clamp(current + delta, 0, _items.Count - 1);
+        itemsList.SelectedIndex = index;
+        itemsList.ScrollIntoView(_items[index]);
+
+        if (index >= _items.Count - 3)
+            _ = LoadPageAsync(reset: false);
+    }
+
+    // ---------- 条目操作 ----------
+
     // 单击复制不关闭;双击复制、关闭面板并尝试粘贴到原前台文本框
-    private async void Item_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    private void Item_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         if (sender is not Border { Tag: string id })
             return;
 
-        var item = _allRaw.FirstOrDefault(candidate => candidate.Id == id);
-        if (item == null)
-            return;
-
         e.Handled = true;
-        var pasteAfterCopy = e.ClickCount >= 2;
-        if (!await TryRestoreToClipboardAsync(item, allowCachedResult: pasteAfterCopy))
+        if (_viewModelsById.TryGetValue(id, out var vm))
+            itemsList.SelectedItem = vm;
+
+        _ = ActivateItemAsync(id, paste: e.ClickCount >= 2);
+    }
+
+    private async Task ActivateSelectionAsync(bool paste)
+    {
+        if (_queryDirty)
+            await LoadPageAsync(reset: true);
+        if (!_closing && !_queryDirty && itemsList.SelectedItem is ClipboardItemViewModel selected)
+            await ActivateItemAsync(selected.Id, paste);
+    }
+
+    private async Task ActivateItemAsync(string id, bool paste)
+    {
+        if (_closing || _queryDirty || !_itemsById.TryGetValue(id, out var item))
             return;
 
-        if (pasteAfterCopy)
+        if (!await TryRestoreToClipboardAsync(item))
+            return;
+
+        if (paste)
         {
             PasteToTargetAfterClose();
             return;
@@ -277,11 +486,14 @@ public partial class ClipboardPanel : Window
         ToastNotification.Show("已复制");
     }
 
-    private async Task<bool> TryRestoreToClipboardAsync(ClipboardItem item, bool allowCachedResult)
+    private async Task<bool> TryRestoreToClipboardAsync(ClipboardItem item)
     {
+        if (_closing)
+            return false;
+        var cancellationToken = _thumbnailLifetime.Token;
         try
         {
-            await _clipboardRestoreGate.WaitAsync(_thumbnailLifetime.Token);
+            await _clipboardRestoreGate.WaitAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (_closing)
         {
@@ -290,12 +502,8 @@ public partial class ClipboardPanel : Window
 
         try
         {
-            if (allowCachedResult && _lastCopiedItemId == item.Id)
-                return true;
-
-            await _manager.RestoreToClipboardAsync(item, _thumbnailLifetime.Token);
-            _lastCopiedItemId = item.Id;
-            return true;
+            await _manager.RestoreToClipboardAsync(item, cancellationToken);
+            return !_closing;
         }
         catch (OperationCanceledException) when (_closing)
         {
@@ -303,7 +511,6 @@ public partial class ClipboardPanel : Window
         }
         catch (Exception ex)
         {
-            _lastCopiedItemId = null;
             ToastNotification.Show("复制失败", ex.Message, ToastNotification.ToastType.Error);
             return false;
         }
@@ -313,16 +520,43 @@ public partial class ClipboardPanel : Window
         }
     }
 
+    private void PasteToTargetAfterClose()
+    {
+        var targetHwnd = _targetHwnd;
+        var panelHwnd = new WindowInteropHelper(this).Handle;
+
+        Close();
+
+        if (targetHwnd == IntPtr.Zero || targetHwnd == panelHwnd)
+        {
+            ToastNotification.Show("内容已复制", "原窗口不可用，请手动粘贴。", ToastNotification.ToastType.Info);
+            return;
+        }
+
+        _ = PasteToTargetAsync(targetHwnd);
+    }
+
+    private static async Task PasteToTargetAsync(IntPtr targetHwnd)
+    {
+        try
+        {
+            if (!await ForegroundPaste.PasteToAsync(targetHwnd))
+                ToastNotification.Show("内容已复制", "无法切回原窗口，请手动粘贴。", ToastNotification.ToastType.Info);
+        }
+        catch (Exception ex)
+        {
+            ToastNotification.Show("内容已复制", $"自动粘贴失败：{ex.Message}", ToastNotification.ToastType.Info);
+        }
+    }
+
     private void FavoriteButton_Click(object sender, RoutedEventArgs e)
     {
         e.Handled = true;
-
-        if (sender is FrameworkElement fe && fe.DataContext is ClipboardItemViewModel vm)
+        if (sender is FrameworkElement { DataContext: ClipboardItemViewModel vm })
         {
-            _manager.ToggleFavorite(vm.Id);
-            RemoveCachedViewModel(vm.Id);
-            LoadRecent();
-            ToastNotification.Show(vm.IsFavorite ? "已取消收藏" : "已收藏");
+            var favorite = ToggleFavorite(vm.Id);
+            if (favorite != null)
+                ToastNotification.Show(favorite.Value ? "已收藏" : "已取消收藏");
         }
     }
 
@@ -331,30 +565,70 @@ public partial class ClipboardPanel : Window
     {
         var id = IdFromMenu(sender);
         if (id != null)
+            ToggleFavorite(id);
+    }
+
+    private bool? ToggleFavorite(string id)
+    {
+        bool? favorite;
+        try
         {
-            _manager.ToggleFavorite(id);
-            RemoveCachedViewModel(id);   // D: 收藏态变了,使该 VM 失效以便重建
-            LoadRecent();
+            favorite = _manager.ToggleFavorite(id);
         }
+        catch (Exception ex)
+        {
+            ToastNotification.Show("操作失败", ex.Message, ToastNotification.ToastType.Error);
+            return null;
+        }
+
+        if (favorite == null)
+        {
+            RemoveItem(id);
+            UpdateEmptyState();
+            return null;
+        }
+
+        if (_itemsById.TryGetValue(id, out var item))
+            item.IsFavorite = favorite.Value;
+        if (_viewModelsById.TryGetValue(id, out var vm))
+            vm.SetFavorite(favorite.Value);
+
+        // 收藏页里取消收藏后，该条目不再属于当前分类。
+        if (_tab == Tab.Favorite && !favorite.Value)
+        {
+            RemoveItem(id);
+            UpdateEmptyState();
+        }
+
+        return favorite;
     }
 
     private void MenuDelete_Click(object sender, RoutedEventArgs e)
     {
         var id = IdFromMenu(sender);
-        if (id != null)
+        if (id == null)
+            return;
+
+        _itemsById.TryGetValue(id, out var item);
+        try
         {
-            var item = _allRaw.FirstOrDefault(i => i.Id == id);
             _manager.Delete(id);
-            RemoveCachedViewModel(id);
-            LoadRecent();
-            ToastNotification.Show("已删除剪贴板记录", item == null ? "" : $"已删除{GetItemKindText(item)}记录");
         }
+        catch (Exception ex)
+        {
+            ToastNotification.Show("删除失败", ex.Message, ToastNotification.ToastType.Error);
+            return;
+        }
+
+        RemoveItem(id);
+        UpdateEmptyState();
+        ToastNotification.Show("已删除剪贴板记录", item == null ? "" : $"已删除{GetItemKindText(item)}记录");
     }
 
     private void MenuSaveAs_Click(object sender, RoutedEventArgs e)
     {
         var id = IdFromMenu(sender);
-        var item = id == null ? null : _allRaw.FirstOrDefault(i => i.Id == id);
+        var item = id != null && _itemsById.TryGetValue(id, out var found) ? found : null;
         if (item?.Type != ClipboardItemType.Image || string.IsNullOrEmpty(item.ImagePath) || !File.Exists(item.ImagePath))
         {
             ToastNotification.Show("图片不存在", type: ToastNotification.ToastType.Error);
@@ -379,9 +653,9 @@ public partial class ClipboardPanel : Window
             File.Copy(item.ImagePath, dialog.FileName, true);
             ToastNotification.Show("已保存");
         }
-        catch
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            ToastNotification.Show("保存失败", type: ToastNotification.ToastType.Error);
+            ToastNotification.Show("保存失败", ex.Message, ToastNotification.ToastType.Error);
         }
     }
 
@@ -408,551 +682,63 @@ public partial class ClipboardPanel : Window
             _tab == Tab.All ? "清空全部" : "清空分类",
             "取消");
 
-        if (confirmed)
-        {
-            switch (_tab)
-            {
-                case Tab.Text:
-                    _manager.ClearByType(ClipboardItemType.Text);
-                    break;
-                case Tab.Image:
-                    _manager.ClearByType(ClipboardItemType.Image);
-                    break;
-                case Tab.File:
-                    _manager.ClearByType(ClipboardItemType.File);
-                    break;
-                default:
-                    _manager.ClearAll();
-                    break;
-            }
-
-            LoadRecent();
-            ToastNotification.Show(GetClearSuccessTitle(), GetClearSuccessMessage());
-        }
-    }
-
-    private string GetClearActionText()
-    {
-        return _tab switch
-        {
-            Tab.Text => "清空文本",
-            Tab.Image => "清空图像",
-            Tab.File => "清空文件",
-            Tab.Favorite => "收藏需逐条删除",
-            _ => "清空全部"
-        };
-    }
-
-    private string GetClearButtonTooltip()
-    {
-        return _tab == Tab.Favorite
-            ? "收藏条目请右键逐条删除"
-            : GetClearActionText();
-    }
-
-    private string GetClearConfirmTitle()
-    {
-        return _tab == Tab.All ? "清空全部剪贴板历史" : $"清空{GetCurrentCategoryName()}分类";
-    }
-
-    private string GetClearConfirmMessage()
-    {
-        return _tab == Tab.All
-            ? "将删除全部非收藏剪贴板记录。收藏条目会保留，如需删除收藏，请在条目右键菜单中删除。"
-            : $"将删除{GetCurrentCategoryName()}分类中的非收藏记录。其他分类和收藏条目会保留。";
-    }
-
-    private string GetClearSuccessTitle()
-    {
-        return _tab == Tab.All ? "已清空全部" : $"已清空{GetCurrentCategoryName()}分类";
-    }
-
-    private string GetClearSuccessMessage()
-    {
-        return _tab == Tab.All
-            ? "已删除全部非收藏剪贴板记录。"
-            : $"已删除{GetCurrentCategoryName()}分类中的非收藏记录。";
-    }
-
-    private string GetCurrentCategoryName()
-    {
-        return _tab switch
-        {
-            Tab.Text => "文本",
-            Tab.Image => "图像",
-            Tab.File => "文件",
-            _ => "全部"
-        };
-    }
-
-    private static string GetItemKindText(ClipboardItem item)
-    {
-        return item.Type switch
-        {
-            ClipboardItemType.Image => "图像",
-            ClipboardItemType.File => "文件",
-            _ => "文本"
-        };
-    }
-
-    private void PasteToTargetAfterClose()
-    {
-        var targetHwnd = _targetHwnd;
-        var panelHwnd = new WindowInteropHelper(this).Handle;
-        var dispatcher = System.Windows.Application.Current.Dispatcher;
-
-        Close();
-
-        if (targetHwnd == IntPtr.Zero || targetHwnd == panelHwnd)
-        {
-            ToastNotification.Show("内容已复制", "原窗口不可用，请手动粘贴。", ToastNotification.ToastType.Info);
+        if (!confirmed)
             return;
-        }
-
-        dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
-        {
-            if (!SetForegroundWindow(targetHwnd))
-            {
-                ToastNotification.Show("内容已复制", "无法切回原窗口，请手动粘贴。", ToastNotification.ToastType.Info);
-                return;
-            }
-
-            try
-            {
-                keybd_event(VK_CONTROL, 0, 0, UIntPtr.Zero);
-                keybd_event(VK_V, 0, 0, UIntPtr.Zero);
-                keybd_event(VK_V, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-                keybd_event(VK_CONTROL, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
-            }
-            catch (Exception ex)
-            {
-                ToastNotification.Show("内容已复制", $"自动粘贴失败：{ex.Message}", ToastNotification.ToastType.Info);
-            }
-        }));
-    }
-
-    // D: 命中缓存直接复用;否则新建(不在此处解码图片,解码留给可见时的 ThumbImage_Loaded)
-    private ClipboardItemViewModel GetOrCreateViewModel(ClipboardItem item)
-    {
-        if (_vmCache.TryGetValue(item.Id, out var cached))
-            return cached;
-
-        var vm = ToViewModel(item);
-        _vmCache[item.Id] = vm;
-        return vm;
-    }
-
-    private ClipboardItemViewModel ToViewModel(ClipboardItem item)
-    {
-        var vm = new ClipboardItemViewModel
-        {
-            Id = item.Id,
-            RelativeTime = RelativeTimeFormatter.Format(item.CreatedAt),
-            FullTimestamp = RelativeTimeFormatter.GetFullTimestamp(item.CreatedAt),
-            IsFavorite = item.IsFavorite,
-            FavoriteGlyph = item.IsFavorite ? "★" : "☆",
-            FavoriteTooltip = item.IsFavorite ? "取消收藏" : "收藏",
-            FavoriteState = item.IsFavorite ? "on" : null,
-            SourceApp = item.SourceApp ?? string.Empty
-        };
-
-        if (item.Type == ClipboardItemType.Image && !string.IsNullOrEmpty(item.ImagePath) && File.Exists(item.ImagePath))
-        {
-            vm.IsImage = true;
-            vm.ImagePath = item.ImagePath;            // B: 仅记录路径,延迟到可见时解码
-            vm.ThumbnailCacheKey = BuildThumbnailCacheKey(vm.Id, item.ImagePath);
-            vm.DisplayText = Path.GetFileName(item.ImagePath);
-            var (w, h) = ReadPngSize(item.ImagePath!);
-            var fileSize = new FileInfo(item.ImagePath).Length;
-            vm.ImageInfoText = FormatImageInfo(w, h, fileSize);
-            vm.SizeText = vm.ImageInfoText;
-            vm.IsLargeImage = fileSize >= LargeImageBytes || Math.Max(w, h) >= 3000;
-
-            var thumbWidth = 150d;
-            var thumbHeight = 96d;
-            if (w > 0 && h > 0)
-            {
-                var ratio = (double)w / h;
-                if (ratio >= 1)
-                {
-                    thumbWidth = Math.Min(180, Math.Max(118, 96 * ratio));
-                    thumbHeight = 96;
-                }
-                else
-                {
-                    thumbWidth = 96;
-                    thumbHeight = Math.Min(130, Math.Max(92, 96 / ratio));
-                }
-            }
-
-            vm.ThumbnailBoxWidth = thumbWidth;
-            vm.ThumbnailBoxHeight = thumbHeight;
-        }
-        else if (item.Type == ClipboardItemType.File)
-        {
-            vm.IsText = true;
-            vm.DisplayText = item.GetDisplayText(200);
-            vm.SizeText = $"{item.FilePaths?.Length ?? 0} 个文件";
-        }
-        else
-        {
-            vm.IsText = true;
-            vm.DisplayText = item.GetDisplayText(200);
-            vm.SizeText = "文本";
-        }
-
-        return vm;
-    }
-
-    // B: 行进入可视区(虚拟化实例化)时才触发解码;后台线程解码,限流,完成后回 UI 线程赋值
-    private void ThumbImage_Loaded(object sender, RoutedEventArgs e)
-    {
-        if (sender is not System.Windows.Controls.Image img || img.DataContext is not ClipboardItemViewModel vm)
-            return;
-        if (_closing || !vm.IsImage || vm.ImageSource != null || vm.ThumbRequested || string.IsNullOrEmpty(vm.ImagePath))
-            return;
-
-        vm.ThumbRequested = true;
-        var path = vm.ImagePath;
-        var cacheKey = BuildThumbnailCacheKey(vm.Id, path);
-        vm.ThumbnailCacheKey = cacheKey;
-        if (_thumbnailCache.TryGet(cacheKey, out var cached))
-        {
-            vm.ImageSource = cached;
-            return;
-        }
-
-        var decodeHeight = GetThumbnailDecodeHeight();
-        var cancellationToken = _thumbnailGeneration.Token;
-
-        _ = Task.Run(async () =>
-        {
-            var acquired = false;
-            try
-            {
-                await ThumbThrottle.WaitAsync(cancellationToken);
-                acquired = true;
-                cancellationToken.ThrowIfCancellationRequested();
-                var bmp = LoadThumbnail(path, decodeHeight);
-                if (bmp != null)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    if (_closing)
-                        return;
-
-                    _thumbnailCache.Set(cacheKey, bmp, EstimateImageBytes(bmp));
-                    if (_closing || cancellationToken.IsCancellationRequested)
-                    {
-                        _thumbnailCache.Remove(cacheKey);
-                        return;
-                    }
-
-                    PostThumbnailResult(vm, bmp, cancellationToken);
-                }
-                else
-                {
-                    PostThumbnailFailure(vm, cancellationToken);
-                }
-            }
-            catch (OperationCanceledException)
-            {
-                // 窗口关闭后不再回 UI 线程写入 ViewModel。
-            }
-            catch (Exception ex)
-            {
-                System.Diagnostics.Debug.WriteLine($"Clipboard thumbnail load failed: {ex.Message}");
-                PostThumbnailFailure(vm, cancellationToken);
-            }
-            finally
-            {
-                if (acquired)
-                    ThumbThrottle.Release();
-            }
-        });
-    }
-
-    private void PostThumbnailResult(ClipboardItemViewModel vm, ImageSource image, CancellationToken cancellationToken)
-    {
-        if (_closing || cancellationToken.IsCancellationRequested || Dispatcher.HasShutdownStarted)
-            return;
-
-        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
-        {
-            if (!_closing &&
-                !cancellationToken.IsCancellationRequested &&
-                _vmCache.TryGetValue(vm.Id, out var current) &&
-                ReferenceEquals(current, vm) &&
-                string.Equals(vm.ThumbnailCacheKey, BuildThumbnailCacheKey(vm.Id, vm.ImagePath ?? string.Empty), StringComparison.Ordinal))
-            {
-                vm.ImageSource = image;
-                var count = _thumbnailCache.Count;
-                if (count == 1 || count % 16 == 0)
-                {
-                    MemoryDiagnostics.LogCheckpoint(
-                        "ClipboardThumbnailsLoaded",
-                        count,
-                        _thumbnailCache.EstimatedBytes);
-                }
-            }
-        }));
-    }
-
-    private void PostThumbnailFailure(ClipboardItemViewModel vm, CancellationToken cancellationToken)
-    {
-        if (_closing || cancellationToken.IsCancellationRequested || Dispatcher.HasShutdownStarted)
-            return;
-
-        Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() =>
-        {
-            if (!_closing && !cancellationToken.IsCancellationRequested)
-                vm.ThumbRequested = false;
-        }));
-    }
-
-    private int GetThumbnailDecodeHeight()
-    {
-        var dpiScale = VisualTreeHelper.GetDpi(this).DpiScaleY;
-        return Math.Clamp((int)Math.Round(160 * dpiScale), 160, 220);
-    }
-
-    private static long EstimateImageBytes(ImageSource image)
-    {
-        return image is BitmapSource bitmap
-            ? Math.Max(1, (long)bitmap.PixelWidth * bitmap.PixelHeight * 4)
-            : 0;
-    }
-
-    private static ImageSource? LoadThumbnail(string path, int decodeHeight)
-    {
-        try
-        {
-            var thumbPath = GetThumbnailPath(path);
-            EnsureThumbnail(path, thumbPath);
-
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = BitmapCacheOption.OnLoad;   // 立即加载,不锁文件
-            bmp.DecodePixelHeight = decodeHeight;         // 按 DPI 适配,避免过度解码
-            bmp.UriSource = new Uri(File.Exists(thumbPath) ? thumbPath : path);
-            bmp.EndInit();
-            bmp.Freeze();                                 // 跨线程:冻结后可在 UI 线程使用
-            return bmp;
-        }
-        catch
-        {
-            return null;
-        }
-    }
-
-    private static void EnsureThumbnail(string sourcePath, string thumbPath)
-    {
-        try
-        {
-            var sourceInfo = new FileInfo(sourcePath);
-            var thumbInfo = new FileInfo(thumbPath);
-            if (thumbInfo.Exists && thumbInfo.LastWriteTimeUtc >= sourceInfo.LastWriteTimeUtc)
-                return;
-
-            Directory.CreateDirectory(AppPaths.ClipboardThumbnailsDirectory);
-
-            var source = new BitmapImage();
-            source.BeginInit();
-            source.CacheOption = BitmapCacheOption.OnLoad;
-            source.DecodePixelHeight = 240;
-            source.UriSource = new Uri(sourcePath);
-            source.EndInit();
-            source.Freeze();
-
-            var encoder = new PngBitmapEncoder();
-            encoder.Frames.Add(BitmapFrame.Create(source));
-            using var stream = new FileStream(thumbPath, FileMode.Create, FileAccess.Write, FileShare.None);
-            encoder.Save(stream);
-            File.SetLastWriteTimeUtc(thumbPath, sourceInfo.LastWriteTimeUtc);
-        }
-        catch
-        {
-            // 缩略图缓存失败时回退到源图加载,不影响主流程
-        }
-    }
-
-    private static string GetThumbnailPath(string imagePath)
-    {
-        var fileName = Path.GetFileNameWithoutExtension(imagePath);
-        return Path.Combine(AppPaths.ClipboardThumbnailsDirectory, fileName + ".thumb.png");
-    }
-
-    internal static string BuildThumbnailCacheKey(string id, string path)
-    {
-        long lastWriteTicks = 0;
-        try
-        {
-            lastWriteTicks = File.GetLastWriteTimeUtc(path).Ticks;
-        }
-        catch
-        {
-            // 文件不存在时仍使用稳定键,让加载失败可以重试。
-        }
-
-        return $"{id}|{path}|{lastWriteTicks}";
-    }
-
-    private void OnThumbnailEvicted(string cacheKey)
-    {
-        if (_closing)
-            return;
-
-        if (!Dispatcher.CheckAccess())
-        {
-            if (!Dispatcher.HasShutdownStarted)
-                Dispatcher.BeginInvoke(DispatcherPriority.Background, new Action(() => OnThumbnailEvicted(cacheKey)));
-            return;
-        }
-
-        foreach (var vm in _vmCache.Values)
-        {
-            if (string.Equals(vm.ThumbnailCacheKey, cacheKey, StringComparison.Ordinal))
-            {
-                vm.ImageSource = null;
-                vm.ThumbRequested = false;
-                break;
-            }
-        }
-    }
-
-    private void ResetThumbnailGeneration()
-    {
-        var previous = _thumbnailGeneration;
-        _thumbnailGeneration = CancellationTokenSource.CreateLinkedTokenSource(_thumbnailLifetime.Token);
-        previous.Cancel();
-        previous.Dispose();
-
-        foreach (var vm in _vmCache.Values)
-        {
-            if (vm.ImageSource == null)
-                vm.ThumbRequested = false;
-        }
-    }
-
-    private void RemoveCachedViewModel(string id)
-    {
-        if (!_vmCache.Remove(id, out var vm))
-            return;
-
-        if (!string.IsNullOrEmpty(vm.ThumbnailCacheKey))
-            _thumbnailCache.Remove(vm.ThumbnailCacheKey);
-        vm.ImageSource = null;
-        vm.ThumbRequested = false;
-    }
-
-    private static string FormatImageInfo(int width, int height, long bytes)
-    {
-        var dimensions = width > 0 && height > 0 ? $"{width} × {height}" : "图片";
-        return $"{dimensions} · {FormatBytes(bytes)}";
-    }
-
-    private static string FormatBytes(long bytes)
-    {
-        if (bytes >= 1024 * 1024)
-            return $"{bytes / 1024d / 1024d:0.#} MB";
-        if (bytes >= 1024)
-            return $"{bytes / 1024d:0.#} KB";
-        return $"{bytes} B";
-    }
-
-    private void ThumbPreview_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        e.Handled = true;
-        if (sender is FrameworkElement fe && fe.DataContext is ClipboardItemViewModel vm)
-        {
-            ShowImagePreview(vm);
-        }
-    }
-
-    private void ShowImagePreview(ClipboardItemViewModel vm)
-    {
-        if (string.IsNullOrEmpty(vm.ImagePath) || !File.Exists(vm.ImagePath))
-        {
-            ToastNotification.Show("图片不存在", type: ToastNotification.ToastType.Error);
-            return;
-        }
 
         try
         {
-            var bmp = new BitmapImage();
-            bmp.BeginInit();
-            bmp.CacheOption = BitmapCacheOption.OnLoad;
-            bmp.DecodePixelWidth = 1200;
-            bmp.UriSource = new Uri(vm.ImagePath);
-            bmp.EndInit();
-            bmp.Freeze();
-
-            imagePreview.Source = bmp;
-            imagePreviewTitle.Text = vm.ImageInfoText;
-            imagePreviewOverlay.Visibility = Visibility.Visible;
-            MemoryDiagnostics.LogCheckpoint(
-                "ClipboardPreviewOpened",
-                _thumbnailCache.Count,
-                _thumbnailCache.EstimatedBytes);
-        }
-        catch
-        {
-            ToastNotification.Show("预览失败", type: ToastNotification.ToastType.Error);
-        }
-    }
-
-    private void ClosePreview_Click(object sender, RoutedEventArgs e)
-    {
-        HideImagePreview();
-    }
-
-    private void ImagePreviewOverlay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        HideImagePreview();
-    }
-
-    private void ImagePreviewCard_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        e.Handled = true;
-    }
-
-    private void HideImagePreview()
-    {
-        var wasVisible = imagePreviewOverlay.Visibility == Visibility.Visible;
-        imagePreview.Source = null;
-        imagePreviewOverlay.Visibility = Visibility.Collapsed;
-        if (wasVisible)
-        {
-            MemoryDiagnostics.LogCheckpoint(
-                "ClipboardPreviewClosed",
-                _thumbnailCache.Count,
-                _thumbnailCache.EstimatedBytes);
-        }
-    }
-
-    /// <summary>从 PNG 文件头读取原始尺寸(剪贴板图片均存为 PNG),避免整图解码。</summary>
-    private static (int w, int h) ReadPngSize(string path)
-    {
-        try
-        {
-            using var fs = File.OpenRead(path);
-            var buf = new byte[24];
-            if (fs.Read(buf, 0, 24) < 24)
-                return (0, 0);
-
-            // PNG 签名 89 50 4E 47;IHDR 中 width@16、height@20(大端)
-            if (buf[0] == 0x89 && buf[1] == 0x50 && buf[2] == 0x4E && buf[3] == 0x47)
-            {
-                int w = (buf[16] << 24) | (buf[17] << 16) | (buf[18] << 8) | buf[19];
-                int h = (buf[20] << 24) | (buf[21] << 16) | (buf[22] << 8) | buf[23];
-                return (w, h);
-            }
+            if (TabType(_tab) is { } type)
+                _manager.ClearByType(type);
+            else
+                _manager.ClearAll();
         }
         catch (Exception ex)
         {
-            Serilog.Log.Debug(ex, "Failed to read clipboard PNG dimensions from {ImagePath}", path);
+            ToastNotification.Show("清空失败", ex.Message, ToastNotification.ToastType.Error);
+            return;
         }
-        return (0, 0);
+
+        ReloadItems();
+        ToastNotification.Show(GetClearSuccessTitle(), GetClearSuccessMessage());
     }
+
+    private string GetClearButtonTooltip() => _tab switch
+    {
+        Tab.Text => "清空文本",
+        Tab.Image => "清空图像",
+        Tab.File => "清空文件",
+        Tab.Favorite => "收藏条目请右键逐条删除",
+        _ => "清空全部"
+    };
+
+    private string GetClearConfirmTitle() =>
+        _tab == Tab.All ? "清空全部剪贴板历史" : $"清空{GetCurrentCategoryName()}分类";
+
+    private string GetClearConfirmMessage() => _tab == Tab.All
+        ? "将删除全部非收藏剪贴板记录。收藏条目会保留，如需删除收藏，请在条目右键菜单中删除。"
+        : $"将删除{GetCurrentCategoryName()}分类中的非收藏记录。其他分类和收藏条目会保留。";
+
+    private string GetClearSuccessTitle() =>
+        _tab == Tab.All ? "已清空全部" : $"已清空{GetCurrentCategoryName()}分类";
+
+    private string GetClearSuccessMessage() => _tab == Tab.All
+        ? "已删除全部非收藏剪贴板记录。"
+        : $"已删除{GetCurrentCategoryName()}分类中的非收藏记录。";
+
+    private string GetCurrentCategoryName() => _tab switch
+    {
+        Tab.Text => "文本",
+        Tab.Image => "图像",
+        Tab.File => "文件",
+        _ => "全部"
+    };
+
+    private static string GetItemKindText(ClipboardItem item) => item.Type switch
+    {
+        ClipboardItemType.Image => "图像",
+        ClipboardItemType.File => "文件",
+        _ => "文本"
+    };
 
     protected override void OnClosed(EventArgs e)
     {
@@ -966,15 +752,9 @@ public partial class ClipboardPanel : Window
 
         itemsList.ItemsSource = null;
         HideImagePreview();
-        foreach (var vm in _vmCache.Values)
-        {
-            vm.ImageSource = null;
-            vm.ThumbRequested = false;
-        }
+        ClearItems();
 
         _thumbnailCache.Clear();
-        _vmCache.Clear();
-        _allRaw.Clear();
         _thumbnailCache.ItemEvicted -= OnThumbnailEvicted;
         _thumbnailGeneration.Dispose();
         _thumbnailLifetime.Dispose();
@@ -984,48 +764,4 @@ public partial class ClipboardPanel : Window
             _thumbnailCache.EstimatedBytes);
         base.OnClosed(e);
     }
-}
-
-/// <summary>
-/// 剪贴板条目视图模型
-/// </summary>
-public class ClipboardItemViewModel : INotifyPropertyChanged
-{
-    public string Id { get; set; } = string.Empty;
-    public bool IsImage { get; set; }
-    public bool IsText { get; set; }
-    public string DisplayText { get; set; } = string.Empty;
-
-    // B: 图片路径与延迟解码标记
-    public string? ImagePath { get; set; }
-    public string? ThumbnailCacheKey { get; set; }
-    public bool ThumbRequested { get; set; }
-
-    private ImageSource? _imageSource;
-    public ImageSource? ImageSource
-    {
-        get => _imageSource;
-        set
-        {
-            if (ReferenceEquals(_imageSource, value)) return;
-            _imageSource = value;
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(ImageSource)));
-        }
-    }
-
-    public string RelativeTime { get; set; } = string.Empty;
-    public string FullTimestamp { get; set; } = string.Empty;
-    public string SourceApp { get; set; } = string.Empty;
-    public bool HasSource => !string.IsNullOrEmpty(SourceApp);
-    public string SizeText { get; set; } = string.Empty;
-    public string ImageInfoText { get; set; } = string.Empty;
-    public bool IsLargeImage { get; set; }
-    public double ThumbnailBoxWidth { get; set; } = 150;
-    public double ThumbnailBoxHeight { get; set; } = 96;
-    public bool IsFavorite { get; set; }
-    public string FavoriteGlyph { get; set; } = "☆";
-    public string FavoriteTooltip { get; set; } = "收藏";
-    public string? FavoriteState { get; set; }
-
-    public event PropertyChangedEventHandler? PropertyChanged;
 }

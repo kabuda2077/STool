@@ -99,24 +99,13 @@ public class ThumbnailCacheTests
     }
 
     [Fact]
-    public void BuildThumbnailCacheKey_FileTimestampChanges_InvalidatesKey()
+    public void BuildThumbnailCacheKey_IsStablePerItemAndPath()
     {
-        var path = Path.GetTempFileName();
-        try
-        {
-            var firstTimestamp = DateTime.UtcNow.AddMinutes(-2);
-            File.SetLastWriteTimeUtc(path, firstTimestamp);
-            var first = ClipboardPanel.BuildThumbnailCacheKey("id", path);
+        var first = ClipboardPanel.BuildThumbnailCacheKey("id", @"C:\images\a.png");
 
-            File.SetLastWriteTimeUtc(path, firstTimestamp.AddMinutes(1));
-            var second = ClipboardPanel.BuildThumbnailCacheKey("id", path);
-
-            Assert.NotEqual(first, second);
-        }
-        finally
-        {
-            File.Delete(path);
-        }
+        Assert.Equal(first, ClipboardPanel.BuildThumbnailCacheKey("id", @"C:\images\a.png"));
+        Assert.NotEqual(first, ClipboardPanel.BuildThumbnailCacheKey("other", @"C:\images\a.png"));
+        Assert.NotEqual(first, ClipboardPanel.BuildThumbnailCacheKey("id", @"C:\images\b.png"));
     }
 
     private static ImageSource CreateImage() => new DrawingImage();

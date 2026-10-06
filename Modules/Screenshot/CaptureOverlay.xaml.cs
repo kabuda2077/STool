@@ -1,8 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
-using System.Globalization;
-using System.IO;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -12,15 +11,9 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Serilog;
 using STool.Modules.Screenshot.Annotations;
-using Point = System.Windows.Point;
-using Color = System.Windows.Media.Color;
-using Brushes = System.Windows.Media.Brushes;
-using Brush = System.Windows.Media.Brush;
-using Rectangle = System.Windows.Shapes.Rectangle;
-using Cursors = System.Windows.Input.Cursors;
-using Cursor = System.Windows.Input.Cursor;
 using Button = System.Windows.Controls.Button;
-using Panel = System.Windows.Controls.Panel;
+using Cursors = System.Windows.Input.Cursors;
+using Rectangle = System.Windows.Shapes.Rectangle;
 
 namespace STool.Modules.Screenshot;
 
@@ -33,13 +26,15 @@ public partial class CaptureOverlay : Window
 {
     private enum DragMode { None, NewSelection, Move, Resize }
 
-    private System.Drawing.Bitmap? _frozen;
+    private readonly CaptureOverlayServices? _services;
+    private readonly bool _diagnosticsEnabled;
+    private CapturedScreen? _capture;
     private readonly System.Drawing.Rectangle _virtualScreenBounds;
     private VirtualDesktopCoordinateMapper? _coordinateMapper;
     private Rect _selection;
     private DragMode _dragMode = DragMode.None;
     private string _activeHandle = "";
-    private Point _dragStart;
+    private System.Windows.Point _dragStart;
     private Rect _selectionAtStart;
     private bool _closing;
     private bool _handlesReady;
@@ -57,14 +52,14 @@ public partial class CaptureOverlay : Window
     private Button[] _toolButtons = Array.Empty<Button>();
     private readonly Stopwatch? _startupTimer;
     private long _lastStartupMarkMs;
-    private Rect _mosaicSourceSelection = Rect.Empty;
     private IntPtr _selfHwnd;
     private HwndSource? _hwndSource;
-    private readonly List<TranslationRenderBlock> _translationRenderBlocks = new();
     private System.Threading.CancellationTokenSource? _translationCts;
+    private System.Threading.CancellationTokenSource? _ocrCts;
     private EventHandler? _firstRenderingHandler;
 
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);
+    [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool SetWindowPos(
         IntPtr hWnd,
@@ -78,20 +73,21 @@ public partial class CaptureOverlay : Window
     private const uint SWP_NOZORDER = 0x0004;
     private const uint SWP_NOACTIVATE = 0x0010;
 
-    public CaptureOverlay() : this(false) { }
-
-    public CaptureOverlay(Stopwatch startupTimer) : this(false, startupTimer) { }
+    public CaptureOverlay(CaptureOverlayServices services, Stopwatch? startupTimer)
+        : this(services, startupTimer, prewarm: false)
+    {
+    }
 
     /// <summary>
     /// 预热构造:仅触发 InitializeComponent(BAML 解析 + 模板/JIT 一次性成本),
     /// 跳过抓屏与 Loaded 逻辑,实例随即丢弃。用于消除首次截图的冷启动延迟。
     /// </summary>
-    public static CaptureOverlay CreateForWarmUp() => new CaptureOverlay(true, null);
+    public static CaptureOverlay CreateForWarmUp() => new(null, null, prewarm: true);
 
-    private CaptureOverlay(bool prewarm) : this(prewarm, null) { }
-
-    private CaptureOverlay(bool prewarm, Stopwatch? startupTimer)
+    private CaptureOverlay(CaptureOverlayServices? services, Stopwatch? startupTimer, bool prewarm)
     {
+        _services = services;
+        _diagnosticsEnabled = services?.DiagnosticsEnabled == true;
         _startupTimer = startupTimer;
         InitializeComponent();
         LogStartupStep("InitializeComponent");
@@ -122,20 +118,22 @@ public partial class CaptureOverlay : Window
         Height = SystemParameters.VirtualScreenHeight;
         LogStartupStep("Window bounds prepared");
 
-        // 冻结屏幕
-        _frozen = ScreenCapture.CaptureRegion(_virtualScreenBounds);
-        LogStartupStep($"CaptureAllScreens {_frozen.Width}x{_frozen.Height}");
-        screenshotImage.Source = BitmapInterop.ToBitmapSource(_frozen);
-        LogStartupStep("BitmapInterop.ToBitmapSource");
+        // 冻结屏幕:像素放在共享内存段,GDI+ 与 WPF 共用
+        _capture = ScreenCapture.Capture(_virtualScreenBounds);
+        screenshotImage.Source = _capture.Source;
+        LogStartupStep($"Capture {_capture.Width}x{_capture.Height}");
 
-        ContentRendered += OnContentRendered;
-        _firstRenderingHandler = (_, _) =>
+        if (_startupTimer != null)
         {
-            CompositionTarget.Rendering -= _firstRenderingHandler;
-            _firstRenderingHandler = null;
-            LogStartupStep("CompositionTarget.Rendering first frame");
-        };
-        CompositionTarget.Rendering += _firstRenderingHandler;
+            ContentRendered += OnContentRendered;
+            _firstRenderingHandler = (_, _) =>
+            {
+                CompositionTarget.Rendering -= _firstRenderingHandler;
+                _firstRenderingHandler = null;
+                LogStartupStep("CompositionTarget.Rendering first frame");
+            };
+            CompositionTarget.Rendering += _firstRenderingHandler;
+        }
 
         Loaded += OnLoaded;
     }
@@ -147,7 +145,8 @@ public partial class CaptureOverlay : Window
 
         var elapsedMs = _startupTimer.ElapsedMilliseconds;
         Log.Information(
-            "[CaptureStartup] {Step} at {ElapsedMs}ms (+{DeltaMs}ms)",
+            "[CaptureStartup] id={CaptureId} {Step} at {ElapsedMs}ms (+{DeltaMs}ms)",
+            _captureId,
             step,
             elapsedMs,
             elapsedMs - _lastStartupMarkMs);
@@ -174,7 +173,12 @@ public partial class CaptureOverlay : Window
 
     private void UpdateCursorState()
     {
-        var cursor = _currentTool != AnnotationTool.None || _confirmed ? Cursors.Arrow : Cursors.Cross;
+        var cursor = _currentTool switch
+        {
+            AnnotationTool.Text => Cursors.IBeam,
+            AnnotationTool.None when !_confirmed => Cursors.Cross,
+            _ => Cursors.Arrow
+        };
 
         Mouse.OverrideCursor = _confirmed || _currentTool != AnnotationTool.None ? null : cursor;
         Cursor = cursor;
@@ -185,6 +189,10 @@ public partial class CaptureOverlay : Window
     protected override void OnSourceInitialized(EventArgs e)
     {
         base.OnSourceInitialized(e);
+        if (_capture == null)
+            return;
+
+        StartCaptureDiagnostics();
         _selfHwnd = new WindowInteropHelper(this).Handle;
         _hwndSource = HwndSource.FromHwnd(_selfHwnd);
         _hwndSource?.AddHook(WndProc);
@@ -215,8 +223,12 @@ public partial class CaptureOverlay : Window
         const int VK_ESCAPE = 0x1B;
         const int VK_RETURN = 0x0D;
         const int VK_MENU = 0x12;
-        const int VK_Z = 0x5A;
+        const int VK_LEFT = 0x25;
+        const int VK_DOWN = 0x28;
+        const int VK_C = 0x43;
+        const int VK_S = 0x53;
         const int VK_Y = 0x59;
+        const int VK_Z = 0x5A;
 
         // Alt+数字启动截图时,覆盖层可能在 Alt 松开前取得焦点。吞掉这次残留的
         // Alt 释放和系统菜单命令,避免 WPF 进入菜单模式后暂停鼠标悬停识别。
@@ -239,25 +251,49 @@ public partial class CaptureOverlay : Window
             return IntPtr.Zero;
 
         var key = wParam.ToInt32();
-        if (key == VK_ESCAPE)
+        if (_annotation?.IsEditingText == true)
         {
-            CloseOverlay();
-            handled = true;
+            // 文字输入中:Esc 结束输入,其余按键交给输入框处理。
+            if (key == VK_ESCAPE)
+            {
+                _annotation.CommitText();
+                handled = true;
+            }
+            return IntPtr.Zero;
         }
-        else if (key == VK_RETURN)
+
+        var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
+        var shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+        switch (key)
         {
-            CopyAndClose();
-            handled = true;
-        }
-        else if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && key == VK_Z)
-        {
-            _annotation?.Undo();
-            handled = true;
-        }
-        else if ((Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control && key == VK_Y)
-        {
-            _annotation?.Redo();
-            handled = true;
+            case VK_ESCAPE:
+                LogCaptureState("Native ESC received");
+                CloseOverlay();
+                handled = true;
+                break;
+            case VK_RETURN:
+                CopyAndClose();
+                handled = true;
+                break;
+            case VK_Z when ctrl:
+                _annotation?.Undo();
+                handled = true;
+                break;
+            case VK_Y when ctrl:
+                _annotation?.Redo();
+                handled = true;
+                break;
+            case VK_S when ctrl:
+                SaveSelection();
+                handled = true;
+                break;
+            case VK_C when !ctrl && magnifier.Visibility == Visibility.Visible:
+                CopyPixelColor();
+                handled = true;
+                break;
+            case >= VK_LEFT and <= VK_DOWN:
+                handled = NudgeWithKeyboard(key - VK_LEFT, ctrl, shift);
+                break;
         }
 
         return IntPtr.Zero;
@@ -269,7 +305,6 @@ public partial class CaptureOverlay : Window
         Core.MemoryDiagnostics.LogCheckpoint("ScreenshotShown");
 
         EnsureInteractionReady("Loaded");
-        Activate();
         LogStartupStep("Loaded interactive");
 
         Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
@@ -281,7 +316,7 @@ public partial class CaptureOverlay : Window
 
     private void EnsureInteractionReady(string caller)
     {
-        if (_interactionReady)
+        if (_interactionReady || _capture == null)
             return;
 
         var transform = PresentationSource.FromVisual(this)?.CompositionTarget?.TransformToDevice ?? Matrix.Identity;
@@ -302,7 +337,13 @@ public partial class CaptureOverlay : Window
 
         CreateHandles();
         _annotation = new AnnotationCanvas(annotationCanvas);
-        _toolButtons = new[] { btnRect, btnEllipse, btnArrow, btnPen, btnMosaic };
+        _toolButtons = new[] { btnRect, btnEllipse, btnArrow, btnPen, btnText, btnMosaic };
+        _magnifierBrush = new ImageBrush(_capture.Source)
+        {
+            ViewboxUnits = BrushMappingMode.Absolute,
+            Stretch = Stretch.Fill
+        };
+        magnifierView.Fill = _magnifierBrush;
 
         selectionBorder.Visibility = Visibility.Visible;
         toolbar.Visibility = Visibility.Collapsed;
@@ -311,9 +352,51 @@ public partial class CaptureOverlay : Window
         _selection = DefaultSelectionRect();
         _interactionReady = true;
         UpdateTranslationToolTip();
+        HighlightAnnotationOptions();
         UpdateVisuals();
-        UpdateMosaicSource(force: true);
         LogStartupStep($"{caller} interaction ready");
     }
 
+    private void CloseOverlay([CallerMemberName] string caller = "")
+    {
+        LogCaptureState($"Close requested by {caller}");
+        if (_closing) return;
+        _closing = true;
+        Close();
+        LogCaptureState("Close returned");
+    }
+
+    protected override void OnClosed(EventArgs e)
+    {
+        LogCaptureState("OnClosed begin");
+        _closing = true;
+        _ocrCts?.Cancel();
+        CancelCurrentTranslation();
+        _hwndSource?.RemoveHook(WndProc);
+        _hwndSource = null;
+
+        ContentRendered -= OnContentRendered;
+        Loaded -= OnLoaded;
+        if (_firstRenderingHandler != null)
+        {
+            CompositionTarget.Rendering -= _firstRenderingHandler;
+            _firstRenderingHandler = null;
+        }
+
+        _annotation?.Clear();
+        _annotation = null;
+        translationBlockCanvas.Children.Clear();
+        translationOverlayText.Text = string.Empty;
+        screenshotImage.Source = null;
+        magnifierView.Fill = null;
+        _magnifierBrush = null;
+        _mosaicLayer = null;
+
+        _capture?.Dispose();
+        _capture = null;
+        Core.MemoryDiagnostics.LogCheckpoint("ScreenshotClosed");
+        base.OnClosed(e);
+        StopCaptureDiagnostics();
+        LogCaptureState("OnClosed completed");
+    }
 }

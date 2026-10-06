@@ -22,7 +22,7 @@ internal static class NetworkErrorMessages
         return exception switch
         {
             OperationCanceledException when cancellationToken.IsCancellationRequested => "操作已取消。",
-            TaskCanceledException => "请求超时，请检查网络后重试。",
+            OperationCanceledException or TimeoutException => "请求超时，请检查网络后重试。",
             HttpRequestException => "网络连接失败，请检查网络或服务地址。",
             _ => exception.Message
         };

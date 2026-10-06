@@ -2,9 +2,6 @@ using System;
 using System.Diagnostics;
 using System.Drawing;
 using System.IO;
-using System.Net.Http;
-using System.Security.Cryptography;
-using System.Text;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,19 +15,19 @@ namespace STool.Modules.Ocr;
 /// </summary>
 public class TencentOcrService : IOcrService
 {
-    private readonly string _secretId;
-    private readonly string _secretKey;
-    private readonly HttpClient _httpClient;
+    private const string ProviderName = "Tencent Cloud";
     private const string Endpoint = "ocr.tencentcloudapi.com";
     private const string Service = "ocr";
     private const string Version = "2018-11-19";
     private const string Action = "GeneralBasicOCR";
 
+    private readonly string _secretId;
+    private readonly string _secretKey;
+
     public TencentOcrService(string secretIdEncrypted, string secretKeyEncrypted)
     {
         _secretId = SecureStorage.Decrypt(secretIdEncrypted);
         _secretKey = SecureStorage.Decrypt(secretKeyEncrypted);
-        _httpClient = HttpDefaults.CreateClient();
     }
 
     public bool IsAvailable()
@@ -42,148 +39,90 @@ public class TencentOcrService : IOcrService
     {
         if (!IsAvailable())
         {
-            return new OcrResult
-            {
-                Success = false,
-                ErrorMessage = "腾讯云凭据未配置完整。",
-                Provider = "Tencent Cloud"
-            };
+            return Failure("腾讯云凭据未配置完整。");
         }
 
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            // 转换图片为 Base64
             string imageBase64;
             using (var ms = new MemoryStream())
             {
                 image.Save(ms, System.Drawing.Imaging.ImageFormat.Png);
-                imageBase64 = Convert.ToBase64String(ms.ToArray());
+                imageBase64 = Convert.ToBase64String(ms.GetBuffer(), 0, checked((int)ms.Length));
             }
 
-            // 构建请求
-            var payload = new
+            var payloadJson = JsonSerializer.Serialize(new
             {
                 ImageBase64 = imageBase64,
                 LanguageType = "auto"
-            };
+            });
 
-            var payloadJson = JsonSerializer.Serialize(payload);
-            var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            var date = DateTimeOffset.UtcNow.ToString("yyyy-MM-dd");
-
-            // 计算签名
-            var authorization = CalculateSignature(payloadJson, timestamp, date);
-
-            // 发送请求
-            using var request = new HttpRequestMessage(HttpMethod.Post, $"https://{Endpoint}/")
-            {
-                Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
-            };
-
-            // 手动设置 Content-Type 为纯 application/json (移除 StringContent 自动添加的 charset)
-            request.Content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/json");
-
-            // Authorization 含 "/" 等非 token 字符,.NET 的强校验会抛 FormatException;
-            // 用 TryAddWithoutValidation 绕过校验,原样发送。
-            request.Headers.TryAddWithoutValidation("Authorization", authorization);
-            request.Headers.TryAddWithoutValidation("X-TC-Action", Action);
-            request.Headers.TryAddWithoutValidation("X-TC-Version", Version);
-            request.Headers.TryAddWithoutValidation("X-TC-Timestamp", timestamp.ToString());
-            request.Headers.TryAddWithoutValidation("X-TC-Region", "ap-guangzhou");
-
-            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            using var request = TencentCloudSigner.CreateRequest(
+                _secretId,
+                _secretKey,
+                Service,
+                Endpoint,
+                Action,
+                Version,
+                payloadJson,
+                DateTimeOffset.UtcNow);
+            using var response = await HttpDefaults.Shared.SendAsync(request, cancellationToken);
             var responseJson = await response.Content.ReadAsStringAsync(cancellationToken);
             Log.Information("Tencent OCR completed status={StatusCode} elapsedMs={ElapsedMs}", response.StatusCode, stopwatch.ElapsedMilliseconds);
             if (!response.IsSuccessStatusCode)
             {
-                return new OcrResult
-                {
-                    Success = false,
-                    ErrorMessage = NetworkErrorMessages.FromStatus(response.StatusCode, responseJson),
-                    Provider = "Tencent Cloud"
-                };
+                return Failure(NetworkErrorMessages.FromStatus(response.StatusCode, responseJson));
             }
 
-            // 解析响应
             using var jsonDoc = JsonDocument.Parse(responseJson);
             var root = jsonDoc.RootElement;
 
-            if (root.TryGetProperty("Response", out var responseElement))
+            if (!root.TryGetProperty("Response", out var responseElement))
             {
-                if (responseElement.TryGetProperty("Error", out var errorElement))
-                {
-                    var errorMessage = errorElement.GetProperty("Message").GetString();
-                    return new OcrResult
-                    {
-                        Success = false,
-                        ErrorMessage = $"腾讯云返回错误：{errorMessage}",
-                        Provider = "Tencent Cloud"
-                    };
-                }
-
-                var result = new OcrResult
-                {
-                    Success = true,
-                    Provider = "Tencent Cloud"
-                };
-
-                if (responseElement.TryGetProperty("TextDetections", out var textDetections))
-                {
-                    var textLines = new System.Collections.Generic.List<string>();
-
-                    foreach (var detection in textDetections.EnumerateArray())
-                    {
-                        var text = detection.GetProperty("DetectedText").GetString() ?? "";
-                        var confidence = detection.GetProperty("Confidence").GetInt32() / 100f;
-
-                        textLines.Add(text);
-
-                        result.TextBlocks.Add(new OcrTextBlock
-                        {
-                            Text = text,
-                            Confidence = confidence,
-                            BoundingBox = TryReadBoundingBox(detection)
-                        });
-                    }
-
-                    result.FullText = string.Join("\n", textLines);
-                }
-
-                return result;
+                return Failure("腾讯云返回格式不正确。");
             }
 
-            return new OcrResult
+            if (responseElement.TryGetProperty("Error", out var errorElement))
             {
-                Success = false,
-                ErrorMessage = "腾讯云返回格式不正确。",
-                Provider = "Tencent Cloud"
+                var errorMessage = errorElement.GetProperty("Message").GetString();
+                return Failure($"腾讯云返回错误：{errorMessage}");
+            }
+
+            var result = new OcrResult
+            {
+                Success = true,
+                Provider = ProviderName
             };
+
+            if (responseElement.TryGetProperty("TextDetections", out var textDetections))
+            {
+                var textLines = new System.Collections.Generic.List<string>();
+
+                foreach (var detection in textDetections.EnumerateArray())
+                {
+                    var text = detection.GetProperty("DetectedText").GetString() ?? "";
+                    var confidence = detection.GetProperty("Confidence").GetInt32() / 100f;
+
+                    textLines.Add(text);
+
+                    result.TextBlocks.Add(new OcrTextBlock
+                    {
+                        Text = text,
+                        Confidence = confidence,
+                        BoundingBox = TryReadBoundingBox(detection)
+                    });
+                }
+
+                result.FullText = string.Join("\n", textLines);
+            }
+
+            return result;
         }
         catch (Exception ex)
         {
-            return new OcrResult
-            {
-                Success = false,
-                ErrorMessage = NetworkErrorMessages.FromException(ex, cancellationToken),
-                Provider = "Tencent Cloud"
-            };
+            return Failure(NetworkErrorMessages.FromException(ex, cancellationToken));
         }
-    }
-
-    private string CalculateSignature(string payload, long timestamp, string date)
-    {
-        // 腾讯云签名算法 V3
-        var canonicalRequest = $"POST\n/\n\ncontent-type:application/json\nhost:{Endpoint}\n\ncontent-type;host\n{Sha256Hex(payload)}";
-        var credentialScope = $"{date}/{Service}/tc3_request";
-        var stringToSign = $"TC3-HMAC-SHA256\n{timestamp}\n{credentialScope}\n{Sha256Hex(canonicalRequest)}";
-
-        var secretDate = HmacSha256(Encoding.UTF8.GetBytes($"TC3{_secretKey}"), Encoding.UTF8.GetBytes(date));
-        var secretService = HmacSha256(secretDate, Encoding.UTF8.GetBytes(Service));
-        var secretSigning = HmacSha256(secretService, Encoding.UTF8.GetBytes("tc3_request"));
-        var signature = HmacSha256Hex(secretSigning, Encoding.UTF8.GetBytes(stringToSign));
-
-        return $"TC3-HMAC-SHA256 Credential={_secretId}/{credentialScope}, SignedHeaders=content-type;host, Signature={signature}";
     }
 
     private static System.Drawing.Rectangle TryReadBoundingBox(JsonElement detection)
@@ -260,7 +199,7 @@ public class TencentOcrService : IOcrService
     private static bool TryReadInt(JsonElement element, string propertyName, out int value)
     {
         value = 0;
-        if (!element.TryGetProperty(propertyName, out var property))
+        if (element.ValueKind != JsonValueKind.Object || !element.TryGetProperty(propertyName, out var property))
             return false;
 
         if (property.ValueKind == JsonValueKind.Number && property.TryGetInt32(out value))
@@ -272,26 +211,15 @@ public class TencentOcrService : IOcrService
         return false;
     }
 
-    private static string Sha256Hex(string data)
+    private static OcrResult Failure(string message) => new()
     {
-        var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(data));
-        return BitConverter.ToString(bytes).Replace("-", "").ToLower();
-    }
-
-    private static byte[] HmacSha256(byte[] key, byte[] data)
-    {
-        using var hmac = new HMACSHA256(key);
-        return hmac.ComputeHash(data);
-    }
-
-    private static string HmacSha256Hex(byte[] key, byte[] data)
-    {
-        var hash = HmacSha256(key, data);
-        return BitConverter.ToString(hash).Replace("-", "").ToLower();
-    }
+        Success = false,
+        ErrorMessage = message,
+        Provider = ProviderName
+    };
 
     public void Dispose()
     {
-        _httpClient.Dispose();
+        // 使用进程级共享 HttpClient，无需释放。
     }
 }

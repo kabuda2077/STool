@@ -60,7 +60,28 @@ internal sealed record PreparedArchiveStatus(
     string? Error,
     string? DownloadUrl);
 
-internal sealed record ReceivedFileInfo(string Id, string Name, string FullPath, long Size);
+/// <summary>PreparedArchiveStatus.Status 在网页接口中的取值。</summary>
+internal static class ArchiveStatusNames
+{
+    public const string Preparing = "preparing";
+    public const string Ready = "ready";
+    public const string Failed = "failed";
+}
+
+internal enum ArchiveProgressStage
+{
+    Preparing,
+    Ready,
+    Canceled,
+    Failed
+}
+
+internal sealed record ArchiveProgressInfo(
+    string Id,
+    string Name,
+    long Processed,
+    long Total,
+    ArchiveProgressStage Stage);
 
 internal sealed record ReceivedBatchInfo(
     string Id,
@@ -69,14 +90,6 @@ internal sealed record ReceivedBatchInfo(
     long Size,
     int FileCount,
     bool IsDirectory);
-
-internal sealed record TransferProgressInfo(
-    string Id,
-    string Name,
-    long Transferred,
-    long Total,
-    bool Receiving,
-    string? Status = null);
 
 internal enum TransferDirection
 {

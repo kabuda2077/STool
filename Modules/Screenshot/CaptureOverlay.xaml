@@ -11,6 +11,21 @@
         Cursor="Cross"
         KeyDown="Window_KeyDown">
 
+    <Window.Resources>
+        <!-- 标注颜色色块:按钮 Tag 为颜色资源键 -->
+        <Style x:Key="AnnotationSwatch" TargetType="Ellipse">
+            <Setter Property="Width" Value="14"/>
+            <Setter Property="Height" Value="14"/>
+            <Setter Property="Stroke" Value="{StaticResource BorderBrush}"/>
+            <Setter Property="StrokeThickness" Value="1"/>
+        </Style>
+        <Style x:Key="AnnotationOptionButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+            <Setter Property="Width" Value="28"/>
+            <Setter Property="Height" Value="28"/>
+            <Setter Property="Margin" Value="1,0,0,0"/>
+        </Style>
+    </Window.Resources>
+
     <Grid x:Name="rootGrid" ClipToBounds="True">
         <!-- 冻结的屏幕画面 -->
         <Image x:Name="screenshotImage" Stretch="Fill"/>
@@ -20,17 +35,16 @@
             <!-- 蒙版:框外淡黑,框内挖洞(EvenOdd) -->
             <Path x:Name="maskPath" Fill="{StaticResource ScreenshotMaskBrush}" IsHitTestVisible="False"/>
 
-            <!-- 标注层:覆盖选区,工具激活时才可命中绘制(需 Background 才能接收鼠标) -->
-            <Canvas x:Name="annotationCanvas" Background="{StaticResource TransparentBrush}" IsHitTestVisible="False" ClipToBounds="True"/>
-
             <!-- 分块原位翻译层:优先按 OCR 坐标局部替换文字,失败时回退到下方整块翻译层 -->
             <Canvas x:Name="translationBlockCanvas"
+                    Panel.ZIndex="34"
                     Visibility="Collapsed"
                     ClipToBounds="True"
                     IsHitTestVisible="False"/>
 
             <!-- 原位翻译层:覆盖选区内容,模拟微信截图的"原文替换为译文"效果 -->
             <Border x:Name="translationOverlay"
+                    Panel.ZIndex="35"
                     Background="{StaticResource SurfaceBrush}"
                     Padding="8"
                     Visibility="Collapsed"
@@ -54,8 +68,16 @@
                 </Grid>
             </Border>
 
+            <!-- 标注层:位于译文之上,屏幕显示与导出的叠放顺序一致;工具激活时才可命中绘制 -->
+            <Canvas x:Name="annotationCanvas"
+                    Panel.ZIndex="36"
+                    Background="{StaticResource TransparentBrush}"
+                    IsHitTestVisible="False"
+                    ClipToBounds="True"/>
+
             <!-- 选区边框 -->
             <Border x:Name="selectionBorder"
+                    Panel.ZIndex="40"
                     BorderBrush="{StaticResource SuccessBrush}"
                     BorderThickness="2"
                     IsHitTestVisible="False"
@@ -63,6 +85,7 @@
 
             <!-- 尺寸标签 -->
             <Border x:Name="sizeLabel"
+                    Panel.ZIndex="41"
                     Background="{StaticResource ScreenshotSizeLabelBrush}"
                     CornerRadius="4"
                     Padding="8,3"
@@ -71,8 +94,51 @@
                 <TextBlock x:Name="sizeText" Foreground="{StaticResource OnPrimaryBrush}" FontSize="{StaticResource FontSizeCaption}" FontWeight="{StaticResource FontWeightStrong}"/>
             </Border>
 
+            <!-- 放大镜:选区确定前跟随光标,显示像素级放大、坐标与色值 -->
+            <Border x:Name="magnifier"
+                    Panel.ZIndex="90"
+                    Width="122"
+                    Background="{StaticResource SurfaceBrush}"
+                    BorderBrush="{StaticResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6"
+                    Padding="0,0,0,4"
+                    Visibility="Collapsed"
+                    IsHitTestVisible="False">
+                <Border.Effect>
+                    <StaticResource ResourceKey="StandardShadow"/>
+                </Border.Effect>
+                <StackPanel>
+                    <Grid Width="120" Height="88" ClipToBounds="True">
+                        <Rectangle x:Name="magnifierView" RenderOptions.BitmapScalingMode="NearestNeighbor"/>
+                        <Rectangle Width="10" Height="10"
+                                   Stroke="{StaticResource PrimaryBrush}" StrokeThickness="1.5"
+                                   HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                    </Grid>
+                    <TextBlock x:Name="magnifierPosition"
+                               Margin="8,4,8,0"
+                               FontSize="{StaticResource FontSizeHint}"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                    <StackPanel Orientation="Horizontal" Margin="8,2,8,0">
+                        <Border x:Name="magnifierSwatch" Width="12" Height="12" CornerRadius="2"
+                                BorderBrush="{StaticResource BorderBrush}" BorderThickness="1"
+                                VerticalAlignment="Center"/>
+                        <TextBlock x:Name="magnifierColor"
+                                   Margin="6,0,0,0"
+                                   FontSize="{StaticResource FontSizeHint}"
+                                   Foreground="{StaticResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center"/>
+                    </StackPanel>
+                    <TextBlock Text="C 复制色值"
+                               Margin="8,2,8,0"
+                               FontSize="{StaticResource FontSizeHint}"
+                               Foreground="{StaticResource TextSecondaryBrush}"/>
+                </StackPanel>
+            </Border>
+
             <!-- 工具条(位置在代码中按选区计算并夹紧屏幕) -->
             <Border x:Name="toolbar"
+                    Panel.ZIndex="100"
                     Background="{StaticResource SurfaceBrush}"
                     CornerRadius="8"
                     Padding="6"
@@ -82,111 +148,162 @@
                 <Border.Effect>
                     <StaticResource ResourceKey="StandardShadow"/>
                 </Border.Effect>
-                <StackPanel Orientation="Horizontal">
-                    <Button x:Name="btnRect" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Rectangle" ToolTip="矩形">
-                        <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
-                            <Path Data="{StaticResource IconRectangle}"
-                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2" StrokeLineJoin="Round"/>
-                        </Canvas></Viewbox>
-                    </Button>
-                    <Button x:Name="btnEllipse" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Ellipse" Margin="2,0,0,0" ToolTip="椭圆">
-                        <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
-                            <Path Data="{StaticResource IconCircle}"
-                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2"/>
-                        </Canvas></Viewbox>
-                    </Button>
-                    <Button x:Name="btnArrow" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Arrow" Margin="2,0,0,0" ToolTip="箭头">
-                        <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
-                            <Path Data="{StaticResource IconArrowUpRight}"
-                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2"
-                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
-                        </Canvas></Viewbox>
-                    </Button>
-                    <Button x:Name="btnPen" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Pen" Margin="2,0,0,0" ToolTip="画笔">
-                        <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
-                            <Path Data="{StaticResource IconPenLine}"
-                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2"
-                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
-                        </Canvas></Viewbox>
-                    </Button>
-                    <Button x:Name="btnMosaic" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Mosaic" Margin="2,0,0,0" ToolTip="马赛克">
-                        <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
-                            <Path Data="{StaticResource IconMosaic}"
-                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2"
-                                  StrokeLineJoin="Round"
-                                  Fill="{StaticResource TransparentBrush}"/>
-                        </Canvas></Viewbox>
-                    </Button>
+                <StackPanel>
+                    <StackPanel Orientation="Horizontal">
+                        <Button x:Name="btnRect" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Rectangle" ToolTip="矩形">
+                            <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
+                                <Path Data="{StaticResource IconRectangle}"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2" StrokeLineJoin="Round"/>
+                            </Canvas></Viewbox>
+                        </Button>
+                        <Button x:Name="btnEllipse" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Ellipse" Margin="2,0,0,0" ToolTip="椭圆">
+                            <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
+                                <Path Data="{StaticResource IconCircle}"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2"/>
+                            </Canvas></Viewbox>
+                        </Button>
+                        <Button x:Name="btnArrow" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Arrow" Margin="2,0,0,0" ToolTip="箭头">
+                            <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
+                                <Path Data="{StaticResource IconArrowUpRight}"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            </Canvas></Viewbox>
+                        </Button>
+                        <Button x:Name="btnPen" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Pen" Margin="2,0,0,0" ToolTip="画笔">
+                            <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
+                                <Path Data="{StaticResource IconPenLine}"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            </Canvas></Viewbox>
+                        </Button>
+                        <Button x:Name="btnText" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Text" Margin="2,0,0,0" ToolTip="文字 (Ctrl+Enter 完成)">
+                            <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
+                                <Path Data="{StaticResource IconType}"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            </Canvas></Viewbox>
+                        </Button>
+                        <Button x:Name="btnMosaic" Style="{StaticResource IconButton}" Click="Tool_Click" Tag="Mosaic" Margin="2,0,0,0" ToolTip="马赛克">
+                            <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
+                                <Path Data="{StaticResource IconMosaic}"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2"
+                                      StrokeLineJoin="Round"
+                                      Fill="{StaticResource TransparentBrush}"/>
+                            </Canvas></Viewbox>
+                        </Button>
 
-                    <Rectangle Style="{StaticResource ToolbarSeparator}"/>
+                        <Rectangle Style="{StaticResource ToolbarSeparator}"/>
 
-                    <Button x:Name="btnUndo" Style="{StaticResource IconButton}" Click="BtnUndo_Click" ToolTip="撤销 (Ctrl+Z)">
-                        <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
-                            <Path Data="{StaticResource IconUndo2}"
-                                  Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
-                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
-                        </Canvas></Viewbox>
-                    </Button>
-                    <Button x:Name="btnRedo" Style="{StaticResource IconButton}" Click="BtnRedo_Click" Margin="2,0,0,0" ToolTip="重做 (Ctrl+Y)">
-                        <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
-                            <Path Data="{StaticResource IconRedo2}"
-                                  Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
-                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
-                        </Canvas></Viewbox>
-                    </Button>
+                        <Button x:Name="btnUndo" Style="{StaticResource IconButton}" Click="BtnUndo_Click" ToolTip="撤销 (Ctrl+Z)">
+                            <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
+                                <Path Data="{StaticResource IconUndo2}"
+                                      Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            </Canvas></Viewbox>
+                        </Button>
+                        <Button x:Name="btnRedo" Style="{StaticResource IconButton}" Click="BtnRedo_Click" Margin="2,0,0,0" ToolTip="重做 (Ctrl+Y)">
+                            <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
+                                <Path Data="{StaticResource IconRedo2}"
+                                      Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            </Canvas></Viewbox>
+                        </Button>
 
-                    <Rectangle Style="{StaticResource ToolbarSeparator}"/>
+                        <Rectangle Style="{StaticResource ToolbarSeparator}"/>
 
-                    <Button x:Name="btnSave" Style="{StaticResource IconButton}" Click="BtnSave_Click" ToolTip="保存 (Ctrl+S)">
-                        <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
-                            <Path Data="{StaticResource IconDownload}"
-                                  Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
-                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
-                        </Canvas></Viewbox>
-                    </Button>
-                    <Button x:Name="btnPin" Style="{StaticResource IconButton}" Click="BtnPin_Click" Margin="2,0,0,0" ToolTip="钉到屏幕">
-                        <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
-                            <Path Data="{StaticResource IconPin}"
-                                  Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
-                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
-                                  RenderTransformOrigin="0.5,0.5">
-                                <Path.RenderTransform>
-                                    <RotateTransform Angle="-45"/>
-                                </Path.RenderTransform>
-                            </Path>
-                        </Canvas></Viewbox>
-                    </Button>
-                    <Button x:Name="btnOcr" Style="{StaticResource IconButton}" Click="BtnOcr_Click" Margin="2,0,0,0" ToolTip="OCR 识别">
-                        <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
-                            <Path Data="{StaticResource IconScanText}"
-                                  Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
-                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
-                        </Canvas></Viewbox>
-                    </Button>
-                    <Button x:Name="btnTranslate" Style="{StaticResource IconButton}" Click="BtnTranslate_Click" Margin="2,0,0,0" ToolTip="翻译">
-                        <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
-                            <Path Data="{StaticResource IconLanguages}"
-                                  Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
-                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
-                        </Canvas></Viewbox>
-                    </Button>
+                        <Button x:Name="btnSave" Style="{StaticResource IconButton}" Click="BtnSave_Click" ToolTip="保存 (Ctrl+S)">
+                            <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
+                                <Path Data="{StaticResource IconDownload}"
+                                      Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            </Canvas></Viewbox>
+                        </Button>
+                        <Button x:Name="btnPin" Style="{StaticResource IconButton}" Click="BtnPin_Click" Margin="2,0,0,0" ToolTip="钉到屏幕">
+                            <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
+                                <Path Data="{StaticResource IconPin}"
+                                      Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"
+                                      RenderTransformOrigin="0.5,0.5">
+                                    <Path.RenderTransform>
+                                        <RotateTransform Angle="-45"/>
+                                    </Path.RenderTransform>
+                                </Path>
+                            </Canvas></Viewbox>
+                        </Button>
+                        <Button x:Name="btnOcr" Style="{StaticResource IconButton}" Click="BtnOcr_Click" Margin="2,0,0,0" ToolTip="OCR 识别">
+                            <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
+                                <Path Data="{StaticResource IconScanText}"
+                                      Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            </Canvas></Viewbox>
+                        </Button>
+                        <Button x:Name="btnTranslate" Style="{StaticResource IconButton}" Click="BtnTranslate_Click" Margin="2,0,0,0" ToolTip="翻译">
+                            <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
+                                <Path Data="{StaticResource IconLanguages}"
+                                      Stroke="{StaticResource TextPrimaryBrush}" StrokeThickness="2"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            </Canvas></Viewbox>
+                        </Button>
 
-                    <Rectangle Style="{StaticResource ToolbarSeparator}"/>
+                        <Rectangle Style="{StaticResource ToolbarSeparator}"/>
 
-                    <Button x:Name="btnCancel" Style="{StaticResource DangerIconButton}" Click="BtnCancel_Click" ToolTip="取消 (Esc)">
-                        <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
-                            <Path Data="{StaticResource IconX}"
-                                  Stroke="{StaticResource ErrorBrush}" StrokeThickness="2"
-                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
-                        </Canvas></Viewbox>
-                    </Button>
-                    <Button x:Name="btnConfirm" Style="{StaticResource IconButton}" Click="BtnConfirm_Click" Margin="2,0,0,0" ToolTip="完成 (Enter)" Foreground="{StaticResource SuccessBrush}">
-                        <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
-                            <Path Data="{StaticResource IconCheck}"
-                                  Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2.2"
-                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
-                        </Canvas></Viewbox>
-                    </Button>
+                        <Button x:Name="btnCancel" Style="{StaticResource DangerIconButton}" Click="BtnCancel_Click" ToolTip="取消 (Esc)">
+                            <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
+                                <Path Data="{StaticResource IconX}"
+                                      Stroke="{StaticResource ErrorBrush}" StrokeThickness="2"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                            </Canvas></Viewbox>
+                        </Button>
+                        <Button x:Name="btnConfirm" Style="{StaticResource IconButton}" Click="BtnConfirm_Click" Margin="2,0,0,0" ToolTip="完成 (Enter)" Foreground="{StaticResource SuccessBrush}">
+                            <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
+                                <Path Data="{StaticResource IconCheck}"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2.2"
+                                      StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round"/>
+                            </Canvas></Viewbox>
+                        </Button>
+                    </StackPanel>
+
+                    <!-- 标注选项:选中绘制工具时显示颜色与粗细 -->
+                    <StackPanel x:Name="annotationOptions"
+                                Orientation="Horizontal"
+                                Margin="0,6,0,0"
+                                Visibility="Collapsed">
+                        <Button x:Name="btnSizeSmall" Style="{StaticResource AnnotationOptionButton}" Click="Size_Click" Tag="0" ToolTip="细">
+                            <Ellipse Width="4" Height="4" Fill="{StaticResource TextPrimaryBrush}"/>
+                        </Button>
+                        <Button x:Name="btnSizeMedium" Style="{StaticResource AnnotationOptionButton}" Click="Size_Click" Tag="1" ToolTip="中">
+                            <Ellipse Width="7" Height="7" Fill="{StaticResource TextPrimaryBrush}"/>
+                        </Button>
+                        <Button x:Name="btnSizeLarge" Style="{StaticResource AnnotationOptionButton}" Click="Size_Click" Tag="2" ToolTip="粗">
+                            <Ellipse Width="11" Height="11" Fill="{StaticResource TextPrimaryBrush}"/>
+                        </Button>
+
+                        <Rectangle x:Name="annotationColorSeparator" Style="{StaticResource ToolbarSeparator}"/>
+
+                        <StackPanel x:Name="annotationColors" Orientation="Horizontal">
+                            <Button Style="{StaticResource AnnotationOptionButton}" Click="Color_Click" Tag="AnnotationDefaultColor" ToolTip="红">
+                                <Ellipse Style="{StaticResource AnnotationSwatch}" Fill="{StaticResource AnnotationRedBrush}"/>
+                            </Button>
+                            <Button Style="{StaticResource AnnotationOptionButton}" Click="Color_Click" Tag="AnnotationOrangeColor" ToolTip="橙">
+                                <Ellipse Style="{StaticResource AnnotationSwatch}" Fill="{StaticResource AnnotationOrangeBrush}"/>
+                            </Button>
+                            <Button Style="{StaticResource AnnotationOptionButton}" Click="Color_Click" Tag="AnnotationYellowColor" ToolTip="黄">
+                                <Ellipse Style="{StaticResource AnnotationSwatch}" Fill="{StaticResource AnnotationYellowBrush}"/>
+                            </Button>
+                            <Button Style="{StaticResource AnnotationOptionButton}" Click="Color_Click" Tag="AnnotationGreenColor" ToolTip="绿">
+                                <Ellipse Style="{StaticResource AnnotationSwatch}" Fill="{StaticResource AnnotationGreenBrush}"/>
+                            </Button>
+                            <Button Style="{StaticResource AnnotationOptionButton}" Click="Color_Click" Tag="AnnotationBlueColor" ToolTip="蓝">
+                                <Ellipse Style="{StaticResource AnnotationSwatch}" Fill="{StaticResource AnnotationBlueBrush}"/>
+                            </Button>
+                            <Button Style="{StaticResource AnnotationOptionButton}" Click="Color_Click" Tag="AnnotationBlackColor" ToolTip="黑">
+                                <Ellipse Style="{StaticResource AnnotationSwatch}" Fill="{StaticResource AnnotationBlackBrush}"/>
+                            </Button>
+                            <Button Style="{StaticResource AnnotationOptionButton}" Click="Color_Click" Tag="AnnotationWhiteColor" ToolTip="白">
+                                <Ellipse Style="{StaticResource AnnotationSwatch}" Fill="{StaticResource AnnotationWhiteBrush}"/>
+                            </Button>
+                        </StackPanel>
+                    </StackPanel>
                 </StackPanel>
             </Border>
         </Canvas>

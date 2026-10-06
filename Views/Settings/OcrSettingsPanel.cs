@@ -1,29 +1,25 @@
-using System;
 using System.Windows;
 using System.Windows.Controls;
 using STool.Core;
 using STool.Models;
-using STool.Modules.Translation;
+using STool.Modules.Ocr;
 
 namespace STool.Views.Settings;
 
 public class OcrSettingsPanel : StackPanel
 {
     private readonly ConfigManager _configManager;
-    private SettingsAutoSaveController _autoSave = null!;
     private System.Windows.Controls.ComboBox _cmbProvider = null!;
     private System.Windows.Controls.ComboBox _cmbFallbackPolicy = null!;
 
     // 腾讯云
     private System.Windows.Controls.TextBox _txtTencentSecretId = null!;
     private SecurePasswordField _pwdTencentSecretKey = null!;
+    private EncryptedSetting _tencentSecretId = new(null);
+    private EncryptedSetting _tencentSecretKey = new(null);
 
     // AI Vision
-    private System.Windows.Controls.ComboBox _cmbAiPlatform = null!;
-    private System.Windows.Controls.TextBox _txtAiApiUrl = null!;
-    private TextBlock _txtAiApiUrlHint = null!;
-    private SecurePasswordField _pwdAiApiKey = null!;
-    private System.Windows.Controls.ComboBox _cmbAiModel = null!;
+    private AiServiceSettingsSection _ai = null!;
 
     public OcrSettingsPanel(ConfigManager configManager)
     {
@@ -54,10 +50,10 @@ public class OcrSettingsPanel : StackPanel
             _cmbFallbackPolicy,
             "云服务异常时执行的策略",
             isLast: true));
-        Children.Add(WrapSection(baseSection));
+        Children.Add(SettingsLayout.CreateSection(baseSection));
 
         // ── 腾讯云设置(可折叠,行内布局) ──
-        var (tencentContent, tencentCard) = CreateCollapsibleSection("腾讯云设置");
+        var (tencentContent, tencentCard, _) = SettingsLayout.CreateCompactCollapsibleSection("腾讯云设置");
 
         _txtTencentSecretId = SettingsLayout.CreateTextBox();
         tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret ID", _txtTencentSecretId));
@@ -68,265 +64,101 @@ public class OcrSettingsPanel : StackPanel
         Children.Add(tencentCard);
 
         // ── AI Vision 设置(可折叠,行内布局) ──
-        var (aiContent, aiCard) = CreateCollapsibleSection("AI Vision 设置");
-
-        _cmbAiPlatform = SettingsLayout.CreateComboBox();
-        _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "OpenAI", Tag = OcrAiPlatform.OpenAI });
-        _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "Google AI Studio", Tag = OcrAiPlatform.GoogleAiStudio });
-        _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "自定义", Tag = OcrAiPlatform.Custom });
-        _cmbAiPlatform.SelectionChanged += CmbAiPlatform_SelectionChanged;
-        aiContent.Children.Add(SettingsLayout.CreateInlineField("平台", _cmbAiPlatform));
-
-        _txtAiApiUrl = SettingsLayout.CreateTextBox();
-        _txtAiApiUrlHint = SettingsLayout.CreateHint(string.Empty, inline: false);
-        _txtAiApiUrl.TextChanged += (_, _) => UpdateApiUrlPreview();
-        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("API URL", _txtAiApiUrl, _txtAiApiUrlHint));
-
-        _pwdAiApiKey = SettingsLayout.CreatePasswordField();
-        aiContent.Children.Add(SettingsLayout.CreateInlineField("API Key", _pwdAiApiKey));
-
-        _cmbAiModel = SettingsLayout.CreateEditableComboBox();
-        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", _cmbAiModel, "可获取列表，也可手动输入。", isLast: true));
-
-        var btnFetchModels = SettingsLayout.CreateSecondaryActionButton("获取模型");
-        btnFetchModels.Click += BtnFetchModels_Click;
-        aiContent.Children.Add(SettingsLayout.CreateActionRow(btnFetchModels));
-
+        var (aiContent, aiCard, _) = SettingsLayout.CreateCompactCollapsibleSection("AI Vision 设置");
+        _ai = new AiServiceSettingsSection(
+            aiContent,
+            new[]
+            {
+                new AiPlatformOption("OpenAI", OcrAiPlatform.OpenAI, AiPlatformPreset.OpenAi),
+                new AiPlatformOption("Google AI Studio", OcrAiPlatform.GoogleAiStudio, AiPlatformPreset.GoogleAiStudio),
+                new AiPlatformOption("自定义", OcrAiPlatform.Custom, null)
+            },
+            (url, key, model) => AiVisionOcrService.TestAsync(url, key, model));
         Children.Add(aiCard);
-
-    }
-
-    private Border WrapSection(StackPanel section)
-    {
-        return SettingsLayout.CreateSection(section);
-    }
-
-    private (StackPanel content, Border card) CreateCollapsibleSection(string title)
-    {
-        var (content, card, _) = SettingsLayout.CreateCompactCollapsibleSection(title);
-        return (content, card);
     }
 
     private void LoadSettings()
     {
         var config = _configManager.Get().Ocr;
 
-        // 选择提供商
-        foreach (ComboBoxItem item in _cmbProvider.Items)
-        {
-            if ((OcrProvider)item.Tag == config.Provider)
-            {
-                _cmbProvider.SelectedItem = item;
-                break;
-            }
-        }
-        _cmbProvider.SelectedIndex = _cmbProvider.SelectedIndex < 0 ? 0 : _cmbProvider.SelectedIndex;
+        SelectByTag(_cmbProvider, config.Provider);
+        SelectByTag(_cmbFallbackPolicy, config.FallbackToLocal);
 
-        foreach (ComboBoxItem item in _cmbFallbackPolicy.Items)
-        {
-            if (item.Tag is bool enabled && enabled == config.FallbackToLocal)
-            {
-                _cmbFallbackPolicy.SelectedItem = item;
-                break;
-            }
-        }
-        _cmbFallbackPolicy.SelectedIndex = _cmbFallbackPolicy.SelectedIndex < 0 ? 0 : _cmbFallbackPolicy.SelectedIndex;
+        _tencentSecretId = new EncryptedSetting(config.TencentSecretIdEncrypted);
+        _tencentSecretKey = new EncryptedSetting(config.TencentSecretKeyEncrypted);
+        _txtTencentSecretId.Text = _tencentSecretId.Plain;
+        _pwdTencentSecretKey.Password = _tencentSecretKey.Plain;
 
-        // 腾讯云（解密显示）
-        if (!string.IsNullOrEmpty(config.TencentSecretIdEncrypted))
-        {
-            _txtTencentSecretId.Text = SecureStorage.Decrypt(config.TencentSecretIdEncrypted);
-        }
-        if (!string.IsNullOrEmpty(config.TencentSecretKeyEncrypted))
-        {
-            _pwdTencentSecretKey.Password = SecureStorage.Decrypt(config.TencentSecretKeyEncrypted);
-        }
+        _ai.Load(config.AiPlatform, config.AiApiUrlEncrypted, config.AiApiKeyEncrypted, config.AiModel);
 
-        // AI Vision（解密显示）
-        foreach (ComboBoxItem item in _cmbAiPlatform.Items)
-        {
-            if ((OcrAiPlatform)item.Tag == config.AiPlatform)
-            {
-                _cmbAiPlatform.SelectedItem = item;
-                break;
-            }
-        }
-        _cmbAiPlatform.SelectedIndex = _cmbAiPlatform.SelectedIndex < 0 ? 0 : _cmbAiPlatform.SelectedIndex;
-
-        if (!string.IsNullOrEmpty(config.AiApiUrlEncrypted))
-        {
-            _txtAiApiUrl.Text = SecureStorage.Decrypt(config.AiApiUrlEncrypted);
-        }
-        if (!string.IsNullOrEmpty(config.AiApiKeyEncrypted))
-        {
-            _pwdAiApiKey.Password = SecureStorage.Decrypt(config.AiApiKeyEncrypted);
-        }
-        _cmbAiModel.Text = config.AiModel ?? "";
-        UpdateApiUrlPreview();
+        if (_tencentSecretId.IsUnreadable || _tencentSecretKey.IsUnreadable || _ai.HasUnreadableSecrets)
+            SettingsLayout.WarnUnreadableSecrets();
     }
 
-    private void UpdateApiUrlPreview()
+    private static void SelectByTag(System.Windows.Controls.ComboBox comboBox, object value)
     {
-        var apiUrl = _txtAiApiUrl?.Text.Trim() ?? string.Empty;
-        if (string.IsNullOrEmpty(apiUrl))
+        foreach (ComboBoxItem item in comboBox.Items)
         {
-            _txtAiApiUrlHint.Text = "输入域名或完整的 Chat Completions 地址";
-            return;
+            if (Equals(item.Tag, value))
+            {
+                comboBox.SelectedItem = item;
+                return;
+            }
         }
 
-        try
-        {
-            _txtAiApiUrlHint.Text = $"实际请求：{AiApiEndpointResolver.ResolvePrimaryChatCompletionUrl(apiUrl)}";
-        }
-        catch (InvalidOperationException ex)
-        {
-            _txtAiApiUrlHint.Text = ex.Message;
-        }
+        comboBox.SelectedIndex = 0;
     }
 
     private void EnableAutoSave()
     {
-        _autoSave = new SettingsAutoSaveController(this, SaveSettings);
-        _autoSave.TrackImmediate(_cmbProvider);
-        _autoSave.TrackImmediate(_cmbFallbackPolicy);
-        _autoSave.TrackImmediate(_cmbAiPlatform);
-        _autoSave.TrackDebounced(_txtTencentSecretId);
-        _autoSave.TrackDebounced(_pwdTencentSecretKey);
-        _autoSave.TrackDebounced(_txtAiApiUrl);
-        _autoSave.TrackDebounced(_pwdAiApiKey);
-        _autoSave.TrackDebounced(_cmbAiModel);
+        var autoSave = new SettingsAutoSaveController(this, SaveSettings);
+        autoSave.TrackImmediate(_cmbProvider);
+        autoSave.TrackImmediate(_cmbFallbackPolicy);
+        autoSave.TrackImmediate(_ai.Platform);
+        autoSave.TrackDebounced(_txtTencentSecretId);
+        autoSave.TrackDebounced(_pwdTencentSecretKey);
+        autoSave.TrackDebounced(_ai.ApiUrl);
+        autoSave.TrackDebounced(_ai.ApiKey);
+        autoSave.TrackDebounced(_ai.Model);
         Children.Add(new Border { Height = 12 });
     }
 
     private bool SaveSettings()
     {
-        var config = _configManager.Get();
-        var provider = (OcrProvider)(_cmbProvider.SelectedItem as ComboBoxItem)!.Tag;
+        var config = _configManager.Get().Ocr;
+        var provider = (OcrProvider)((ComboBoxItem)_cmbProvider.SelectedItem).Tag;
         var fallbackToLocal = (_cmbFallbackPolicy.SelectedItem as ComboBoxItem)?.Tag is true;
-        var aiPlatform = GetSelectedAiPlatform();
-        var tencentSecretId = _txtTencentSecretId.Text.Trim();
-        var tencentSecretKey = _pwdTencentSecretKey.Password.Trim();
-        var aiApiUrl = _txtAiApiUrl.Text.Trim();
-        var aiApiKey = _pwdAiApiKey.Password.Trim();
-        var aiModel = GetAiModel();
+        var aiPlatform = (OcrAiPlatform)_ai.SelectedPlatformTag;
 
-        if (config.Ocr.Provider == provider &&
-            config.Ocr.FallbackToLocal == fallbackToLocal &&
-            config.Ocr.AiPlatform == aiPlatform &&
-            DecryptOrEmpty(config.Ocr.TencentSecretIdEncrypted) == tencentSecretId &&
-            DecryptOrEmpty(config.Ocr.TencentSecretKeyEncrypted) == tencentSecretKey &&
-            DecryptOrEmpty(config.Ocr.AiApiUrlEncrypted) == aiApiUrl &&
-            DecryptOrEmpty(config.Ocr.AiApiKeyEncrypted) == aiApiKey &&
-            (config.Ocr.AiModel ?? string.Empty) == aiModel)
+        if (config.Provider == provider &&
+            config.FallbackToLocal == fallbackToLocal &&
+            _tencentSecretId.Matches(_txtTencentSecretId.Text) &&
+            _tencentSecretKey.Matches(_pwdTencentSecretKey.Password) &&
+            _ai.IsUnchanged(config.AiPlatform, config.AiModel))
         {
             return false;
         }
 
-        var secretIdEncrypted = EncryptIfChangedOrClear(tencentSecretId, config.Ocr.TencentSecretIdEncrypted);
-        var secretKeyEncrypted = EncryptIfChangedOrClear(tencentSecretKey, config.Ocr.TencentSecretKeyEncrypted);
-        var apiUrlEncrypted = EncryptIfChangedOrClear(aiApiUrl, config.Ocr.AiApiUrlEncrypted);
-        var apiKeyEncrypted = EncryptIfChangedOrClear(aiApiKey, config.Ocr.AiApiKeyEncrypted);
+        var secretId = _tencentSecretId.Resolve(_txtTencentSecretId.Text);
+        var secretKey = _tencentSecretKey.Resolve(_pwdTencentSecretKey.Password);
+        var (apiUrl, apiKey) = _ai.ResolveSecrets();
+        var aiModel = _ai.ModelName;
 
         _configManager.Update(current =>
         {
             current.Ocr.Provider = provider;
             current.Ocr.FallbackToLocal = fallbackToLocal;
-            current.Ocr.TencentSecretIdEncrypted = secretIdEncrypted;
-            current.Ocr.TencentSecretKeyEncrypted = secretKeyEncrypted;
+            current.Ocr.TencentSecretIdEncrypted = secretId;
+            current.Ocr.TencentSecretKeyEncrypted = secretKey;
             current.Ocr.AiPlatform = aiPlatform;
-            current.Ocr.AiApiUrlEncrypted = apiUrlEncrypted;
-            current.Ocr.AiApiKeyEncrypted = apiKeyEncrypted;
+            current.Ocr.AiApiUrlEncrypted = apiUrl;
+            current.Ocr.AiApiKeyEncrypted = apiKey;
             current.Ocr.AiModel = aiModel;
         });
+
+        _tencentSecretId.MarkSaved(_txtTencentSecretId.Text, secretId);
+        _tencentSecretKey.MarkSaved(_pwdTencentSecretKey.Password, secretKey);
+        _ai.MarkSaved(apiUrl, apiKey);
         return true;
-    }
-
-    private static string DecryptOrEmpty(string? encrypted)
-    {
-        return string.IsNullOrWhiteSpace(encrypted) ? string.Empty : SecureStorage.Decrypt(encrypted);
-    }
-
-    private static string? EncryptIfChangedOrClear(string value, string? currentEncrypted)
-    {
-        var normalized = value.Trim();
-        if (string.IsNullOrEmpty(normalized))
-        {
-            return null;
-        }
-
-        return SecureStorage.Decrypt(currentEncrypted ?? string.Empty) == normalized
-            ? currentEncrypted
-            : SecureStorage.Encrypt(normalized);
-    }
-
-    private void CmbAiPlatform_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        var platform = GetSelectedAiPlatform();
-        if (platform == OcrAiPlatform.Custom)
-        {
-            return;
-        }
-
-        _txtAiApiUrl.Text = platform switch
-        {
-            OcrAiPlatform.OpenAI => "https://api.openai.com/v1/chat/completions",
-            OcrAiPlatform.GoogleAiStudio => "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
-            _ => string.Empty
-        };
-
-        _cmbAiModel.Text = platform switch
-        {
-            OcrAiPlatform.OpenAI => "gpt-4o-mini",
-            OcrAiPlatform.GoogleAiStudio => "gemini-1.5-flash",
-            _ => string.Empty
-        };
-    }
-
-    private string GetAiModel()
-    {
-        return _cmbAiModel.Text.Trim();
-    }
-
-    private async void BtnFetchModels_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not System.Windows.Controls.Button button)
-            return;
-
-        await UiBusyState.RunWithBusyStateAsync(button, "获取中...", async () =>
-        {
-            try
-            {
-                var models = await AiTranslationService.FetchModelsAsync(_txtAiApiUrl.Text, _pwdAiApiKey.Password);
-                var currentModel = GetAiModel();
-
-                _cmbAiModel.Items.Clear();
-                foreach (var model in models)
-                {
-                    _cmbAiModel.Items.Add(model);
-                }
-
-                if (!string.IsNullOrWhiteSpace(currentModel))
-                {
-                    _cmbAiModel.Text = currentModel;
-                }
-                else if (models.Count > 0)
-                {
-                    _cmbAiModel.Text = models[0];
-                }
-
-                ToastNotification.Show("模型已获取", $"共 {models.Count} 个模型", ToastNotification.ToastType.Success);
-            }
-            catch (Exception ex)
-            {
-                ToastNotification.Show("获取模型失败", ex.Message, ToastNotification.ToastType.Error);
-            }
-        });
-    }
-
-    private OcrAiPlatform GetSelectedAiPlatform()
-    {
-        return (_cmbAiPlatform.SelectedItem as ComboBoxItem)?.Tag is OcrAiPlatform platform
-            ? platform
-            : OcrAiPlatform.Custom;
     }
 }

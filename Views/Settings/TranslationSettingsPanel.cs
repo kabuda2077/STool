@@ -1,42 +1,39 @@
-using System;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Shapes;
 using STool.Core;
-using STool.Modules.Translation;
 using STool.Models;
+using STool.Modules.Translation;
 
 namespace STool.Views.Settings;
 
 public class TranslationSettingsPanel : StackPanel
 {
     private readonly ConfigManager _configManager;
-    private SettingsAutoSaveController _autoSave = null!;
     private System.Windows.Controls.ComboBox _cmbProvider = null!;
     private System.Windows.Controls.ComboBox _cmbTranslationMode = null!;
     private System.Windows.Controls.ComboBox _cmbScreenshotMode = null!;
-    private Border _tencentSection = null!;
-    private Border _aiSection = null!;
     private Expander _tencentExpander = null!;
     private Expander _aiExpander = null!;
+    private bool _loadingSettings = true;
 
     // 腾讯云
     private System.Windows.Controls.TextBox _txtTencentSecretId = null!;
     private SecurePasswordField _pwdTencentSecretKey = null!;
+    private EncryptedSetting _tencentSecretId = new(null);
+    private EncryptedSetting _tencentSecretKey = new(null);
 
     // AI
-    private System.Windows.Controls.ComboBox _cmbAiPlatform = null!;
-    private System.Windows.Controls.TextBox _txtAiApiUrl = null!;
-    private TextBlock _txtAiApiUrlHint = null!;
-    private SecurePasswordField _pwdAiApiKey = null!;
-    private System.Windows.Controls.ComboBox _cmbAiModel = null!;
+    private AiServiceSettingsSection _ai = null!;
 
     public TranslationSettingsPanel(ConfigManager configManager)
     {
         _configManager = configManager;
         InitializeUI();
         LoadSettings();
+        _loadingSettings = false;
         EnableAutoSave();
     }
 
@@ -52,7 +49,7 @@ public class TranslationSettingsPanel : StackPanel
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "AI 翻译", Tag = TranslationProvider.OpenAI });
         _cmbProvider.SelectionChanged += CmbProvider_SelectionChanged;
         providerSection.Children.Add(SettingsLayout.CreateInlineField("当前引擎", _cmbProvider, isLast: true));
-        Children.Add(WrapSection(providerSection));
+        Children.Add(SettingsLayout.CreateSection(providerSection));
 
         // ── 默认策略 ──
         var strategySection = SettingsLayout.CreateSectionContent("默认策略");
@@ -69,11 +66,11 @@ public class TranslationSettingsPanel : StackPanel
         _cmbScreenshotMode.Items.Add(new ComboBoxItem { Content = "快速：本地规则识别", Tag = ScreenshotTranslationMode.Fast });
         _cmbScreenshotMode.Items.Add(new ComboBoxItem { Content = "智能：AI 识别并翻译", Tag = ScreenshotTranslationMode.Smart });
         strategySection.Children.Add(SettingsLayout.CreateInlineFieldWithHint("截图翻译", _cmbScreenshotMode, "智能模式使用 AI，不可用时改用整段翻译。", isLast: true));
-        Children.Add(WrapSection(strategySection));
+        Children.Add(SettingsLayout.CreateSection(strategySection));
 
         // ── 腾讯云设置(可折叠,行内布局) ──
-        var (tencentContent, tencentCard) = CreateCollapsibleSection("腾讯云设置");
-        _tencentSection = tencentCard;
+        var (tencentContent, tencentCard, tencentExpander) = SettingsLayout.CreateCollapsibleSection("腾讯云设置");
+        _tencentExpander = tencentExpander;
 
         _txtTencentSecretId = SettingsLayout.CreateTextBox();
         tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret ID", _txtTencentSecretId));
@@ -84,36 +81,27 @@ public class TranslationSettingsPanel : StackPanel
         Children.Add(tencentCard);
 
         // ── AI 翻译设置(可折叠,行内布局) ──
-        var (aiContent, aiCard) = CreateCollapsibleSection("AI 翻译设置");
-        _aiSection = aiCard;
-
-        _cmbAiPlatform = SettingsLayout.CreateComboBox();
-        _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "OpenAI", Tag = TranslationAiPlatform.OpenAI });
-        _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "Google AI Studio", Tag = TranslationAiPlatform.GoogleAiStudio });
-        _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "DeepSeek", Tag = TranslationAiPlatform.DeepSeek });
-        _cmbAiPlatform.Items.Add(new ComboBoxItem { Content = "自定义", Tag = TranslationAiPlatform.Custom });
-        _cmbAiPlatform.SelectionChanged += CmbAiPlatform_SelectionChanged;
-        aiContent.Children.Add(SettingsLayout.CreateInlineField("平台", _cmbAiPlatform));
-
-        _txtAiApiUrl = SettingsLayout.CreateTextBox();
-        _txtAiApiUrlHint = SettingsLayout.CreateHint(string.Empty, inline: false);
-        _txtAiApiUrl.TextChanged += (_, _) => UpdateApiUrlPreview();
-        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("API URL", _txtAiApiUrl, _txtAiApiUrlHint));
-
-        _pwdAiApiKey = SettingsLayout.CreatePasswordField();
-        aiContent.Children.Add(SettingsLayout.CreateInlineField("API Key", _pwdAiApiKey));
-
-        _cmbAiModel = SettingsLayout.CreateEditableComboBox();
-        aiContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", _cmbAiModel, "可获取列表，也可手动输入。", isLast: true));
-
-        var btnFetchModels = SettingsLayout.CreateSecondaryActionButton("获取模型");
-        btnFetchModels.Click += BtnFetchModels_Click;
-        var btnTestAi = SettingsLayout.CreateSecondaryActionButton("测试");
-        btnTestAi.Click += BtnTestAi_Click;
-        aiContent.Children.Add(SettingsLayout.CreateActionRow(btnFetchModels, btnTestAi));
-
+        var (aiContent, aiCard, aiExpander) = SettingsLayout.CreateCollapsibleSection("AI 翻译设置");
+        _aiExpander = aiExpander;
+        _ai = new AiServiceSettingsSection(
+            aiContent,
+            new[]
+            {
+                new AiPlatformOption("OpenAI", TranslationAiPlatform.OpenAI, AiPlatformPreset.OpenAi),
+                new AiPlatformOption("Google AI Studio", TranslationAiPlatform.GoogleAiStudio, AiPlatformPreset.GoogleAiStudio),
+                new AiPlatformOption("DeepSeek", TranslationAiPlatform.DeepSeek, AiPlatformPreset.DeepSeek),
+                new AiPlatformOption("自定义", TranslationAiPlatform.Custom, null)
+            },
+            TestAiAsync);
         Children.Add(aiCard);
+    }
 
+    private static async Task<(bool Success, string Message)> TestAiAsync(string url, string key, string model)
+    {
+        var result = await AiTranslationService.TestAsync(url, key, model);
+        return result.Success
+            ? (true, result.TranslatedText)
+            : (false, result.ErrorMessage ?? "未知错误");
     }
 
     private ComboBoxItem CreateLanguageModeItem(string source, string target, string tag, bool bidirectional = false)
@@ -179,36 +167,12 @@ public class TranslationSettingsPanel : StackPanel
         return item;
     }
 
-    private Border WrapSection(StackPanel section)
-    {
-        return SettingsLayout.CreateSection(section);
-    }
-
-    private (StackPanel content, Border card) CreateCollapsibleSection(string title)
-    {
-        var (content, card, expander) = SettingsLayout.CreateCollapsibleSection(title);
-        if (title.Contains("腾讯"))
-        {
-            _tencentExpander = expander;
-        }
-        else
-        {
-            _aiExpander = expander;
-        }
-        return (content, card);
-    }
-
     private void CmbProvider_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
-        UpdateProviderSections();
-    }
-
-    private void UpdateProviderSections()
-    {
-        if (_tencentSection == null || _aiSection == null || _tencentExpander == null || _aiExpander == null)
-        {
+        // Initial configuration loading should not force a credentials section open.
+        // Only an explicit provider change by the user expands its relevant section.
+        if (_loadingSettings)
             return;
-        }
 
         var provider = (_cmbProvider.SelectedItem as ComboBoxItem)?.Tag is TranslationProvider selected
             ? selected
@@ -218,225 +182,76 @@ public class TranslationSettingsPanel : StackPanel
         _aiExpander.IsExpanded = provider == TranslationProvider.OpenAI;
     }
 
-    private void CmbAiPlatform_SelectionChanged(object sender, SelectionChangedEventArgs e)
-    {
-        var platform = GetSelectedAiPlatform();
-        if (platform == TranslationAiPlatform.Custom)
-        {
-            return;
-        }
-
-        _txtAiApiUrl.Text = AiTranslationService.GetDefaultApiUrl(platform);
-    }
-
-    private async void BtnFetchModels_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not System.Windows.Controls.Button button)
-            return;
-
-        await UiBusyState.RunWithBusyStateAsync(button, "获取中...", async () =>
-        {
-            try
-            {
-                var models = await AiTranslationService.FetchModelsAsync(_txtAiApiUrl.Text, _pwdAiApiKey.Password);
-                var currentModel = GetAiModel();
-
-                _cmbAiModel.Items.Clear();
-                foreach (var model in models)
-                {
-                    _cmbAiModel.Items.Add(model);
-                }
-
-                if (!string.IsNullOrWhiteSpace(currentModel))
-                {
-                    _cmbAiModel.Text = currentModel;
-                }
-                else if (models.Count > 0)
-                {
-                    _cmbAiModel.Text = models[0];
-                }
-
-                ToastNotification.Show("模型已获取", $"共 {models.Count} 个模型", ToastNotification.ToastType.Success);
-            }
-            catch (Exception ex)
-            {
-                ToastNotification.Show("获取模型失败", ex.Message, ToastNotification.ToastType.Error);
-            }
-        });
-    }
-
-    private async void BtnTestAi_Click(object sender, RoutedEventArgs e)
-    {
-        if (sender is not System.Windows.Controls.Button button)
-            return;
-
-        await UiBusyState.RunWithBusyStateAsync(button, "测试中...", async () =>
-        {
-            try
-            {
-                var result = await AiTranslationService.TestAsync(_txtAiApiUrl.Text, _pwdAiApiKey.Password, GetAiModel());
-                if (result.Success)
-                {
-                    ToastNotification.Show("测试成功", result.TranslatedText, ToastNotification.ToastType.Success);
-                }
-                else
-                {
-                    ToastNotification.Show("测试失败", result.ErrorMessage ?? "未知错误", ToastNotification.ToastType.Error);
-                }
-            }
-            catch (Exception ex)
-            {
-                ToastNotification.Show("测试失败", ex.Message, ToastNotification.ToastType.Error);
-            }
-        });
-    }
-
-    private TranslationAiPlatform GetSelectedAiPlatform()
-    {
-        return (_cmbAiPlatform.SelectedItem as ComboBoxItem)?.Tag is TranslationAiPlatform platform
-            ? platform
-            : TranslationAiPlatform.Custom;
-    }
-
-    private string GetAiModel()
-    {
-        return _cmbAiModel.Text.Trim();
-    }
-
     private void LoadSettings()
     {
         var config = _configManager.Get().Translation;
 
-        // 选择提供商
-        foreach (ComboBoxItem item in _cmbProvider.Items)
-        {
-            if ((TranslationProvider)item.Tag == config.Provider)
-            {
-                _cmbProvider.SelectedItem = item;
-                break;
-            }
-        }
-        _cmbProvider.SelectedIndex = _cmbProvider.SelectedIndex < 0 ? 0 : _cmbProvider.SelectedIndex;
-        UpdateProviderSections();
+        SelectByTag(_cmbProvider, config.Provider);
+        SelectByTag(_cmbTranslationMode, config.TranslationMode);
+        SelectByTag(_cmbScreenshotMode, config.ScreenshotMode);
 
-        // 翻译策略
-        foreach (ComboBoxItem item in _cmbTranslationMode.Items)
-        {
-            if ((string)item.Tag == config.TranslationMode)
-            {
-                _cmbTranslationMode.SelectedItem = item;
-                break;
-            }
-        }
-        _cmbTranslationMode.SelectedIndex = _cmbTranslationMode.SelectedIndex < 0 ? 0 : _cmbTranslationMode.SelectedIndex;
+        _tencentSecretId = new EncryptedSetting(config.TencentSecretIdEncrypted);
+        _tencentSecretKey = new EncryptedSetting(config.TencentSecretKeyEncrypted);
+        _txtTencentSecretId.Text = _tencentSecretId.Plain;
+        _pwdTencentSecretKey.Password = _tencentSecretKey.Plain;
 
-        foreach (ComboBoxItem item in _cmbScreenshotMode.Items)
-        {
-            if ((ScreenshotTranslationMode)item.Tag == config.ScreenshotMode)
-            {
-                _cmbScreenshotMode.SelectedItem = item;
-                break;
-            }
-        }
-        _cmbScreenshotMode.SelectedIndex = _cmbScreenshotMode.SelectedIndex < 0 ? 0 : _cmbScreenshotMode.SelectedIndex;
+        _ai.Load(config.AiPlatform, config.AiApiUrlEncrypted, config.AiApiKeyEncrypted, config.AiModel);
 
-        // 腾讯云（解密显示）
-        if (!string.IsNullOrEmpty(config.TencentSecretIdEncrypted))
-        {
-            _txtTencentSecretId.Text = SecureStorage.Decrypt(config.TencentSecretIdEncrypted);
-        }
-        if (!string.IsNullOrEmpty(config.TencentSecretKeyEncrypted))
-        {
-            _pwdTencentSecretKey.Password = SecureStorage.Decrypt(config.TencentSecretKeyEncrypted);
-        }
-
-        // AI（解密显示）
-        foreach (ComboBoxItem item in _cmbAiPlatform.Items)
-        {
-            if ((TranslationAiPlatform)item.Tag == config.AiPlatform)
-            {
-                _cmbAiPlatform.SelectedItem = item;
-                break;
-            }
-        }
-        _cmbAiPlatform.SelectedIndex = _cmbAiPlatform.SelectedIndex < 0 ? 0 : _cmbAiPlatform.SelectedIndex;
-
-        if (!string.IsNullOrEmpty(config.AiApiUrlEncrypted))
-        {
-            _txtAiApiUrl.Text = SecureStorage.Decrypt(config.AiApiUrlEncrypted);
-        }
-        if (!string.IsNullOrEmpty(config.AiApiKeyEncrypted))
-        {
-            _pwdAiApiKey.Password = SecureStorage.Decrypt(config.AiApiKeyEncrypted);
-        }
-        _cmbAiModel.Text = config.AiModel ?? "";
-        UpdateApiUrlPreview();
+        if (_tencentSecretId.IsUnreadable || _tencentSecretKey.IsUnreadable || _ai.HasUnreadableSecrets)
+            SettingsLayout.WarnUnreadableSecrets();
     }
 
-    private void UpdateApiUrlPreview()
+    private static void SelectByTag(System.Windows.Controls.ComboBox comboBox, object value)
     {
-        var apiUrl = _txtAiApiUrl?.Text.Trim() ?? string.Empty;
-        if (string.IsNullOrEmpty(apiUrl))
+        foreach (ComboBoxItem item in comboBox.Items)
         {
-            _txtAiApiUrlHint.Text = "输入域名或完整的 Chat Completions 地址";
-            return;
+            if (Equals(item.Tag, value))
+            {
+                comboBox.SelectedItem = item;
+                return;
+            }
         }
 
-        try
-        {
-            _txtAiApiUrlHint.Text = $"实际请求：{AiApiEndpointResolver.ResolvePrimaryChatCompletionUrl(apiUrl)}";
-        }
-        catch (InvalidOperationException ex)
-        {
-            _txtAiApiUrlHint.Text = ex.Message;
-        }
+        comboBox.SelectedIndex = 0;
     }
 
     private void EnableAutoSave()
     {
-        _autoSave = new SettingsAutoSaveController(this, SaveSettings);
-        _autoSave.TrackImmediate(_cmbProvider);
-        _autoSave.TrackImmediate(_cmbTranslationMode);
-        _autoSave.TrackImmediate(_cmbScreenshotMode);
-        _autoSave.TrackImmediate(_cmbAiPlatform);
-        _autoSave.TrackDebounced(_txtTencentSecretId);
-        _autoSave.TrackDebounced(_pwdTencentSecretKey);
-        _autoSave.TrackDebounced(_txtAiApiUrl);
-        _autoSave.TrackDebounced(_pwdAiApiKey);
-        _autoSave.TrackDebounced(_cmbAiModel);
+        var autoSave = new SettingsAutoSaveController(this, SaveSettings);
+        autoSave.TrackImmediate(_cmbProvider);
+        autoSave.TrackImmediate(_cmbTranslationMode);
+        autoSave.TrackImmediate(_cmbScreenshotMode);
+        autoSave.TrackImmediate(_ai.Platform);
+        autoSave.TrackDebounced(_txtTencentSecretId);
+        autoSave.TrackDebounced(_pwdTencentSecretKey);
+        autoSave.TrackDebounced(_ai.ApiUrl);
+        autoSave.TrackDebounced(_ai.ApiKey);
+        autoSave.TrackDebounced(_ai.Model);
         Children.Add(new Border { Height = 12 });
     }
 
     private bool SaveSettings()
     {
-        var config = _configManager.Get();
-        var provider = (TranslationProvider)(_cmbProvider.SelectedItem as ComboBoxItem)!.Tag;
-        var translationMode = (string)(_cmbTranslationMode.SelectedItem as ComboBoxItem)!.Tag;
-        var screenshotMode = (ScreenshotTranslationMode)(_cmbScreenshotMode.SelectedItem as ComboBoxItem)!.Tag;
-        var aiPlatform = GetSelectedAiPlatform();
-        var tencentSecretId = _txtTencentSecretId.Text.Trim();
-        var tencentSecretKey = _pwdTencentSecretKey.Password.Trim();
-        var aiApiUrl = _txtAiApiUrl.Text.Trim();
-        var aiApiKey = _pwdAiApiKey.Password.Trim();
-        var aiModel = GetAiModel();
+        var config = _configManager.Get().Translation;
+        var provider = (TranslationProvider)((ComboBoxItem)_cmbProvider.SelectedItem).Tag;
+        var translationMode = (string)((ComboBoxItem)_cmbTranslationMode.SelectedItem).Tag;
+        var screenshotMode = (ScreenshotTranslationMode)((ComboBoxItem)_cmbScreenshotMode.SelectedItem).Tag;
+        var aiPlatform = (TranslationAiPlatform)_ai.SelectedPlatformTag;
 
-        if (config.Translation.Provider == provider &&
-            config.Translation.TranslationMode == translationMode &&
-            config.Translation.ScreenshotMode == screenshotMode &&
-            config.Translation.AiPlatform == aiPlatform &&
-            DecryptOrEmpty(config.Translation.TencentSecretIdEncrypted) == tencentSecretId &&
-            DecryptOrEmpty(config.Translation.TencentSecretKeyEncrypted) == tencentSecretKey &&
-            DecryptOrEmpty(config.Translation.AiApiUrlEncrypted) == aiApiUrl &&
-            DecryptOrEmpty(config.Translation.AiApiKeyEncrypted) == aiApiKey &&
-            (config.Translation.AiModel ?? string.Empty) == aiModel)
+        if (config.Provider == provider &&
+            config.TranslationMode == translationMode &&
+            config.ScreenshotMode == screenshotMode &&
+            _tencentSecretId.Matches(_txtTencentSecretId.Text) &&
+            _tencentSecretKey.Matches(_pwdTencentSecretKey.Password) &&
+            _ai.IsUnchanged(config.AiPlatform, config.AiModel))
         {
             return false;
         }
 
-        var secretIdEncrypted = EncryptIfChangedOrClear(tencentSecretId, config.Translation.TencentSecretIdEncrypted);
-        var secretKeyEncrypted = EncryptIfChangedOrClear(tencentSecretKey, config.Translation.TencentSecretKeyEncrypted);
-        var apiUrlEncrypted = EncryptIfChangedOrClear(aiApiUrl, config.Translation.AiApiUrlEncrypted);
-        var apiKeyEncrypted = EncryptIfChangedOrClear(aiApiKey, config.Translation.AiApiKeyEncrypted);
+        var secretId = _tencentSecretId.Resolve(_txtTencentSecretId.Text);
+        var secretKey = _tencentSecretKey.Resolve(_pwdTencentSecretKey.Password);
+        var (apiUrl, apiKey) = _ai.ResolveSecrets();
+        var aiModel = _ai.ModelName;
         var targetLanguage = TranslationManager.ResolveTargetLanguage(string.Empty, translationMode);
 
         _configManager.Update(current =>
@@ -446,31 +261,17 @@ public class TranslationSettingsPanel : StackPanel
             current.Translation.ScreenshotMode = screenshotMode;
             current.Translation.SourceLanguage = "auto";
             current.Translation.TargetLanguage = targetLanguage;
-            current.Translation.TencentSecretIdEncrypted = secretIdEncrypted;
-            current.Translation.TencentSecretKeyEncrypted = secretKeyEncrypted;
+            current.Translation.TencentSecretIdEncrypted = secretId;
+            current.Translation.TencentSecretKeyEncrypted = secretKey;
             current.Translation.AiPlatform = aiPlatform;
-            current.Translation.AiApiUrlEncrypted = apiUrlEncrypted;
-            current.Translation.AiApiKeyEncrypted = apiKeyEncrypted;
+            current.Translation.AiApiUrlEncrypted = apiUrl;
+            current.Translation.AiApiKeyEncrypted = apiKey;
             current.Translation.AiModel = aiModel;
         });
+
+        _tencentSecretId.MarkSaved(_txtTencentSecretId.Text, secretId);
+        _tencentSecretKey.MarkSaved(_pwdTencentSecretKey.Password, secretKey);
+        _ai.MarkSaved(apiUrl, apiKey);
         return true;
-    }
-
-    private static string DecryptOrEmpty(string? encrypted)
-    {
-        return string.IsNullOrWhiteSpace(encrypted) ? string.Empty : SecureStorage.Decrypt(encrypted);
-    }
-
-    private static string? EncryptIfChangedOrClear(string value, string? currentEncrypted)
-    {
-        var normalized = value.Trim();
-        if (string.IsNullOrEmpty(normalized))
-        {
-            return null;
-        }
-
-        return SecureStorage.Decrypt(currentEncrypted ?? string.Empty) == normalized
-            ? currentEncrypted
-            : SecureStorage.Encrypt(normalized);
     }
 }

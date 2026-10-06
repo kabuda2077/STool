@@ -3,11 +3,9 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
+using System.Drawing.Text;
 using System.IO;
-using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Text;
-using System.Text.Json;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using STool.Core;
@@ -31,6 +29,8 @@ public class AiVisionOcrService : IOcrService
         - If there is no readable text, return an empty response.
         """;
 
+    private const string ProviderName = "AI Vision";
+    private const string SampleText = "STool OCR 123";
     private const int MaxOutputTokens = 4096;
     private const int MaxImageWidth = 4096;
     private const long MaxImagePixels = 24_000_000;
@@ -39,14 +39,17 @@ public class AiVisionOcrService : IOcrService
     private readonly string _apiUrl;
     private readonly string _apiKey;
     private readonly string _model;
-    private readonly HttpClient _httpClient;
 
     public AiVisionOcrService(string apiUrlEncrypted, string apiKeyEncrypted, string model)
+        : this(new PlainCredentials(SecureStorage.Decrypt(apiUrlEncrypted), SecureStorage.Decrypt(apiKeyEncrypted), model))
     {
-        _apiUrl = SecureStorage.Decrypt(apiUrlEncrypted);
-        _apiKey = SecureStorage.Decrypt(apiKeyEncrypted);
-        _model = model;
-        _httpClient = HttpDefaults.CreateClient();
+    }
+
+    private AiVisionOcrService(PlainCredentials credentials)
+    {
+        _apiUrl = credentials.ApiUrl;
+        _apiKey = credentials.ApiKey;
+        _model = credentials.Model;
     }
 
     public bool IsAvailable()
@@ -54,6 +57,28 @@ public class AiVisionOcrService : IOcrService
         return !string.IsNullOrWhiteSpace(_apiUrl) &&
                !string.IsNullOrWhiteSpace(_apiKey) &&
                !string.IsNullOrWhiteSpace(_model);
+    }
+
+    /// <summary>用一张生成的示例图片验证设置页填写的接口是否可用。</summary>
+    public static async Task<(bool Success, string Message)> TestAsync(
+        string apiUrl,
+        string apiKey,
+        string model,
+        CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(apiUrl))
+            return (false, "请先填写 API URL");
+        if (string.IsNullOrWhiteSpace(apiKey))
+            return (false, "请先填写 API Key");
+        if (string.IsNullOrWhiteSpace(model))
+            return (false, "请先填写模型");
+
+        using var service = new AiVisionOcrService(new PlainCredentials(apiUrl.Trim(), apiKey.Trim(), model.Trim()));
+        using var sample = CreateSampleImage();
+        var result = await service.RecognizeAsync(sample, cancellationToken);
+        return result.Success
+            ? (true, $"识别结果：{result.FullText.ReplaceLineEndings(" ")}")
+            : (false, result.ErrorMessage ?? "未知错误");
     }
 
     public async Task<OcrResult> RecognizeAsync(Bitmap image, CancellationToken cancellationToken = default)
@@ -67,46 +92,18 @@ public class AiVisionOcrService : IOcrService
 
         try
         {
-            var imageBase64 = EncodeImageAsPng(image);
-            var payload = new
-            {
-                model = _model,
-                messages = new[]
-                {
-                    new
-                    {
-                        role = "user",
-                        content = new object[]
-                        {
-                            new { type = "text", text = OcrPrompt },
-                            new
-                            {
-                                type = "image_url",
-                                image_url = new
-                                {
-                                    url = $"data:image/png;base64,{imageBase64}"
-                                }
-                            }
-                        }
-                    }
-                },
-                max_tokens = MaxOutputTokens
-            };
-
-            var endpoints = AiApiEndpointResolver.ResolveChatCompletionCandidates(_apiUrl);
-            var response = await AiApiRequestSender.SendAsync(
-                _httpClient,
-                endpoints,
-                endpoint => CreateRequest(endpoint, payload),
+            var imageBase64 = await Task.Run(() => EncodeImageAsPng(image), cancellationToken).ConfigureAwait(false);
+            var request = new ChatCompletionRequest(
+                _model,
+                OpenAiChatClient.UserMessageWithImage(OcrPrompt, $"data:image/png;base64,{imageBase64}"),
+                MaxOutputTokens);
+            var result = await OpenAiChatClient.CompleteAsync(
+                HttpDefaults.Shared,
+                _apiUrl,
+                _apiKey,
+                request,
                 cancellationToken);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                var errorBody = Truncate(response.Body, MaxErrorBodyLength);
-                return Failure($"AI OCR 请求失败 ({(int)response.StatusCode} {response.ReasonPhrase}): {errorBody}");
-            }
-
-            return ParseApiResponse(response.Body);
+            return ToOcrResult(result);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -114,88 +111,50 @@ public class AiVisionOcrService : IOcrService
         }
         catch (Exception ex)
         {
-            return Failure(ex.Message);
+            return Failure(NetworkErrorMessages.FromException(ex, cancellationToken));
         }
     }
 
-    private HttpRequestMessage CreateRequest(string endpoint, object payload)
+    internal static OcrResult ParseApiResponse(string responseJson) =>
+        ToOcrResult(OpenAiChatClient.ParseResponse(responseJson));
+
+    private static OcrResult ToOcrResult(ChatCompletionResult result) => result.Error switch
     {
-        var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
+        ChatCompletionError.None => new OcrResult
         {
-            Content = new StringContent(JsonSerializer.Serialize(payload), Encoding.UTF8, "application/json")
-        };
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", _apiKey);
-        return request;
-    }
-
-    internal static OcrResult ParseApiResponse(string responseJson)
-    {
-        try
-        {
-            using var jsonDoc = JsonDocument.Parse(responseJson);
-            var root = jsonDoc.RootElement;
-
-            if (!root.TryGetProperty("choices", out var choices) ||
-                choices.ValueKind != JsonValueKind.Array ||
-                choices.GetArrayLength() == 0)
+            Success = true,
+            FullText = result.Content,
+            Provider = ProviderName,
+            TextBlocks = new List<OcrTextBlock>
             {
-                return Failure("AI OCR 返回格式无效：缺少 choices。");
-            }
-
-            var choice = choices[0];
-            var finishReason = ReadString(choice, "finish_reason");
-            if (string.Equals(finishReason, "length", StringComparison.OrdinalIgnoreCase))
-            {
-                return Failure("AI OCR 输出达到模型长度上限，结果可能不完整。请缩小截图范围后重试。");
-            }
-
-            if (string.Equals(finishReason, "content_filter", StringComparison.OrdinalIgnoreCase))
-            {
-                return Failure("AI OCR 输出被内容安全策略拦截。");
-            }
-
-            if (!choice.TryGetProperty("message", out var message) ||
-                message.ValueKind != JsonValueKind.Object)
-            {
-                return Failure("AI OCR 返回格式无效：缺少 message。");
-            }
-
-            var refusal = ReadString(message, "refusal");
-            if (!string.IsNullOrWhiteSpace(refusal))
-            {
-                return Failure($"AI OCR 拒绝处理此图片：{refusal.Trim()}");
-            }
-
-            if (!message.TryGetProperty("content", out var contentElement))
-            {
-                return Failure("AI OCR 返回格式无效：缺少 content。");
-            }
-
-            var content = ReadMessageContent(contentElement).Trim();
-            if (string.IsNullOrWhiteSpace(content))
-            {
-                return Failure("AI OCR 未识别到可读文字。");
-            }
-
-            return new OcrResult
-            {
-                Success = true,
-                FullText = content,
-                Provider = "AI Vision",
-                TextBlocks = new List<OcrTextBlock>
+                new()
                 {
-                    new()
-                    {
-                        Text = content,
-                        Confidence = 1.0f
-                    }
+                    Text = result.Content,
+                    Confidence = 1.0f
                 }
-            };
-        }
-        catch (JsonException ex)
-        {
-            return Failure($"AI OCR 返回内容不是有效 JSON：{ex.Message}");
-        }
+            }
+        },
+        ChatCompletionError.Http => Failure(
+            $"AI OCR 请求失败：{NetworkErrorMessages.FromStatus(result.StatusCode ?? HttpStatusCode.InternalServerError, Truncate(result.Detail ?? string.Empty, MaxErrorBodyLength))}"),
+        ChatCompletionError.InvalidJson => Failure($"AI OCR 返回内容不是有效 JSON：{result.Detail}"),
+        ChatCompletionError.MissingChoices => Failure("AI OCR 返回格式无效：缺少 choices。"),
+        ChatCompletionError.Truncated => Failure("AI OCR 输出达到模型长度上限，结果可能不完整。请缩小截图范围后重试。"),
+        ChatCompletionError.ContentFilter => Failure("AI OCR 输出被内容安全策略拦截。"),
+        ChatCompletionError.MissingMessage => Failure("AI OCR 返回格式无效：缺少 message。"),
+        ChatCompletionError.Refusal => Failure($"AI OCR 拒绝处理此图片：{result.Detail}"),
+        ChatCompletionError.MissingContent => Failure("AI OCR 返回格式无效：缺少 content。"),
+        _ => Failure("AI OCR 未识别到可读文字。")
+    };
+
+    private static Bitmap CreateSampleImage()
+    {
+        var bitmap = new Bitmap(360, 96, PixelFormat.Format32bppArgb);
+        using var graphics = Graphics.FromImage(bitmap);
+        graphics.Clear(Color.White);
+        graphics.TextRenderingHint = TextRenderingHint.AntiAliasGridFit;
+        using var font = new Font("Microsoft YaHei UI", 30, FontStyle.Regular, GraphicsUnit.Pixel);
+        graphics.DrawString(SampleText, font, Brushes.Black, new PointF(18, 26));
+        return bitmap;
     }
 
     private static string EncodeImageAsPng(Bitmap image)
@@ -241,61 +200,9 @@ public class AiVisionOcrService : IOcrService
         return resized;
     }
 
-    private static string ReadMessageContent(JsonElement content)
-    {
-        if (content.ValueKind == JsonValueKind.String)
-        {
-            return content.GetString() ?? string.Empty;
-        }
-
-        if (content.ValueKind != JsonValueKind.Array)
-        {
-            return string.Empty;
-        }
-
-        var parts = new List<string>();
-        foreach (var part in content.EnumerateArray())
-        {
-            if (part.ValueKind == JsonValueKind.String)
-            {
-                var value = part.GetString();
-                if (!string.IsNullOrEmpty(value))
-                {
-                    parts.Add(value);
-                }
-
-                continue;
-            }
-
-            if (part.ValueKind == JsonValueKind.Object)
-            {
-                var value = ReadString(part, "text");
-                if (!string.IsNullOrEmpty(value))
-                {
-                    parts.Add(value);
-                }
-            }
-        }
-
-        return string.Join(Environment.NewLine, parts);
-    }
-
-    private static string? ReadString(JsonElement element, string propertyName)
-    {
-        return element.TryGetProperty(propertyName, out var property) &&
-               property.ValueKind == JsonValueKind.String
-            ? property.GetString()
-            : null;
-    }
-
     private static string Truncate(string value, int maxLength)
     {
-        if (value.Length <= maxLength)
-        {
-            return value;
-        }
-
-        return value[..maxLength] + "...";
+        return value.Length <= maxLength ? value : value[..maxLength] + "...";
     }
 
     private static OcrResult Failure(string message)
@@ -304,12 +211,14 @@ public class AiVisionOcrService : IOcrService
         {
             Success = false,
             ErrorMessage = message,
-            Provider = "AI Vision"
+            Provider = ProviderName
         };
     }
 
     public void Dispose()
     {
-        _httpClient.Dispose();
+        // 使用进程级共享 HttpClient，无需释放。
     }
+
+    private readonly record struct PlainCredentials(string ApiUrl, string ApiKey, string Model);
 }

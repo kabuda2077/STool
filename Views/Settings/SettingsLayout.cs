@@ -113,6 +113,16 @@ internal static class SettingsLayout
         _metrics = SettingsLayoutMetrics.Default;
     }
 
+    /// <summary>已保存的密钥无法解密时提示用户重新填写，而不是静默显示为空。</summary>
+    public static void WarnUnreadableSecrets()
+    {
+        STool.Core.ToastNotification.Show(
+            "已保存的密钥无法解密",
+            "Data\\secure.key 缺失或已更换，请重新填写 API Key 等密钥。未修改的字段会保留原值。",
+            STool.Core.ToastNotification.ToastType.Warning,
+            duration: 6000);
+    }
+
     // ── UI 工厂方法 ──
 
     /// <summary>创建 Label(左) + Input(右) 同行布局。</summary>

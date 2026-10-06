@@ -104,8 +104,8 @@ public class TranslationManager : IDisposable
     /// </summary>
     public Task<TranslationResult> TranslateAsync(string text, string? sourceLanguage = null, string? targetLanguage = null, CancellationToken cancellationToken = default)
     {
-        var provider = _configManager.Get().Translation.Provider;
-        return TranslateAsync(text, sourceLanguage, targetLanguage, provider, cancellationToken);
+        var config = _configManager.Get().Translation;
+        return TranslateAsync(text, sourceLanguage, targetLanguage, config.Provider, config, cancellationToken);
     }
 
     public async Task<BlockTranslationResult> TranslateBlocksAsync(IReadOnlyList<string> blocks, string? sourceLanguage = null, string? targetLanguage = null, CancellationToken cancellationToken = default)
@@ -129,7 +129,7 @@ public class TranslationManager : IDisposable
         targetLanguage ??= ResolveTargetLanguage(string.Join("\n", normalized), config.TranslationMode);
 
         var packedText = PackBlocks(normalized, config.Provider);
-        var result = await TranslateAsync(packedText, sourceLanguage, targetLanguage, config.Provider, cancellationToken);
+        var result = await TranslateAsync(packedText, sourceLanguage, targetLanguage, config.Provider, config, cancellationToken);
         if (!result.Success)
         {
             return new BlockTranslationResult
@@ -167,10 +167,19 @@ public class TranslationManager : IDisposable
     /// <summary>
     /// 翻译文本(指定提供商,供翻译面板的提供商切换使用)
     /// </summary>
-    public async Task<TranslationResult> TranslateAsync(string text, string? sourceLanguage, string? targetLanguage, TranslationProvider provider, CancellationToken cancellationToken = default)
+    public Task<TranslationResult> TranslateAsync(string text, string? sourceLanguage, string? targetLanguage, TranslationProvider provider, CancellationToken cancellationToken = default)
     {
-        var config = _configManager.Get().Translation;
+        return TranslateAsync(text, sourceLanguage, targetLanguage, provider, _configManager.Get().Translation, cancellationToken);
+    }
 
+    private async Task<TranslationResult> TranslateAsync(
+        string text,
+        string? sourceLanguage,
+        string? targetLanguage,
+        TranslationProvider provider,
+        TranslationConfig config,
+        CancellationToken cancellationToken)
+    {
         // 使用配置的默认语言
         sourceLanguage ??= config.SourceLanguage;
         targetLanguage ??= ResolveTargetLanguage(text, config.TranslationMode);
@@ -230,19 +239,19 @@ public class TranslationManager : IDisposable
 
         foreach (var ch in text)
         {
-            if (IsChinese(ch))
+            if (TextScript.IsHan(ch))
             {
                 chinese++;
             }
-            else if ((ch >= 'A' && ch <= 'Z') || (ch >= 'a' && ch <= 'z'))
+            else if (TextScript.IsLatinLetter(ch))
             {
                 latin++;
             }
-            else if ((ch >= '\u3040' && ch <= '\u30ff') || (ch >= '\u31f0' && ch <= '\u31ff'))
+            else if (TextScript.IsKana(ch))
             {
                 japanese++;
             }
-            else if (ch >= '\uac00' && ch <= '\ud7af')
+            else if (TextScript.IsHangul(ch))
             {
                 korean++;
             }
@@ -264,12 +273,6 @@ public class TranslationManager : IDisposable
         }
 
         return "zh";
-    }
-
-    private static bool IsChinese(char ch)
-    {
-        return (ch >= '\u4e00' && ch <= '\u9fff')
-            || (ch >= '\u3400' && ch <= '\u4dbf');
     }
 
     internal static string PackBlocks(IReadOnlyList<string> blocks, TranslationProvider provider)
@@ -378,9 +381,6 @@ public class TranslationManager : IDisposable
             string.IsNullOrEmpty(config.AiApiKeyEncrypted) ||
             string.IsNullOrEmpty(config.AiModel))
         {
-            _contentSelector?.Dispose();
-            _contentSelector = null;
-            _contentSelectorSignature = null;
             return null;
         }
 
@@ -398,22 +398,20 @@ public class TranslationManager : IDisposable
             string.IsNullOrEmpty(config.AiApiKeyEncrypted) ||
             string.IsNullOrEmpty(config.AiModel))
         {
+            _contentSelector = null;
+            _contentSelectorSignature = null;
             return null;
         }
 
         var signature = string.Join("|", config.AiApiUrlEncrypted, config.AiApiKeyEncrypted, config.AiModel);
-        if (_contentSelector != null && _contentSelectorSignature == signature)
+        if (_contentSelector == null || _contentSelectorSignature != signature)
         {
-            return _contentSelector;
+            _contentSelector = new ScreenContentSelector(
+                config.AiApiUrlEncrypted,
+                config.AiApiKeyEncrypted,
+                config.AiModel);
+            _contentSelectorSignature = signature;
         }
-
-        _contentSelector?.Dispose();
-        _contentSelector = new ScreenContentSelector(
-            config.AiApiUrlEncrypted,
-            config.AiApiKeyEncrypted,
-            config.AiModel,
-            HttpDefaults.Shared);
-        _contentSelectorSignature = signature;
 
         return _contentSelector.IsAvailable() ? _contentSelector : null;
     }
@@ -461,7 +459,6 @@ public class TranslationManager : IDisposable
     public void Dispose()
     {
         _service?.Dispose();
-        _contentSelector?.Dispose();
     }
 }
 

@@ -9,6 +9,21 @@ namespace STool.Tests;
 
 public class LanTransferTests
 {
+    [Theory]
+    [InlineData(false, 0, false)]
+    [InlineData(true, 0, true)]
+    [InlineData(true, 11, true)]
+    [InlineData(true, 12, true)]
+    [InlineData(true, 13, false)]
+    public void ClientPresence_RequiresRecentAuthenticatedActivity(bool hasActivity, int elapsedSeconds, bool expected)
+    {
+        var timestamp = System.Diagnostics.Stopwatch.Frequency;
+        var lastActivity = hasActivity ? timestamp : 0;
+        var now = timestamp + elapsedSeconds * System.Diagnostics.Stopwatch.Frequency;
+
+        Assert.Equal(expected, LanTransferWindow.IsClientPresent(lastActivity, now));
+    }
+
     [Fact]
     public void SanitizeRelativePath_PreservesSafeFolderStructure()
     {
@@ -78,22 +93,169 @@ public class LanTransferTests
         try
         {
             var auth = new LanTransferAuthService(new DeviceTokenStore(Path.Combine(root, "devices.json")));
+            var phone = IPAddress.Parse("192.168.1.20");
 
             var accepted = auth.TryExchange(
                 new AuthExchangeRequest(auth.QrToken, null, false),
-                IPAddress.Parse("192.168.1.20"),
+                phone,
                 out var session,
                 out var deviceToken);
 
             Assert.True(accepted);
             Assert.Null(deviceToken);
-            Assert.True(auth.TryAuthenticate(session, null, out var issuedSession));
+            Assert.True(auth.TryAuthenticate(session, null, phone, out var issuedSession));
             Assert.Null(issuedSession);
         }
         finally
         {
             Directory.Delete(root, true);
         }
+    }
+
+    [Fact]
+    public void AuthService_SessionIsBoundToClientAddress()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var auth = new LanTransferAuthService(new DeviceTokenStore(Path.Combine(root, "devices.json")));
+            Assert.True(auth.TryExchange(
+                new AuthExchangeRequest(null, auth.ManualCode, false),
+                IPAddress.Parse("192.168.1.20"),
+                out var session,
+                out _));
+
+            Assert.False(auth.TryAuthenticate(session, null, IPAddress.Parse("192.168.1.99"), out _));
+            Assert.True(auth.TryAuthenticate(session, null, IPAddress.Parse("::ffff:192.168.1.20"), out _));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void AuthService_RotatesCodesAfterSuccessfulPairing()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var auth = new LanTransferAuthService(new DeviceTokenStore(Path.Combine(root, "devices.json")));
+            var rotations = 0;
+            auth.AccessCodesRotated += () => rotations++;
+            var token = auth.QrToken;
+
+            Assert.True(auth.TryExchange(new AuthExchangeRequest(token, null, false), IPAddress.Parse("192.168.1.20"), out _, out _));
+
+            Assert.Equal(1, rotations);
+            Assert.NotEqual(token, auth.QrToken);
+            Assert.False(auth.TryExchange(new AuthExchangeRequest(token, null, false), IPAddress.Parse("192.168.1.21"), out _, out _));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void AuthService_RejectsExpiredSessionEvenIfCookieIsReplayed()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var auth = new LanTransferAuthService(new DeviceTokenStore(Path.Combine(root, "devices.json")), () => now);
+            var phone = IPAddress.Parse("192.168.1.20");
+            Assert.True(auth.TryExchange(new AuthExchangeRequest(auth.QrToken, null, false), phone, out var session, out _));
+            now += LanTransferAuthService.SessionLifetime;
+
+            Assert.False(auth.TryAuthenticate(session, null, phone, out _));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void AuthService_ConcurrentExchangesConsumeCodeOnce()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var auth = new LanTransferAuthService(new DeviceTokenStore(Path.Combine(root, "devices.json")));
+            var request = new AuthExchangeRequest(auth.QrToken, null, false);
+            var accepted = 0;
+            Parallel.For(0, 8, index =>
+            {
+                if (auth.TryExchange(request, IPAddress.Parse($"192.168.1.{index + 20}"), out _, out _))
+                    Interlocked.Increment(ref accepted);
+            });
+            Assert.Equal(1, accepted);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void AuthService_GlobalLockoutStopsGuessingFromManyAddresses()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var auth = new LanTransferAuthService(new DeviceTokenStore(Path.Combine(root, "devices.json")), () => now);
+
+            // 每个地址只试 5 次，不会触发单地址锁定，但总数达到全局上限。
+            for (var attempt = 0; attempt < 20; attempt++)
+            {
+                var address = IPAddress.Parse($"192.168.1.{100 + attempt / 5}");
+                Assert.False(auth.TryExchange(new AuthExchangeRequest(null, "wrong", false), address, out _, out _));
+            }
+
+            Assert.False(auth.TryExchange(
+                new AuthExchangeRequest(null, auth.ManualCode, false),
+                IPAddress.Parse("192.168.1.200"),
+                out _,
+                out _));
+
+            now = now.AddMinutes(6);
+            Assert.True(auth.TryExchange(
+                new AuthExchangeRequest(null, auth.ManualCode, false),
+                IPAddress.Parse("192.168.1.200"),
+                out _,
+                out _));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Theory]
+    [InlineData("192.168.1.179", true)]
+    [InlineData("localhost", true)]
+    [InlineData("127.0.0.1", true)]
+    [InlineData("[::1]", true)]
+    [InlineData("192.168.1.20", false)]
+    [InlineData("attacker.example", false)]
+    [InlineData("", false)]
+    public void HostCheck_AllowsOnlyServiceAddressAndLoopback(string host, bool expected)
+    {
+        Assert.Equal(expected, LanTransferServer.IsAllowedHost(host, IPAddress.Parse("192.168.1.179")));
+    }
+
+    [Fact]
+    public void SetCookie_IsHttpOnlyLaxAndScopedToPath()
+    {
+        var header = LanTransferServer.BuildSetCookie("stool_device", "token", "/api/session", DateTimeOffset.UtcNow.AddDays(1));
+
+        Assert.StartsWith("stool_device=token; Path=/api/session; Expires=", header);
+        Assert.Contains("HttpOnly", header);
+        Assert.Contains("SameSite=Lax", header);
+        Assert.DoesNotContain(",", header.Split("Expires=")[0]);
     }
 
     [Fact]
@@ -111,7 +273,7 @@ public class LanTransferTests
                 out var deviceToken));
 
             var nextSession = new LanTransferAuthService(new DeviceTokenStore(Path.Combine(root, "devices.json")));
-            Assert.True(nextSession.TryAuthenticate(null, deviceToken, out var issuedSession));
+            Assert.True(nextSession.TryAuthenticate(null, deviceToken, IPAddress.Parse("192.168.1.30"), out var issuedSession));
             Assert.False(string.IsNullOrWhiteSpace(issuedSession));
         }
         finally
@@ -128,8 +290,9 @@ public class LanTransferTests
         {
             await using var coordinator = new UploadCoordinator(root);
             var content = Encoding.UTF8.GetBytes("STool LAN transfer");
+            coordinator.BeginBatch("batch", new UploadBatchCreateRequest("hello.txt", 1, content.Length, false));
             var initialized = await coordinator.BeginAsync(
-                new UploadInitRequest("hello.txt", "folder/hello.txt", content.Length, 0),
+                new UploadInitRequest("hello.txt", "folder/hello.txt", content.Length, 0, "batch"),
                 CancellationToken.None);
 
             await using var input = new MemoryStream(content);
@@ -152,8 +315,9 @@ public class LanTransferTests
         try
         {
             await using var coordinator = new UploadCoordinator(root);
+            coordinator.BeginBatch("batch", new UploadBatchCreateRequest("hello.txt", 1, 3, false));
             var initialized = await coordinator.BeginAsync(
-                new UploadInitRequest("hello.txt", null, 3, 0),
+                new UploadInitRequest("hello.txt", null, 3, 0, "batch"),
                 CancellationToken.None);
 
             await using var input = new MemoryStream([1, 2]);
@@ -161,6 +325,80 @@ public class LanTransferTests
                 coordinator.AppendAsync(initialized.Id, 1, input, 2, CancellationToken.None));
 
             Assert.Equal(0, exception.ExpectedOffset);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task UploadCoordinator_RejectsMismatchedSizesWithoutReservingTheName()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            await using var coordinator = new UploadCoordinator(root);
+            coordinator.BeginBatch("batch", new UploadBatchCreateRequest("files", 2, 3, false));
+            await coordinator.BeginAsync(new UploadInitRequest("first.txt", null, 2, 0, "batch"), CancellationToken.None);
+            await Assert.ThrowsAsync<InvalidDataException>(() => coordinator.BeginAsync(
+                new UploadInitRequest("last.txt", null, 2, 0, "batch"), CancellationToken.None));
+
+            var retried = await coordinator.BeginAsync(new UploadInitRequest("last.txt", null, 1, 0, "batch"), CancellationToken.None);
+            Assert.Equal(1, retried.Size);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task UploadCoordinator_RejectsSizeThatWouldOverflowDiskReservation()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            await using var coordinator = new UploadCoordinator(root, getAvailableFreeSpace: _ => long.MaxValue);
+            Assert.Throws<InvalidDataException>(() => coordinator.BeginBatch("huge",
+                new UploadBatchCreateRequest("huge", 1, long.MaxValue, false)));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task UploadCoordinator_RejectsUploadWithoutBatch()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            await using var coordinator = new UploadCoordinator(root);
+
+            await Assert.ThrowsAsync<InvalidDataException>(() =>
+                coordinator.BeginAsync(new UploadInitRequest("hello.txt", null, 3, 0), CancellationToken.None));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task UploadCoordinator_RejectsBatchLargerThanFreeSpace()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            await using var coordinator = new UploadCoordinator(root, getAvailableFreeSpace: _ => 100L * 1024 * 1024);
+
+            var exception = Assert.Throws<InvalidDataException>(() =>
+                coordinator.BeginBatch("big", new UploadBatchCreateRequest("big.iso", 1, 90L * 1024 * 1024, false)));
+            Assert.Contains("磁盘空间不足", exception.Message);
+
+            coordinator.BeginBatch("small", new UploadBatchCreateRequest("small.bin", 1, 1024, false));
         }
         finally
         {

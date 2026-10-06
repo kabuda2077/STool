@@ -2,20 +2,29 @@ using System;
 using System.ComponentModel;
 using System.IO;
 using System.Linq;
-using System.Windows;
+using System.Runtime.InteropServices;
+using System.Threading;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
-using System.Runtime.InteropServices;
 using Serilog;
-using STool.Core;
 
 namespace STool.Modules.Clipboard;
 
+/// <summary>一次剪贴板变化时取到的原始内容。图片已冻结，可以交给后台线程处理。</summary>
+internal sealed record ClipboardCapture(
+    ClipboardItemType Type,
+    string? Text,
+    BitmapSource? Image,
+    string[]? Files,
+    string? SourceApp,
+    DateTime CopiedAt);
+
 /// <summary>
-/// 剪贴板监听器
+/// 剪贴板监听器。消息循环里只做必须在 UI 线程完成的事：检查隐私标记、读取内容并冻结图片；
+/// 编码、查重和入库由 <see cref="ClipboardManager"/> 在后台完成。
 /// </summary>
-public class ClipboardMonitor : IDisposable
+internal sealed class ClipboardMonitor : IDisposable
 {
     private const int WM_CLIPBOARDUPDATE = 0x031D;
     private const int WS_POPUP = unchecked((int)0x80000000);
@@ -37,13 +46,46 @@ public class ClipboardMonitor : IDisposable
     [DllImport("user32.dll")]
     private static extern int GetWindowThreadProcessId(IntPtr hwnd, out int processId);
 
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern uint RegisterClipboardFormat(string format);
+
+    [DllImport("user32.dll")]
+    private static extern bool IsClipboardFormatAvailable(uint format);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool OpenClipboard(IntPtr newOwner);
+
+    [DllImport("user32.dll")]
+    private static extern bool CloseClipboard();
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetClipboardData(uint format);
+
+    [DllImport("kernel32.dll")]
+    private static extern IntPtr GlobalLock(IntPtr memory);
+
+    [DllImport("kernel32.dll")]
+    private static extern bool GlobalUnlock(IntPtr memory);
+
+    [DllImport("kernel32.dll")]
+    private static extern UIntPtr GlobalSize(IntPtr memory);
+
+    private static readonly uint ExcludeFromMonitorFormat = RegisterClipboardFormat(ClipboardPrivacy.ExcludeFromMonitorFormat);
+    private static readonly uint CanIncludeInHistoryFormat = RegisterClipboardFormat(ClipboardPrivacy.CanIncludeInHistoryFormat);
+    private static readonly uint ClipboardViewerIgnoreFormat = RegisterClipboardFormat(ClipboardPrivacy.ClipboardViewerIgnoreFormat);
+
     private HwndSource? _hwndSource;
     private bool _isMonitoring;
     private int _suppressingInternalWrite;
     private long _suppressedSequenceNumber = -1;
     private bool _disposed;
 
-    public event EventHandler<ClipboardItem>? ClipboardChanged;
+    public event EventHandler<ClipboardCapture>? ContentCaptured;
+
+    /// <summary>返回 true 时忽略该来源进程（进程名，如 KeePass.exe）复制的内容。</summary>
+    public Func<string?, bool>? SourceFilter { get; set; }
+
+    public bool IsMonitoring => _isMonitoring;
 
     public void Start()
     {
@@ -118,14 +160,29 @@ public class ClipboardMonitor : IDisposable
     {
         try
         {
-            if (ShouldSuppressUpdate(GetClipboardSequenceNumber()))
+            var sequenceNumber = GetClipboardSequenceNumber();
+            if (ShouldSuppressUpdate(sequenceNumber))
                 return;
 
-            var item = CaptureClipboardContent();
-            if (item != null)
+            if (IsMarkedPrivate())
             {
-                ClipboardChanged?.Invoke(this, item);
+                // 不记录内容本身，只留下发生过跳过的痕迹。
+                Log.Information("Skipping clipboard content marked as private by its source application");
+                return;
             }
+
+            // 复制发生时,前台窗口通常就是来源应用
+            var sourceApp = GetForegroundApp();
+            if (SourceFilter?.Invoke(sourceApp) == true)
+            {
+                Log.Information("Skipping clipboard content from excluded application {SourceApp}", sourceApp);
+                return;
+            }
+
+            var capture = CaptureClipboardContent(sourceApp);
+            // 标记检查和取内容之间若发生了另一次复制，不能保存未经隐私检查的新内容。
+            if (capture != null && sequenceNumber == GetClipboardSequenceNumber())
+                ContentCaptured?.Invoke(this, capture);
         }
         catch (Exception ex)
         {
@@ -153,65 +210,97 @@ public class ClipboardMonitor : IDisposable
         Volatile.Read(ref _suppressingInternalWrite) != 0 ||
         sequenceNumber != 0 && Interlocked.Read(ref _suppressedSequenceNumber) == sequenceNumber;
 
-    private ClipboardItem? CaptureClipboardContent()
+    private bool IsMarkedPrivate()
     {
-        // 复制发生时,前台窗口通常就是来源应用
-        var sourceApp = GetForegroundApp();
+        var hasExclude = ExcludeFromMonitorFormat != 0 && IsClipboardFormatAvailable(ExcludeFromMonitorFormat);
+        var hasViewerIgnore = ClipboardViewerIgnoreFormat != 0 && IsClipboardFormatAvailable(ClipboardViewerIgnoreFormat);
+        int? canInclude = null;
+        if (CanIncludeInHistoryFormat != 0 && IsClipboardFormatAvailable(CanIncludeInHistoryFormat))
+        {
+            // 读不出值时按"不允许记录"处理，宁可漏记也不误记密码。
+            canInclude = ReadClipboardDword(CanIncludeInHistoryFormat) ?? 0;
+        }
+
+        return ClipboardPrivacy.ShouldSkip(hasExclude, hasViewerIgnore, canInclude);
+    }
+
+    private int? ReadClipboardDword(uint format)
+    {
+        if (_hwndSource == null || !OpenClipboard(_hwndSource.Handle))
+            return null;
+
+        try
+        {
+            var handle = GetClipboardData(format);
+            if (handle == IntPtr.Zero || (ulong)GlobalSize(handle) < sizeof(int))
+                return null;
+
+            var pointer = GlobalLock(handle);
+            if (pointer == IntPtr.Zero)
+                return null;
+
+            try
+            {
+                return Marshal.ReadInt32(pointer);
+            }
+            finally
+            {
+                GlobalUnlock(handle);
+            }
+        }
+        finally
+        {
+            CloseClipboard();
+        }
+    }
+
+    private static ClipboardCapture? CaptureClipboardContent(string? sourceApp)
+    {
+        var copiedAt = DateTime.Now;
 
         if (System.Windows.Clipboard.ContainsText())
         {
             var text = System.Windows.Clipboard.GetText();
-            if (string.IsNullOrWhiteSpace(text))
-                return null;
-
-            return new ClipboardItem
-            {
-                Type = ClipboardItemType.Text,
-                TextContent = text,
-                SourceApp = sourceApp
-            };
+            return string.IsNullOrWhiteSpace(text)
+                ? null
+                : new ClipboardCapture(ClipboardItemType.Text, text, null, null, sourceApp, copiedAt);
         }
-        else if (System.Windows.Clipboard.ContainsImage())
+
+        if (System.Windows.Clipboard.ContainsImage())
         {
             var image = System.Windows.Clipboard.GetImage();
             if (image == null)
                 return null;
 
-            if (IsVisuallyBlankImage(image))
-            {
-                Log.Information("Skipping visually blank clipboard image from {SourceApp}", sourceApp ?? "unknown");
-                return null;
-            }
-
-            // 保存图片到本地
-            var imagePath = SaveClipboardImage(image);
-            if (imagePath == null)
-                return null;
-
-            return new ClipboardItem
-            {
-                Type = ClipboardItemType.Image,
-                ImagePath = imagePath,
-                SourceApp = sourceApp
-            };
+            return new ClipboardCapture(ClipboardItemType.Image, null, FreezeForBackground(image), null, sourceApp, copiedAt);
         }
-        else if (System.Windows.Clipboard.ContainsFileDropList())
+
+        if (System.Windows.Clipboard.ContainsFileDropList())
         {
             var files = System.Windows.Clipboard.GetFileDropList();
             if (files == null || files.Count == 0)
                 return null;
 
-            var filePaths = files.Cast<string>().ToArray();
-
-            return new ClipboardItem
-            {
-                Type = ClipboardItemType.File,
-                FilePaths = filePaths,
-                SourceApp = sourceApp
-            };
+            return new ClipboardCapture(ClipboardItemType.File, null, null, files.Cast<string>().ToArray(), sourceApp, copiedAt);
         }
 
         return null;
+    }
+
+    private static BitmapSource FreezeForBackground(BitmapSource image)
+    {
+        if (image.IsFrozen)
+            return image;
+
+        if (image.CanFreeze)
+        {
+            image.Freeze();
+            return image;
+        }
+
+        var copy = new WriteableBitmap(image);
+        copy.Freeze();
+        return copy;
     }
 
     /// <summary>抓取当前前台窗口所属进程名(如 Code.exe),失败返回 null。</summary>
@@ -237,7 +326,8 @@ public class ClipboardMonitor : IDisposable
         }
     }
 
-    private static bool IsVisuallyBlankImage(BitmapSource image)
+    /// <summary>判断图片是否近乎全白或全透明（微信等应用会写入这类占位图）。可在后台线程调用。</summary>
+    internal static bool IsVisuallyBlankImage(BitmapSource image)
     {
         try
         {
@@ -289,33 +379,9 @@ public class ClipboardMonitor : IDisposable
 
             return nonWhitePixels <= 3 || (double)nonWhitePixels / opaquePixels < 0.001;
         }
-        catch
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
             return false;
-        }
-    }
-
-    private string? SaveClipboardImage(BitmapSource image)
-    {
-        try
-        {
-            Directory.CreateDirectory(AppPaths.ClipboardImagesDirectory);
-
-            var fileName = $"clipboard_{DateTime.Now:yyyyMMdd_HHmmss}_{Guid.NewGuid():N}.png";
-            var filePath = Path.Combine(AppPaths.ClipboardImagesDirectory, fileName);
-
-            var encoder = new PngBitmapEncoder();
-            encoder.Frames.Add(BitmapFrame.Create(image));
-
-            using var fileStream = new FileStream(filePath, FileMode.Create);
-            encoder.Save(fileStream);
-
-            return filePath;
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Failed to save clipboard image");
-            return null;
         }
     }
 

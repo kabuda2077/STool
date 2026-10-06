@@ -59,8 +59,26 @@
     <SolidColorBrush x:Key="ScreenshotOverlayBackgroundBrush" Color="#1A1A1A"/>
     <SolidColorBrush x:Key="ScreenshotMaskBrush" Color="#66000000"/>
     <SolidColorBrush x:Key="ScreenshotSizeLabelBrush" Color="#D21A1A1A"/>
+    <!-- 截图原位译文在浅色背景上的文字色，比正文色略浅，贴近原图文字观感 -->
+    <SolidColorBrush x:Key="ScreenshotTranslationDarkTextBrush" Color="#4E4E58"/>
     <SolidColorBrush x:Key="PinnedCloseBackgroundBrush" Color="#8C3F3F46"/>
     <Color x:Key="AnnotationDefaultColor">#DC2626</Color>
+
+    <!-- 截图标注调色板：仅用于标注笔迹与文字，不作为界面配色。
+         红色即 AnnotationDefaultColor；其余覆盖常见标注需求（醒目、提示、通过、说明、深浅底色）。 -->
+    <Color x:Key="AnnotationOrangeColor">#F97316</Color>
+    <Color x:Key="AnnotationYellowColor">#FACC15</Color>
+    <Color x:Key="AnnotationGreenColor">#16A34A</Color>
+    <Color x:Key="AnnotationBlueColor">#2563EB</Color>
+    <Color x:Key="AnnotationBlackColor">#18181B</Color>
+    <Color x:Key="AnnotationWhiteColor">#FFFFFF</Color>
+    <SolidColorBrush x:Key="AnnotationRedBrush" Color="{StaticResource AnnotationDefaultColor}"/>
+    <SolidColorBrush x:Key="AnnotationOrangeBrush" Color="{StaticResource AnnotationOrangeColor}"/>
+    <SolidColorBrush x:Key="AnnotationYellowBrush" Color="{StaticResource AnnotationYellowColor}"/>
+    <SolidColorBrush x:Key="AnnotationGreenBrush" Color="{StaticResource AnnotationGreenColor}"/>
+    <SolidColorBrush x:Key="AnnotationBlueBrush" Color="{StaticResource AnnotationBlueColor}"/>
+    <SolidColorBrush x:Key="AnnotationBlackBrush" Color="{StaticResource AnnotationBlackColor}"/>
+    <SolidColorBrush x:Key="AnnotationWhiteBrush" Color="{StaticResource AnnotationWhiteColor}"/>
 
     <!-- Standard shadow for all elevated surfaces -->
     <Color x:Key="ShadowColor">#0B1220</Color>

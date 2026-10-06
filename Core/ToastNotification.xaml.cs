@@ -8,9 +8,10 @@ namespace STool.Core
 {
     public partial class ToastNotification : Window
     {
+        private const string SettingsSavedKey = "settings-saved";
         private DispatcherTimer? _timer;
         private Action? _action;
-        private static ToastNotification? _activeSettingsSavedToast;
+        private static readonly System.Collections.Generic.Dictionary<string, ToastNotification> ActiveByKey = new();
         private const int DEFAULT_DURATION = 2500; // 毫秒
 
         public enum ToastType
@@ -119,18 +120,25 @@ namespace STool.Core
             sb.Begin();
         }
 
+        /// <summary>设置自动保存后的轻量提示；连续保存只延长同一条提示，不会堆叠。</summary>
+        public static void ShowSettingsSaved() =>
+            Show("设置已保存", type: ToastType.Success, duration: 1600, dedupeKey: SettingsSavedKey);
+
         public static void Show(
             string title,
             string message = "",
             ToastType type = ToastType.Success,
             int duration = DEFAULT_DURATION,
             string? actionText = null,
-            Action? action = null)
+            Action? action = null,
+            string? dedupeKey = null)
         {
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
-                if (type == ToastType.Success && title == "设置已保存" &&
-                    _activeSettingsSavedToast is { IsVisible: true } active)
+                // 同一去重键的提示仍在显示时只重置计时，避免连续操作刷出一串相同的 Toast。
+                if (dedupeKey != null &&
+                    ActiveByKey.TryGetValue(dedupeKey, out var active) &&
+                    active.IsVisible)
                 {
                     active.ResetTimer(duration);
                     return;
@@ -173,13 +181,13 @@ namespace STool.Core
                         break;
                 }
 
-                if (type == ToastType.Success && title == "设置已保存")
+                if (dedupeKey != null)
                 {
-                    _activeSettingsSavedToast = toast;
+                    ActiveByKey[dedupeKey] = toast;
                     toast.Closed += (_, _) =>
                     {
-                        if (ReferenceEquals(_activeSettingsSavedToast, toast))
-                            _activeSettingsSavedToast = null;
+                        if (ActiveByKey.TryGetValue(dedupeKey, out var current) && ReferenceEquals(current, toast))
+                            ActiveByKey.Remove(dedupeKey);
                     };
                 }
 

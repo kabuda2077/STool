@@ -8,13 +8,15 @@ namespace STool.Views;
 public partial class SettingsWindow : Window
 {
     private readonly ConfigManager _configManager;
+    private readonly IAppShell _shell;
     private System.Windows.Controls.Button? _currentSelectedButton;
     private bool _syncingScrollBar;
 
-    public SettingsWindow(ConfigManager configManager)
+    public SettingsWindow(ConfigManager configManager, IAppShell shell)
     {
         InitializeComponent();
         _configManager = configManager;
+        _shell = shell;
         ApplyLayoutMetrics();
 
         // 默认显示通用设置
@@ -26,6 +28,13 @@ public partial class SettingsWindow : Window
     {
         ShowGeneralSettings();
         SelectNavigationButton(btnGeneralSettings);
+    }
+
+    private void BtnClipboardSettings_Click(object sender, RoutedEventArgs e)
+    {
+        Title = "剪贴板设置";
+        ShowPanel(new ClipboardSettingsPanel(_configManager, _shell));
+        SelectNavigationButton(btnClipboardSettings);
     }
 
     private void BtnOcrSettings_Click(object sender, RoutedEventArgs e)
@@ -85,7 +94,7 @@ public partial class SettingsWindow : Window
     private void ShowGeneralSettings()
     {
         Title = "通用设置";
-        ShowPanel(new GeneralSettingsPanel(_configManager));
+        ShowPanel(new GeneralSettingsPanel(_configManager, _shell));
     }
 
     private void ShowOcrSettings()

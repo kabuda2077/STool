@@ -13,6 +13,27 @@ const state = {
 };
 const $ = id => document.getElementById(id);
 const headers = { "X-STool-Request": "1" };
+let sessionRefresh = null;
+
+// 会话失效（电脑端重启服务、换了网络）时，用“记住此设备”的令牌换一个新会话。
+// 设备令牌的 Cookie 只发往 /api/session，其余请求只带会话 Cookie。
+function refreshSession() {
+  if (!sessionRefresh) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 8000);
+    sessionRefresh = fetch("/api/session", { credentials: "same-origin", signal: controller.signal })
+      .then(response => response.ok, () => false)
+      .finally(() => {
+        clearTimeout(timeout);
+        sessionRefresh = null;
+      });
+  }
+  return sessionRefresh;
+}
+
+function canRefreshSession(path) {
+  return !path.startsWith("/api/session") && !path.startsWith("/api/auth/");
+}
 
 function formatBytes(value) {
   if (!Number.isFinite(value) || value <= 0) return "0 B";
@@ -25,7 +46,7 @@ function formatSpeed(value) {
   return `${formatBytes(value)}/s`;
 }
 
-async function api(path, options = {}) {
+async function api(path, options = {}, allowSessionRefresh = true) {
   const { timeoutMs = 8000, signal: externalSignal, ...requestOptions } = options;
   const controller = new AbortController();
   const abort = () => controller.abort();
@@ -41,6 +62,8 @@ async function api(path, options = {}) {
       signal: controller.signal,
       headers: { ...(requestOptions.headers || {}), ...(requestOptions.method && requestOptions.method !== "GET" ? headers : {}) }
     });
+    if (response.status === 401 && allowSessionRefresh && canRefreshSession(path) && await refreshSession())
+      return api(path, options, false);
     if (!response.ok) {
       let message = `请求失败 (${response.status})`;
       try { message = (await response.json()).error || message; } catch { }
@@ -49,7 +72,7 @@ async function api(path, options = {}) {
       throw error;
     }
     if (response.status === 204 || requestOptions.method === "HEAD") return null;
-    return response.json();
+    return await response.json();
   } catch (error) {
     if (error.name === "AbortError")
       throw new Error("连接电脑超时，请确认手机和电脑处于同一 Wi-Fi。 ");
@@ -365,8 +388,10 @@ function createUploadRow(file) {
   return { status, progress, meta };
 }
 
-async function getResumeOffset(uploadId) {
+async function getResumeOffset(uploadId, allowSessionRefresh = true) {
   const response = await fetch(`/api/uploads/${uploadId}`, { method: "HEAD", credentials: "same-origin" });
+  if (response.status === 401 && allowSessionRefresh && await refreshSession())
+    return getResumeOffset(uploadId, false);
   if (!response.ok) return null;
   return Number(response.headers.get("Upload-Offset") || 0);
 }

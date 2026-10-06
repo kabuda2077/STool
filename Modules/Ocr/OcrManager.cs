@@ -14,6 +14,7 @@ namespace STool.Modules.Ocr;
 public class OcrManager : IDisposable
 {
     private readonly ConfigManager _configManager;
+    private readonly SemaphoreSlim _recognitionGate = new(1, 1);
     private IOcrService? _primaryService;
     private OcrServiceOptions? _primaryServiceOptions;
     private WindowsOcrService? _fallbackLocalService;
@@ -28,6 +29,20 @@ public class OcrManager : IDisposable
     /// </summary>
     public async Task<OcrResult> RecognizeAsync(Bitmap image, CancellationToken cancellationToken = default)
     {
+        await _recognitionGate.WaitAsync(cancellationToken);
+        try
+        {
+            return await RecognizeCoreAsync(image, cancellationToken);
+        }
+        finally
+        {
+            _recognitionGate.Release();
+        }
+    }
+
+    private async Task<OcrResult> RecognizeCoreAsync(Bitmap image, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         var config = _configManager.Get().Ocr;
         OcrResult? primaryFailure = null;
 
@@ -36,21 +51,22 @@ public class OcrManager : IDisposable
         // 尝试主要服务
         if (primaryService != null && primaryService.IsAvailable())
         {
-            Log.Information($"Trying OCR with provider: {config.Provider}");
+            Log.Information("Trying OCR with provider {Provider}", config.Provider);
             var result = await primaryService.RecognizeAsync(image, cancellationToken);
 
             if (result.Success)
             {
-                Log.Information($"OCR succeeded with provider: {config.Provider}");
+                Log.Information("OCR succeeded with provider {Provider}", config.Provider);
                 return result;
             }
 
             primaryFailure = result;
-            Log.Warning($"OCR failed with provider {config.Provider}: {result.ErrorMessage}");
+            Log.Warning("OCR failed with provider {Provider}: {ErrorMessage}", config.Provider, result.ErrorMessage);
         }
 
-        // 降级到本地 OCR
-        if (config.FallbackToLocal && config.Provider != OcrProvider.WindowsLocal)
+        // 降级到本地 OCR（用户已取消时不再降级）
+        if (config.FallbackToLocal && config.Provider != OcrProvider.WindowsLocal &&
+            !cancellationToken.IsCancellationRequested)
         {
             Log.Information("Falling back to Windows local OCR");
             _fallbackLocalService ??= new WindowsOcrService();
@@ -66,7 +82,7 @@ public class OcrManager : IDisposable
                     return result;
                 }
 
-                Log.Warning($"Windows local OCR also failed: {result.ErrorMessage}");
+                Log.Warning("Windows local OCR also failed: {ErrorMessage}", result.ErrorMessage);
                 return new OcrResult
                 {
                     Success = false,

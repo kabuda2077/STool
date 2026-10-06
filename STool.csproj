@@ -1,27 +1,25 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
     <TargetFramework>net9.0-windows10.0.26100.0</TargetFramework>
-    <Version>1.5.0</Version>
-    <AssemblyVersion>1.5.0.0</AssemblyVersion>
-    <FileVersion>1.5.0.0</FileVersion>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>Resources\STool.ico</ApplicationIcon>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <UseWindowsForms>true</UseWindowsForms>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <!-- WPF 管理入口，不调用 WinForms ApplicationConfiguration.Initialize。
+         DPI 必须由启动清单声明；仅豁免 WinForms 对该清单的建议，不禁用其他分析器。 -->
+    <NoWarn>$(NoWarn);WFO0003</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.Extensions.DependencyInjection" Version="9.0.*" />
-    <PackageReference Include="Serilog.Sinks.File" Version="6.0.*" />
-    <PackageReference Include="System.Drawing.Common" Version="9.0.*" />
-    <PackageReference Include="Microsoft.Data.Sqlite" Version="9.0.*" />
-    <PackageReference Include="QRCoder" Version="1.8.0" />
+    <PackageReference Include="Serilog.Sinks.File" />
+    <PackageReference Include="Serilog.Sinks.Async" />
+    <PackageReference Include="System.Drawing.Common" />
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="QRCoder" />
   </ItemGroup>
 
   <ItemGroup>

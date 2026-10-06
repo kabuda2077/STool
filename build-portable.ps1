@@ -1,144 +1,74 @@
-﻿# STool 便携版构建脚本
-# 生成框架依赖的单文件 exe（需要用户安装 .NET 9 Desktop Runtime）
-
+#requires -Version 7.0
+# Build into a fresh directory on every invocation; never delete an existing Data folder or publish stage.
 param(
-    [string]$Version = "1.5.0"
+    [ValidatePattern('^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$')]
+    [string]$Version,
+    [switch]$SkipTests,
+    [switch]$ReadyToRun,
+    [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9._-]{0,48}$')]
+    [string]$Variant = 'default'
 )
+$ErrorActionPreference = 'Stop'
+$repoRoot = $PSScriptRoot
+[Console]::OutputEncoding = [Text.Encoding]::UTF8
 
-$ErrorActionPreference = "Stop"
-[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-
-Write-Host "=== STool 便携版构建 ===" -ForegroundColor Cyan
-Write-Host "版本: $Version" -ForegroundColor Green
-
-$artifactRoot = ".\artifacts"
-$publishDir = Join-Path $artifactRoot "publish"
-$releaseDir = Join-Path $artifactRoot "releases"
-
-# 清理旧构建产物
-Write-Host "`n清理旧文件..." -ForegroundColor Yellow
-if (Test-Path $publishDir) {
-    Remove-Item $publishDir -Recurse -Force
-}
-if (Test-Path (Join-Path $releaseDir "STool_v${Version}_Portable.zip")) {
-    Remove-Item (Join-Path $releaseDir "STool_v${Version}_Portable.zip") -Force
+function Get-SolutionProject([string]$name) {
+    $solution = [IO.File]::ReadAllText((Join-Path $repoRoot 'STool.sln'))
+    $pattern = '=\s*"' + [regex]::Escape($name) + '",\s*"([^"]+\.csproj)"'
+    $match = [regex]::Match($solution, $pattern)
+    if (-not $match.Success) { throw "Project not found in solution: $name" }
+    $path = [IO.Path]::GetFullPath((Join-Path $repoRoot $match.Groups[1].Value))
+    if (-not $path.StartsWith($repoRoot.TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar, [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Project path must remain inside the repository: $name"
+    }
+    if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Project file does not exist: $path" }
+    return $path
 }
 
-# 创建发布目录
-New-Item -ItemType Directory -Path $releaseDir -Force | Out-Null
-
-# 构建框架依赖的单文件版本
-Write-Host "`n构建 Release 版本 (框架依赖单文件)..." -ForegroundColor Yellow
-dotnet publish -c Release `
-    --runtime win-x64 `
-    --self-contained false `
-    -p:PublishSingleFile=true `
-    -p:DebugType=None `
-    -p:DebugSymbols=false `
-    -o $publishDir
-
-if ($LASTEXITCODE -ne 0) {
-    Write-Host "构建失败!" -ForegroundColor Red
-    exit 1
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    [xml]$props = [IO.File]::ReadAllText((Join-Path $repoRoot 'Directory.Build.props'))
+    $Version = $props.Project.PropertyGroup | ForEach-Object { $_.Version } | Where-Object { $_ } | Select-Object -First 1
 }
-
-Write-Host "构建成功!" -ForegroundColor Green
-
-# 清理不必要的文件
-Write-Host "`n清理不必要的文件..." -ForegroundColor Yellow
-Remove-Item (Join-Path $publishDir "*.pdb") -ErrorAction SilentlyContinue
-
-# 创建 README 文件（使用 UTF-8 with BOM 以便 Windows 记事本正确显示）
-$readmeContent = @"
-STool v$Version - 便携版
-========================
-
-## 快速开始
-
-1. 解压到任意目录
-2. 双击运行 STool.exe
-3. 右键点击托盘图标进行设置
-
-## 主要功能
-
-- 截图工具 (Alt+1)
-  * 支持原位翻译（快速模式 / 智能模式）
-- 翻译工具 (Alt+2)
-- 剪贴板历史 (Alt+3)
-- 局域网文件传输 (Alt+4)
-- 设置面板 (Alt+5)
-  * Android 手机通过浏览器扫码连接
-  * 支持文件与文件夹、分块上传和断点续传
-- OCR 文字识别
-  * Windows OCR (本地)
-  * 腾讯云 OCR
-  * AI Vision OCR
-
-## 系统要求
-
-- Windows 10/11 (64位)
-- .NET 9 Desktop Runtime (x64)
-
-如果启动时提示需要安装运行时，请访问：
-https://dotnet.microsoft.com/download/dotnet/9.0
-
-选择 ".NET Desktop Runtime 9.x.x - Windows x64 Installer" 下载安装。
-
-## 开机自启
-
-在"通用设置"中勾选"开机自动启动"
-
-## 数据存储
-
-所有数据存储在 Data 文件夹：
-
-- 配置文件: Data\config.json
-- 剪贴板数据库: Data\clipboard.db
-- 剪贴板图片: Data\ClipboardImages\
-- 日志文件: Data\Logs\
-- 加密密钥: Data\secure.key
-
-注意事项：
-- config.json 中的 API Key 等敏感信息使用 secure.key 加密存储
-- 备份或迁移时请保留整个 Data 文件夹
-- 不要将 Data 文件夹分享给他人（包含加密的敏感信息）
-
-## 翻译服务配置
-
-支持以下翻译服务：
-- Google 翻译（免费，无需配置）
-- 腾讯云翻译（需配置 SecretId/SecretKey）
-- OpenAI 兼容 API（支持任何兼容接口）
-
-截图原位翻译模式：
-- 快速模式: OCR + 规则过滤 + 翻译引擎
-- 智能模式: OCR + AI 内容识别 + AI 翻译（需配置 AI 翻译）
-
----
-
-项目地址: https://github.com/kabuda2077/STool
-"@
-
-# 使用 UTF-8 with BOM 写入，确保 Windows 记事本能正确显示中文
-$utf8WithBom = New-Object System.Text.UTF8Encoding $true
-[System.IO.File]::WriteAllText((Join-Path $publishDir "README.txt"), $readmeContent, $utf8WithBom)
-
-# 打包成 zip
-Write-Host "`n创建 ZIP 压缩包..." -ForegroundColor Yellow
+if ($Version -notmatch '^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?(?:\+[0-9A-Za-z.-]+)?$') {
+    throw 'A valid product version is required.'
+}
+$mainProject = Get-SolutionProject 'STool'
+$testProject = Get-SolutionProject 'STool.Tests'
+if ($ReadyToRun -and $Variant -eq 'default') { $Variant = 'r2r' }
+$buildId = "$Version-$(Get-Date -Format yyyyMMdd-HHmmss)-$([guid]::NewGuid().ToString('N').Substring(0, 8))"
+$publishDir = Join-Path $repoRoot "artifacts/publish/$Variant/$buildId"
+$releaseDir = Join-Path $repoRoot "artifacts/releases/$Variant/$buildId"
 $zipPath = Join-Path $releaseDir "STool_v${Version}_Portable.zip"
-Compress-Archive -Path (Join-Path $publishDir "*") -DestinationPath $zipPath -Force
 
-# 显示构建结果
-$zipSize = (Get-Item $zipPath).Length / 1MB
-Write-Host "`n=== 构建完成 ===" -ForegroundColor Cyan
-Write-Host "压缩包: $zipPath" -ForegroundColor Green
-Write-Host "大小: $([math]::Round($zipSize, 2)) MB" -ForegroundColor Green
-
-# 显示发布目录内容
-Write-Host "`n发布目录内容:" -ForegroundColor Yellow
-Get-ChildItem $publishDir | ForEach-Object {
-    $size = if ($_.PSIsContainer) { "[目录]" } else { "($([math]::Round($_.Length / 1MB, 2)) MB)" }
-    Write-Host "  $($_.Name) $size"
+Write-Host "STool $Version ($Variant): framework-dependent win-x64" -ForegroundColor Cyan
+if (-not $SkipTests) {
+    dotnet test $testProject -c Release "-p:Version=$Version" | Out-Host
+    if ($LASTEXITCODE -ne 0) { throw 'Tests failed; packaging stopped.' }
 }
 
-Write-Host "`n提示: 可以解压并运行 STool.exe 进行测试" -ForegroundColor Cyan
+$publishArgs = @(
+    $mainProject, '-c', 'Release', '--runtime', 'win-x64', '--self-contained', 'false',
+    "-p:Version=$Version", '-p:PublishSingleFile=true', '-p:DebugType=None', '-p:DebugSymbols=false',
+    "-p:PublishReadyToRun=$($ReadyToRun.IsPresent.ToString().ToLowerInvariant())", '-o', $publishDir
+)
+$timer = [Diagnostics.Stopwatch]::StartNew()
+dotnet publish @publishArgs | Out-Host
+$timer.Stop()
+if ($LASTEXITCODE -ne 0) { throw 'Publish failed; no package was created.' }
+
+$utf8 = [Text.UTF8Encoding]::new($false)
+$utf8Bom = [Text.UTF8Encoding]::new($true)
+$template = [IO.File]::ReadAllText((Join-Path $repoRoot 'docs/portable-readme.txt'), $utf8)
+[IO.File]::WriteAllText((Join-Path $publishDir 'README.txt'), $template.Replace('{{VERSION}}', $Version), $utf8Bom)
+[IO.Directory]::CreateDirectory($releaseDir) | Out-Null
+[IO.Compression.ZipFile]::CreateFromDirectory($publishDir, $zipPath)
+
+$checks = & (Join-Path $repoRoot 'scripts/Verify-PortablePackage.ps1') `
+    -PublishDirectory $publishDir -ArchivePath $zipPath -ExpectedVersion $Version
+$checks | Add-Member -NotePropertyName PublishMilliseconds -NotePropertyValue ([math]::Round($timer.Elapsed.TotalMilliseconds, 1))
+$checks | Add-Member -NotePropertyName ReadyToRun -NotePropertyValue $ReadyToRun.IsPresent
+$checks | Add-Member -NotePropertyName PublishDirectory -NotePropertyValue $publishDir
+[IO.File]::WriteAllText((Join-Path $releaseDir 'verification.json'), ($checks | ConvertTo-Json -Depth 6), $utf8)
+[IO.File]::WriteAllText("$zipPath.sha256", "$($checks.ArchiveSha256)  $([IO.Path]::GetFileName($zipPath))`n", $utf8)
+Write-Host "Verified package: $zipPath" -ForegroundColor Green
+$checks

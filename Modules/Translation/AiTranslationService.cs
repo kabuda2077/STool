@@ -1,18 +1,13 @@
 using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Net.Http;
-using System.Text;
-using System.Text.Json;
+using System.Net;
 using System.Threading;
 using System.Threading.Tasks;
 using STool.Core;
-using STool.Models;
 
 namespace STool.Modules.Translation;
 
 /// <summary>
-/// AI 翻译服务（OpenAI/Claude）
+/// AI 翻译服务（OpenAI 兼容 Chat Completions 接口）
 /// </summary>
 public class AiTranslationService : ITranslationService
 {
@@ -20,98 +15,42 @@ public class AiTranslationService : ITranslationService
     public const string GoogleAiStudioChatCompletionsUrl = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions";
     public const string DeepSeekChatCompletionsUrl = "https://api.deepseek.com/chat/completions";
 
+    private const string ProviderName = "AI Translation";
+    private const double Temperature = 0.3;
+
     private readonly string _apiUrl;
     private readonly string _apiKey;
     private readonly string _model;
-    private readonly HttpClient _httpClient;
 
     public AiTranslationService(string apiUrlEncrypted, string apiKeyEncrypted, string model)
+        : this(new PlainCredentials(SecureStorage.Decrypt(apiUrlEncrypted), SecureStorage.Decrypt(apiKeyEncrypted), model))
     {
-        _apiUrl = SecureStorage.Decrypt(apiUrlEncrypted);
-        _apiKey = SecureStorage.Decrypt(apiKeyEncrypted);
-        _model = model;
-        _httpClient = HttpDefaults.CreateClient();
+    }
+
+    private AiTranslationService(PlainCredentials credentials)
+    {
+        _apiUrl = credentials.ApiUrl;
+        _apiKey = credentials.ApiKey;
+        _model = credentials.Model;
     }
 
     public bool IsAvailable()
     {
-        return !string.IsNullOrEmpty(_apiUrl) && !string.IsNullOrEmpty(_apiKey);
-    }
-
-    public static string GetDefaultApiUrl(TranslationAiPlatform platform)
-    {
-        return platform switch
-        {
-            TranslationAiPlatform.OpenAI => OpenAiChatCompletionsUrl,
-            TranslationAiPlatform.GoogleAiStudio => GoogleAiStudioChatCompletionsUrl,
-            TranslationAiPlatform.DeepSeek => DeepSeekChatCompletionsUrl,
-            _ => string.Empty
-        };
-    }
-
-    public static async Task<IReadOnlyList<string>> FetchModelsAsync(string apiUrl, string apiKey)
-    {
-        if (string.IsNullOrWhiteSpace(apiUrl))
-        {
-            throw new InvalidOperationException("请先填写 API URL");
-        }
-
-        if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            throw new InvalidOperationException("请先填写 API Key");
-        }
-
-        var response = await AiApiRequestSender.SendAsync(
-            HttpDefaults.Shared,
-            AiApiEndpointResolver.ResolveModelsCandidates(apiUrl),
-            endpoint =>
-            {
-                var request = new HttpRequestMessage(HttpMethod.Get, endpoint);
-                request.Headers.Add("Authorization", $"Bearer {apiKey.Trim()}");
-                return request;
-            });
-
-        if (!response.IsSuccessStatusCode)
-        {
-            throw new InvalidOperationException($"获取模型失败：{response.StatusCode} - {response.Body}");
-        }
-
-        using var jsonDoc = JsonDocument.Parse(response.Body);
-        if (!jsonDoc.RootElement.TryGetProperty("data", out var data) || data.ValueKind != JsonValueKind.Array)
-        {
-            throw new InvalidOperationException("模型接口返回格式不正确");
-        }
-
-        return data.EnumerateArray()
-            .Select(item => item.TryGetProperty("id", out var id) ? id.GetString() : null)
-            .Where(id => !string.IsNullOrWhiteSpace(id))
-            .Select(id => id!)
-            .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
+        return !string.IsNullOrWhiteSpace(_apiUrl) &&
+               !string.IsNullOrWhiteSpace(_apiKey) &&
+               !string.IsNullOrWhiteSpace(_model);
     }
 
     public static async Task<TranslationResult> TestAsync(string apiUrl, string apiKey, string model)
     {
         if (string.IsNullOrWhiteSpace(apiUrl))
-        {
-            return new TranslationResult { Success = false, ErrorMessage = "请先填写 API URL", Provider = "AI Translation" };
-        }
-
+            return Failure("请先填写 API URL");
         if (string.IsNullOrWhiteSpace(apiKey))
-        {
-            return new TranslationResult { Success = false, ErrorMessage = "请先填写 API Key", Provider = "AI Translation" };
-        }
-
+            return Failure("请先填写 API Key");
         if (string.IsNullOrWhiteSpace(model))
-        {
-            return new TranslationResult { Success = false, ErrorMessage = "请先填写模型", Provider = "AI Translation" };
-        }
+            return Failure("请先填写模型");
 
-        using var service = new AiTranslationService(
-            SecureStorage.Encrypt(apiUrl.Trim()),
-            SecureStorage.Encrypt(apiKey.Trim()),
-            model.Trim());
-
+        using var service = new AiTranslationService(new PlainCredentials(apiUrl.Trim(), apiKey.Trim(), model.Trim()));
         return await service.TranslateAsync("你好", "zh", "en");
     }
 
@@ -119,129 +58,66 @@ public class AiTranslationService : ITranslationService
     {
         if (!IsAvailable())
         {
-            return new TranslationResult
-            {
-                Success = false,
-                ErrorMessage = "AI API credentials not configured",
-                Provider = "AI Translation"
-            };
+            return Failure("AI 翻译的 API 地址、密钥或模型未配置完整。");
         }
 
         try
         {
-            var targetLangName = GetLanguageName(targetLanguage);
+            var targetLanguageName = LanguageCodes.ToEnglishName(targetLanguage);
             var prompt = sourceLanguage == "auto"
-                ? $"Translate the following text to {targetLangName}. Return only the translation without any explanation:\n\n{text}"
-                : $"Translate the following text from {GetLanguageName(sourceLanguage)} to {targetLangName}. Return only the translation without any explanation:\n\n{text}";
+                ? $"Translate the following text to {targetLanguageName}. Return only the translation without any explanation:\n\n{text}"
+                : $"Translate the following text from {LanguageCodes.ToEnglishName(sourceLanguage)} to {targetLanguageName}. Return only the translation without any explanation:\n\n{text}";
 
-            // 构建 OpenAI 兼容请求
-            var payload = new
+            var request = new ChatCompletionRequest(
+                _model,
+                OpenAiChatClient.UserMessage(prompt),
+                EstimateMaxOutputTokens(text),
+                Temperature);
+            var result = await OpenAiChatClient.CompleteAsync(HttpDefaults.Shared, _apiUrl, _apiKey, request, cancellationToken);
+
+            return result.Error switch
             {
-                model = _model,
-                messages = new[]
-                {
-                    new
-                    {
-                        role = "user",
-                        content = prompt
-                    }
-                },
-                temperature = 0.3,
-                max_tokens = 2000
-            };
-
-            var payloadJson = JsonSerializer.Serialize(payload);
-
-            // 发送请求
-            var response = await AiApiRequestSender.SendAsync(
-                _httpClient,
-                AiApiEndpointResolver.ResolveChatCompletionCandidates(_apiUrl),
-                endpoint =>
-                {
-                    var request = new HttpRequestMessage(HttpMethod.Post, endpoint)
-                    {
-                        Content = new StringContent(payloadJson, Encoding.UTF8, "application/json")
-                    };
-                    request.Headers.Add("Authorization", $"Bearer {_apiKey}");
-                    return request;
-                },
-                cancellationToken);
-
-            if (!response.IsSuccessStatusCode)
-            {
-                return new TranslationResult
-                {
-                    Success = false,
-                    ErrorMessage = NetworkErrorMessages.FromStatus(response.StatusCode, response.Body),
-                    Provider = "AI Translation"
-                };
-            }
-
-            // 解析响应
-            using var jsonDoc = JsonDocument.Parse(response.Body);
-            var root = jsonDoc.RootElement;
-
-            if (root.TryGetProperty("choices", out var choices) && choices.GetArrayLength() > 0)
-            {
-                var message = choices[0].GetProperty("message");
-                var content = message.GetProperty("content").GetString()?.Trim() ?? string.Empty;
-                if (string.IsNullOrWhiteSpace(content))
-                {
-                    return new TranslationResult
-                    {
-                        Success = false,
-                        ErrorMessage = "翻译服务返回了空结果。",
-                        Provider = "AI Translation"
-                    };
-                }
-
-                return new TranslationResult
+                ChatCompletionError.None => new TranslationResult
                 {
                     Success = true,
                     SourceLanguage = sourceLanguage,
                     TargetLanguage = targetLanguage,
                     SourceText = text,
-                    TranslatedText = content,
-                    Provider = "AI Translation"
-                };
-            }
-
-            return new TranslationResult
-            {
-                Success = false,
-                ErrorMessage = "Invalid response format",
-                Provider = "AI Translation"
+                    TranslatedText = result.Content,
+                    Provider = ProviderName
+                },
+                ChatCompletionError.Truncated => Failure("译文超出模型单次输出上限，结果不完整。请缩短文本后重试。"),
+                ChatCompletionError.ContentFilter => Failure("内容被翻译服务的安全策略拦截。"),
+                ChatCompletionError.Refusal => Failure($"模型拒绝翻译：{result.Detail}"),
+                ChatCompletionError.Http => Failure(NetworkErrorMessages.FromStatus(result.StatusCode ?? HttpStatusCode.InternalServerError, result.Detail)),
+                ChatCompletionError.Empty => Failure("翻译服务返回了空结果。"),
+                _ => Failure("翻译服务返回格式不正确。")
             };
         }
         catch (Exception ex)
         {
-            return new TranslationResult
-            {
-                Success = false,
-                ErrorMessage = NetworkErrorMessages.FromException(ex, cancellationToken),
-                Provider = "AI Translation"
-            };
+            return Failure(NetworkErrorMessages.FromException(ex, cancellationToken));
         }
     }
 
-    private string GetLanguageName(string code)
+    /// <summary>
+    /// 按原文长度估算输出额度：中文与英文互译时译文 token 数通常不超过原文字符数的 2~3 倍，
+    /// 下限保证短文本有余量，上限兼容只支持 4K 输出的模型。
+    /// </summary>
+    internal static int EstimateMaxOutputTokens(string text) =>
+        Math.Clamp(text.Length * 3 + 256, 1024, 4096);
+
+    private static TranslationResult Failure(string message) => new()
     {
-        return code.ToLower() switch
-        {
-            "zh" or "zh-cn" or "chinese" => "Chinese",
-            "en" or "english" => "English",
-            "ja" or "japanese" => "Japanese",
-            "ko" or "korean" => "Korean",
-            "fr" or "french" => "French",
-            "de" or "german" => "German",
-            "es" or "spanish" => "Spanish",
-            "ru" or "russian" => "Russian",
-            _ => code
-        };
-    }
+        Success = false,
+        ErrorMessage = message,
+        Provider = ProviderName
+    };
 
     public void Dispose()
     {
-        _httpClient.Dispose();
+        // 使用进程级共享 HttpClient，无需释放。
     }
+
+    private readonly record struct PlainCredentials(string ApiUrl, string ApiKey, string Model);
 }

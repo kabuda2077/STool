@@ -54,7 +54,7 @@
                         ToolTip="关闭">
                     <TextBlock Text="&#xE8BB;"
                                FontFamily="Segoe MDL2 Assets"
-                               FontSize="12"/>
+                               FontSize="{StaticResource FontSizeCaption}"/>
                 </Button>
             </Grid>
 

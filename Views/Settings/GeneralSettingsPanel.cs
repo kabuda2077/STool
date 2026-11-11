@@ -168,22 +168,29 @@ public class GeneralSettingsPanel : StackPanel
             return;
         }
 
-        var proposed = new Dictionary<string, string>
+        var proposed = new HotkeyConfig
         {
-            ["截图"] = HotkeyManager.NormalizeHotkey(screenshot)!,
-            ["翻译"] = HotkeyManager.NormalizeHotkey(translation)!,
-            ["剪贴板"] = HotkeyManager.NormalizeHotkey(clipboard)!,
-            ["设置"] = HotkeyManager.NormalizeHotkey(settings)!,
-            ["传输"] = HotkeyManager.NormalizeHotkey(lanTransfer)!
+            Screenshot = HotkeyManager.NormalizeHotkey(screenshot)!,
+            Translation = HotkeyManager.NormalizeHotkey(translation)!,
+            Clipboard = HotkeyManager.NormalizeHotkey(clipboard)!,
+            Settings = HotkeyManager.NormalizeHotkey(settings)!,
+            LanTransfer = HotkeyManager.NormalizeHotkey(lanTransfer)!
         };
-        var duplicate = proposed
-            .GroupBy(pair => pair.Value, StringComparer.OrdinalIgnoreCase)
+        var duplicate = new (string Label, string Hotkey)[]
+            {
+                ("截图", proposed.Screenshot),
+                ("翻译", proposed.Translation),
+                ("剪贴板", proposed.Clipboard),
+                ("设置", proposed.Settings),
+                ("传输", proposed.LanTransfer)
+            }
+            .GroupBy(pair => pair.Hotkey, StringComparer.OrdinalIgnoreCase)
             .FirstOrDefault(group => group.Count() > 1);
         if (duplicate != null)
         {
             ToastNotification.Show(
                 "快捷键重复",
-                $"{string.Join("、", duplicate.Select(pair => pair.Key))} 都使用了 {duplicate.Key}",
+                $"{string.Join("、", duplicate.Select(pair => pair.Label))} 都使用了 {duplicate.Key}",
                 ToastNotification.ToastType.Warning);
             RestoreHotkeyText(config.Hotkeys);
             return;
@@ -244,15 +251,6 @@ public class GeneralSettingsPanel : StackPanel
         _txtClipboardHotkey.Text = hotkeys.Clipboard;
         _txtSettingsHotkey.Text = hotkeys.Settings;
         _txtLanTransferHotkey.Text = hotkeys.LanTransfer;
-    }
-
-    private static void ApplyHotkeys(HotkeyConfig target, IReadOnlyDictionary<string, string> values)
-    {
-        target.Screenshot = values["截图"];
-        target.Translation = values["翻译"];
-        target.Clipboard = values["剪贴板"];
-        target.Settings = values["设置"];
-        target.LanTransfer = values["传输"];
     }
 
     private static void ApplyHotkeys(HotkeyConfig target, HotkeyConfig source)

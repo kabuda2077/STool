@@ -21,7 +21,7 @@ public class LanTransferTests
         var lastActivity = hasActivity ? timestamp : 0;
         var now = timestamp + elapsedSeconds * System.Diagnostics.Stopwatch.Frequency;
 
-        Assert.Equal(expected, LanTransferWindow.IsClientPresent(lastActivity, now));
+        Assert.Equal(expected, LanTransferController.IsClientPresent(lastActivity, now));
     }
 
     [Fact]
@@ -200,13 +200,16 @@ public class LanTransferTests
     }
 
     [Fact]
-    public void AuthService_GlobalLockoutStopsGuessingFromManyAddresses()
+    public void AuthService_GlobalFailuresRotateCodesWithoutLockingOutLegitUser()
     {
         var root = CreateTempDirectory();
         try
         {
             var now = DateTimeOffset.UtcNow;
             var auth = new LanTransferAuthService(new DeviceTokenStore(Path.Combine(root, "devices.json")), () => now);
+            var before = auth.ManualCode;
+            var rotations = 0;
+            auth.AccessCodesRotated += () => rotations++;
 
             // 每个地址只试 5 次，不会触发单地址锁定，但总数达到全局上限。
             for (var attempt = 0; attempt < 20; attempt++)
@@ -215,13 +218,9 @@ public class LanTransferTests
                 Assert.False(auth.TryExchange(new AuthExchangeRequest(null, "wrong", false), address, out _, out _));
             }
 
-            Assert.False(auth.TryExchange(
-                new AuthExchangeRequest(null, auth.ManualCode, false),
-                IPAddress.Parse("192.168.1.200"),
-                out _,
-                out _));
-
-            now = now.AddMinutes(6);
+            // 达到全局阈值只换码，正常用户用新码可以立即配对。
+            Assert.NotEqual(before, auth.ManualCode);
+            Assert.True(rotations >= 1);
             Assert.True(auth.TryExchange(
                 new AuthExchangeRequest(null, auth.ManualCode, false),
                 IPAddress.Parse("192.168.1.200"),
@@ -232,6 +231,100 @@ public class LanTransferTests
         {
             Directory.Delete(root, true);
         }
+    }
+
+    [Fact]
+    public void AuthService_FailuresAreThrottledPerAddress()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var auth = new LanTransferAuthService(new DeviceTokenStore(Path.Combine(root, "devices.json")), () => now);
+            var attacker = IPAddress.Parse("192.168.1.50");
+            for (var attempt = 0; attempt < 6; attempt++)
+                Assert.False(auth.TryExchange(new AuthExchangeRequest(null, "wrong", false), attacker, out _, out _));
+
+            // 该地址被锁定，即使码正确也拒绝；其他地址不受影响。
+            Assert.False(auth.TryExchange(new AuthExchangeRequest(null, auth.ManualCode, false), attacker, out _, out _));
+            Assert.True(auth.TryExchange(
+                new AuthExchangeRequest(null, auth.ManualCode, false), IPAddress.Parse("192.168.1.51"), out _, out _));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void AuthService_CodesExpireAndRotate()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var now = DateTimeOffset.UtcNow;
+            var auth = new LanTransferAuthService(new DeviceTokenStore(Path.Combine(root, "devices.json")), () => now);
+            var oldCode = auth.ManualCode;
+            var oldToken = auth.QrToken;
+            var rotations = 0;
+            auth.AccessCodesRotated += () => rotations++;
+
+            Assert.False(auth.RotateIfExpired());
+            now += LanTransferAuthService.CodeLifetime;
+
+            // 过期后提交旧码失败，并已换成新码。
+            Assert.False(auth.TryExchange(new AuthExchangeRequest(oldToken, oldCode, false), IPAddress.Parse("192.168.1.20"), out _, out _));
+            Assert.NotEqual(oldCode, auth.ManualCode);
+            Assert.NotEqual(oldToken, auth.QrToken);
+            Assert.Equal(1, rotations);
+
+            now += LanTransferAuthService.CodeLifetime;
+            Assert.True(auth.RotateIfExpired());
+            Assert.Equal(2, rotations);
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public void AuthService_RevokeRememberedDevicesInvalidatesLiveSessions()
+    {
+        var root = CreateTempDirectory();
+        try
+        {
+            var store = new DeviceTokenStore(Path.Combine(root, "devices.json"));
+            var auth = new LanTransferAuthService(store);
+            var address = IPAddress.Parse("192.168.1.20");
+            Assert.True(auth.TryExchange(new AuthExchangeRequest(null, auth.ManualCode, true), address, out var session, out var device));
+            Assert.True(auth.TryAuthenticate(session, null, address, out _));
+
+            auth.RevokeRememberedDevices();
+
+            Assert.False(auth.TryAuthenticate(session, null, address, out _));
+            Assert.False(auth.TryAuthenticate(null, device, address, out _));
+        }
+        finally
+        {
+            Directory.Delete(root, true);
+        }
+    }
+
+    [Fact]
+    public async Task IdleTimeoutStream_ThrowsWhenNoProgress()
+    {
+        var pending = new TaskCompletionSource<int>();
+        await using var inner = new StalledStream(pending.Task);
+        var stream = new IdleTimeoutStream(inner, TimeSpan.FromMilliseconds(100));
+        await Assert.ThrowsAsync<TimeoutException>(async () => Assert.Equal(0, await stream.ReadAsync(new byte[4])));
+        pending.SetResult(0);
+    }
+
+    private sealed class StalledStream(Task<int> pending) : MemoryStream
+    {
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default) =>
+            await pending;
     }
 
     [Theory]
@@ -821,11 +914,11 @@ public class LanTransferTests
         var file = CreateSharedEntry("file.txt", isFolder: false);
         var folder = CreateSharedEntry("folder", isFolder: true);
 
-        Assert.Equal(OutgoingTransferMode.Automatic, LanTransferWindow.ResolveOutgoingMode([file]));
-        Assert.Equal(OutgoingTransferMode.CombinedArchive, LanTransferWindow.ResolveOutgoingMode([folder]));
-        Assert.Equal(OutgoingTransferMode.Separate, LanTransferWindow.ResolveOutgoingMode([file, file]));
-        Assert.Equal(OutgoingTransferMode.Separate, LanTransferWindow.ResolveOutgoingMode([file, file, file, file, file]));
-        Assert.Equal(OutgoingTransferMode.CombinedArchive, LanTransferWindow.ResolveOutgoingMode([file, file, file, file, file, file]));
+        Assert.Equal(OutgoingTransferMode.Automatic, LanTransferController.ResolveOutgoingMode([file]));
+        Assert.Equal(OutgoingTransferMode.CombinedArchive, LanTransferController.ResolveOutgoingMode([folder]));
+        Assert.Equal(OutgoingTransferMode.Separate, LanTransferController.ResolveOutgoingMode([file, file]));
+        Assert.Equal(OutgoingTransferMode.Separate, LanTransferController.ResolveOutgoingMode([file, file, file, file, file]));
+        Assert.Equal(OutgoingTransferMode.CombinedArchive, LanTransferController.ResolveOutgoingMode([file, file, file, file, file, file]));
     }
 
     [Fact]

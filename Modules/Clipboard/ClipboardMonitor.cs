@@ -4,10 +4,12 @@ using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices;
 using System.Threading;
+using System.Threading.Tasks;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Serilog;
+using STool.Core;
 
 namespace STool.Modules.Clipboard;
 
@@ -18,10 +20,32 @@ internal sealed record ClipboardCapture(
     BitmapSource? Image,
     string[]? Files,
     string? SourceApp,
-    DateTime CopiedAt);
+    DateTime CopiedAt)
+{
+    /// <summary>估算该内容排队时占用的内存字节数，用于待处理队列的字节预算。</summary>
+    public long EstimatedBytes
+    {
+        get
+        {
+            long total = 0;
+            if (Text != null)
+                total += (long)Text.Length * sizeof(char);
+            if (Image != null)
+                total += (long)Image.PixelWidth * Image.PixelHeight * Math.Max(1, Image.Format.BitsPerPixel / 8);
+            if (Files != null)
+            {
+                foreach (var file in Files)
+                    total += (long)file.Length * sizeof(char);
+            }
+
+            return total;
+        }
+    }
+}
 
 /// <summary>
-/// 剪贴板监听器。消息循环里只做必须在 UI 线程完成的事：检查隐私标记、读取内容并冻结图片；
+/// 剪贴板监听器。UI 线程的消息循环里只做轻量检查（序列号、自身写入抑制、前台进程 ID），
+/// 随后把隐私格式检查和内容读取投递到专属 STA 线程，避免大图或无响应的源应用卡住界面；
 /// 编码、查重和入库由 <see cref="ClipboardManager"/> 在后台完成。
 /// </summary>
 internal sealed class ClipboardMonitor : IDisposable
@@ -36,9 +60,6 @@ internal sealed class ClipboardMonitor : IDisposable
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern bool RemoveClipboardFormatListener(IntPtr hwnd);
-
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetForegroundWindow();
 
     [DllImport("user32.dll")]
     private static extern uint GetClipboardSequenceNumber();
@@ -78,8 +99,19 @@ internal sealed class ClipboardMonitor : IDisposable
     private bool _isMonitoring;
     private int _suppressingInternalWrite;
     private long _suppressedSequenceNumber = -1;
-    private bool _disposed;
+    private volatile bool _disposed;
 
+    /// <summary>读取剪贴板的专属 STA 线程，与写入线程分开，读取卡住时不影响 STool 自己的写入。</summary>
+    private readonly ClipboardService _reader = new();
+
+    /// <summary>读取线程上单次读取的最大等待重试次数与间隔（WPF 自身还会内部重试）。</summary>
+    internal const int ReadAttempts = 5;
+    internal const int ReadRetryDelayMs = 100;
+
+    /// <summary>读取超过该时长仍未完成时记录警告（线程本身无法被强行中断）。</summary>
+    private static readonly TimeSpan SlowReadWarning = TimeSpan.FromSeconds(10);
+
+    /// <summary>在读取线程（非 UI 线程）上触发。</summary>
     public event EventHandler<ClipboardCapture>? ContentCaptured;
 
     /// <summary>返回 true 时忽略该来源进程（进程名，如 KeePass.exe）复制的内容。</summary>
@@ -164,31 +196,78 @@ internal sealed class ClipboardMonitor : IDisposable
             if (ShouldSuppressUpdate(sequenceNumber))
                 return;
 
-            if (IsMarkedPrivate())
+            // 复制发生时，前台窗口通常就是来源应用；这类信息只能在事件当时取，进程名解析留给读取线程。
+            var sourceProcessId = GetForegroundProcessId();
+            var copiedAt = DateTime.Now;
+
+            _ = ReadAndPublishAsync(sequenceNumber, sourceProcessId, copiedAt);
+        }
+        catch (Exception ex)
+        {
+            Log.Warning(ex, "Failed to schedule clipboard read");
+        }
+    }
+
+    private async Task ReadAndPublishAsync(uint sequenceNumber, int sourceProcessId, DateTime copiedAt)
+    {
+        try
+        {
+            var read = _reader.RunAsync(() => ReadAndPublishCoreAsync(sequenceNumber, sourceProcessId, copiedAt));
+            var finished = await Task.WhenAny(read, Task.Delay(SlowReadWarning));
+            if (finished != read)
             {
-                // 不记录内容本身，只留下发生过跳过的痕迹。
-                Log.Information("Skipping clipboard content marked as private by its source application");
-                return;
+                Log.Warning("Clipboard read is taking longer than {Seconds}s; the source application may be unresponsive", SlowReadWarning.TotalSeconds);
             }
 
-            // 复制发生时,前台窗口通常就是来源应用
-            var sourceApp = GetForegroundApp();
-            if (SourceFilter?.Invoke(sourceApp) == true)
-            {
-                Log.Information("Skipping clipboard content from excluded application {SourceApp}", sourceApp);
-                return;
-            }
-
-            var capture = CaptureClipboardContent(sourceApp);
-            // 标记检查和取内容之间若发生了另一次复制，不能保存未经隐私检查的新内容。
-            if (capture != null && sequenceNumber == GetClipboardSequenceNumber())
-                ContentCaptured?.Invoke(this, capture);
+            await read;
+        }
+        catch (ObjectDisposedException)
+        {
         }
         catch (Exception ex)
         {
             Log.Warning(ex, "Failed to capture clipboard content");
         }
     }
+
+    /// <summary>在读取线程上执行：隐私检查、读取内容、序列号复核，最后发布。</summary>
+    private async Task ReadAndPublishCoreAsync(uint sequenceNumber, int sourceProcessId, DateTime copiedAt)
+    {
+        if (_disposed || IsStale(sequenceNumber, GetClipboardSequenceNumber()))
+            return;
+
+        // STool 自己写入的内容带内部格式标记，直接跳过，不依赖序列号窗口。
+        if (ClipboardService.IsInternalWrite())
+            return;
+
+        if (IsMarkedPrivate())
+        {
+            // 不记录内容本身，只留下发生过跳过的痕迹。
+            Log.Information("Skipping clipboard content marked as private by its source application");
+            return;
+        }
+
+        var sourceApp = ResolveProcessName(sourceProcessId);
+        if (SourceFilter?.Invoke(sourceApp) == true)
+        {
+            Log.Information("Skipping clipboard content from excluded application {SourceApp}", sourceApp);
+            return;
+        }
+
+        var capture = await ClipboardService.RetryBusyAsync(
+            () => CaptureClipboardContent(sourceApp, copiedAt),
+            ReadAttempts,
+            ReadRetryDelayMs,
+            CancellationToken.None);
+
+        // 隐私检查、取内容期间若发生了另一次复制，丢弃本次结果（新内容有自己的通知）。
+        if (capture != null && !IsStale(sequenceNumber, GetClipboardSequenceNumber()))
+            ContentCaptured?.Invoke(this, capture);
+    }
+
+    /// <summary>读取期间剪贴板序列号已变化，说明手里的内容可能混杂了新旧数据，不能保存。</summary>
+    internal static bool IsStale(uint capturedSequence, uint currentSequence) =>
+        capturedSequence != currentSequence;
 
     public void BeginUpdateSuppression() =>
         Volatile.Write(ref _suppressingInternalWrite, 1);
@@ -210,7 +289,7 @@ internal sealed class ClipboardMonitor : IDisposable
         Volatile.Read(ref _suppressingInternalWrite) != 0 ||
         sequenceNumber != 0 && Interlocked.Read(ref _suppressedSequenceNumber) == sequenceNumber;
 
-    private bool IsMarkedPrivate()
+    private static bool IsMarkedPrivate()
     {
         var hasExclude = ExcludeFromMonitorFormat != 0 && IsClipboardFormatAvailable(ExcludeFromMonitorFormat);
         var hasViewerIgnore = ClipboardViewerIgnoreFormat != 0 && IsClipboardFormatAvailable(ClipboardViewerIgnoreFormat);
@@ -224,9 +303,9 @@ internal sealed class ClipboardMonitor : IDisposable
         return ClipboardPrivacy.ShouldSkip(hasExclude, hasViewerIgnore, canInclude);
     }
 
-    private int? ReadClipboardDword(uint format)
+    private static int? ReadClipboardDword(uint format)
     {
-        if (_hwndSource == null || !OpenClipboard(_hwndSource.Handle))
+        if (!OpenClipboard(IntPtr.Zero))
             return null;
 
         try
@@ -254,10 +333,9 @@ internal sealed class ClipboardMonitor : IDisposable
         }
     }
 
-    private static ClipboardCapture? CaptureClipboardContent(string? sourceApp)
+    /// <summary>必须在 STA 读取线程上调用。被占用时抛出 COMException，由调用方重试。</summary>
+    private static ClipboardCapture? CaptureClipboardContent(string? sourceApp, DateTime copiedAt)
     {
-        var copiedAt = DateTime.Now;
-
         if (System.Windows.Clipboard.ContainsText())
         {
             var text = System.Windows.Clipboard.GetText();
@@ -303,19 +381,32 @@ internal sealed class ClipboardMonitor : IDisposable
         return copy;
     }
 
-    /// <summary>抓取当前前台窗口所属进程名(如 Code.exe),失败返回 null。</summary>
-    private static string? GetForegroundApp()
+    /// <summary>取当前前台窗口所属进程 ID，失败返回 0。</summary>
+    private static int GetForegroundProcessId()
     {
         try
         {
-            var hwnd = GetForegroundWindow();
+            var hwnd = NativeWindows.GetForegroundWindow();
             if (hwnd == IntPtr.Zero)
-                return null;
+                return 0;
 
             GetWindowThreadProcessId(hwnd, out int pid);
-            if (pid == 0)
-                return null;
+            return pid;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
 
+    /// <summary>把进程 ID 解析为进程名（如 Code.exe），失败返回 null。</summary>
+    private static string? ResolveProcessName(int pid)
+    {
+        if (pid == 0)
+            return null;
+
+        try
+        {
             using var proc = System.Diagnostics.Process.GetProcessById(pid);
             var name = proc.ProcessName;
             return string.IsNullOrEmpty(name) ? null : name + ".exe";
@@ -395,6 +486,7 @@ internal sealed class ClipboardMonitor : IDisposable
             StopCore();
             _disposed = true;
         });
+        _reader.Dispose();
     }
 
     private static void RunOnDispatcher(Action action)

@@ -124,7 +124,7 @@ public class ClipboardStorageTests
     }
 
     [Fact]
-    public void ClearAll_PreservesFavoritesAndDeletesImageFiles()
+    public async Task ClearAll_PreservesFavoritesAndDeletesImageFiles()
     {
         using var fixture = new StorageFixture();
         var imagePath = fixture.CreateImage("clipboard_image.png");
@@ -144,11 +144,35 @@ public class ClipboardStorageTests
         });
 
         fixture.Storage.ClearAll();
-
+        // 图片文件在后台删除，记录已先行移除。
         var remaining = Assert.Single(fixture.Storage.GetRecent());
         Assert.Equal("favorite-1", remaining.Id);
+
+        await fixture.Storage.WaitForFileDeletionAsync();
         Assert.False(File.Exists(imagePath));
         Assert.False(File.Exists(thumbPath));
+    }
+
+    [Fact]
+    public async Task Delete_FileDeletionFailureDoesNotThrowOrKeepRecord()
+    {
+        using var fixture = new StorageFixture();
+        var imagePath = fixture.CreateImage("locked.png");
+        fixture.Storage.Add(new ClipboardItem
+        {
+            Id = "image-locked",
+            Type = ClipboardItemType.Image,
+            ImagePath = imagePath
+        });
+
+        // 独占打开图片，后台删除会失败，但只记日志，不影响调用方。
+        using (new FileStream(imagePath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            fixture.Storage.Delete("image-locked");
+            Assert.Empty(fixture.Storage.GetRecent());
+            await fixture.Storage.WaitForFileDeletionAsync();
+            Assert.True(File.Exists(imagePath));
+        }
     }
 
     [Fact]

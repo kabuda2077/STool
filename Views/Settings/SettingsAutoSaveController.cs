@@ -15,8 +15,10 @@ namespace STool.Views.Settings;
 internal sealed class SettingsAutoSaveController
 {
     private static readonly TimeSpan SaveDelay = TimeSpan.FromMilliseconds(500);
+    private static readonly TimeSpan ToastQuietPeriod = TimeSpan.FromMilliseconds(600);
 
     private readonly DispatcherTimer _timer;
+    private readonly DispatcherTimer _toastTimer;
     private readonly Func<bool> _save;
     private bool _dirty;
     private bool _saving;
@@ -27,7 +29,19 @@ internal sealed class SettingsAutoSaveController
         _timer = new DispatcherTimer { Interval = SaveDelay };
         _timer.Tick += (_, _) => SaveNow();
 
-        owner.Unloaded += (_, _) => SaveNow();
+        // 连续修改（逐字符输入密钥）时把“已保存”合并为一次，避免提示反复打断。
+        _toastTimer = new DispatcherTimer { Interval = ToastQuietPeriod };
+        _toastTimer.Tick += (_, _) =>
+        {
+            _toastTimer.Stop();
+            ToastNotification.ShowSettingsSaved();
+        };
+
+        owner.Unloaded += (_, _) =>
+        {
+            _toastTimer.Stop();
+            SaveNow();
+        };
     }
 
     public void TrackImmediate(Selector selector)
@@ -37,6 +51,18 @@ internal sealed class SettingsAutoSaveController
             _dirty = true;
             SaveNow();
         };
+    }
+
+    public void TrackImmediate(System.Windows.Controls.Primitives.ToggleButton toggle)
+    {
+        void OnChanged(object sender, RoutedEventArgs e)
+        {
+            _dirty = true;
+            SaveNow();
+        }
+
+        toggle.Checked += OnChanged;
+        toggle.Unchecked += OnChanged;
     }
 
     public void TrackDebounced(TextBox textBox)
@@ -79,7 +105,10 @@ internal sealed class SettingsAutoSaveController
             var saved = _save();
             _dirty = false;
             if (saved)
-                ToastNotification.ShowSettingsSaved();
+            {
+                _toastTimer.Stop();
+                _toastTimer.Start();
+            }
         }
         catch (Exception ex)
         {

@@ -67,12 +67,6 @@ internal sealed class ThumbnailCache
         }
     }
 
-    public bool Contains(string key)
-    {
-        lock (_gate)
-            return _entries.ContainsKey(key);
-    }
-
     public void Set(string key, ImageSource image, long estimatedBytes)
     {
         ArgumentNullException.ThrowIfNull(image);

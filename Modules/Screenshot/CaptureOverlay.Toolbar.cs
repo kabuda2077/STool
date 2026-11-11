@@ -275,44 +275,42 @@ public partial class CaptureOverlay
         var bmp = RenderSelectionBitmap();
         btnTranslate.ToolTip = "取消翻译";
         ShowTranslationLoading();
-        var ocr = _services.Ocr;
-        var translation = _services.Translation;
+        TranslationRenderPlan? plan = null;
         try
         {
-            var translationTimer = System.Diagnostics.Stopwatch.StartNew();
-            var o = await ocr.RecognizeAsync(bmp, cancellationToken);
-            Log.Information(
-                "[ScreenshotTranslate] OCR completed in {Ms}ms success={Success} provider={Provider}",
-                translationTimer.ElapsedMilliseconds,
-                o.Success,
-                o.Provider);
+            var timer = System.Diagnostics.Stopwatch.StartNew();
+            var pipeline = new ScreenshotTranslationPipeline(
+                new ScreenshotTranslationServices(_services.Ocr, _services.Translation));
+            var result = await pipeline.RunAsync(bmp, cancellationToken);
             cancellationToken.ThrowIfCancellationRequested();
-            if (!o.Success || string.IsNullOrWhiteSpace(o.FullText))
+
+            if (result.Notice != null)
+                ToastNotification.Show("截图翻译", result.Notice, ToastNotification.ToastType.Warning);
+
+            switch (result.Outcome)
             {
-                ToastNotification.Show("OCR 失败", o.ErrorMessage ?? "未识别到文字", ToastNotification.ToastType.Warning);
-                HideTranslationOverlay();
-                return;
+                case ScreenshotTranslationOutcome.InPlace:
+                    // 擦除与样式分析是纯像素运算，放到后台线程。
+                    plan = await Task.Run(
+                        () => ScreenshotTranslationRenderer.Prepare(bmp, result.Paragraphs, result.AllLines),
+                        cancellationToken);
+                    cancellationToken.ThrowIfCancellationRequested();
+                    ShowTranslationParagraphs(result, plan);
+                    plan = null; // 所有权已交给界面，关闭或隐藏时释放
+                    break;
+                case ScreenshotTranslationOutcome.WholeBlock:
+                    ShowTranslationOverlay(result.WholeText);
+                    break;
+                default:
+                    ToastNotification.Show(
+                        result.ErrorTitle ?? "翻译失败",
+                        result.ErrorMessage ?? string.Empty,
+                        result.ErrorTitle == "OCR 失败" ? ToastNotification.ToastType.Warning : ToastNotification.ToastType.Error);
+                    HideTranslationOverlay();
+                    break;
             }
 
-            var blockStart = translationTimer.ElapsedMilliseconds;
-            if (await TryShowBlockTranslationAsync(o, translation, bmp, cancellationToken))
-            {
-                Log.Information(
-                    "[ScreenshotTranslate] Overlay completed in {TotalMs}ms after OCR={AfterOcrMs}ms",
-                    translationTimer.ElapsedMilliseconds,
-                    translationTimer.ElapsedMilliseconds - blockStart);
-                return;
-            }
-
-            var t = await translation.TranslateAsync(o.FullText, cancellationToken: cancellationToken);
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!t.Success)
-            {
-                ToastNotification.Show("翻译失败", t.ErrorMessage ?? "", ToastNotification.ToastType.Error);
-                HideTranslationOverlay();
-                return;
-            }
-            ShowTranslationOverlay(t.TranslatedText);
+            Log.Information("[ScreenshotTranslate] completed in {Ms}ms outcome={Outcome}", timer.ElapsedMilliseconds, result.Outcome);
         }
         catch (OperationCanceledException)
         {
@@ -321,6 +319,7 @@ public partial class CaptureOverlay
         }
         catch (Exception ex)
         {
+            Log.Warning(ex, "[ScreenshotTranslate] failed");
             if (!_closing && ReferenceEquals(_translationCts, currentTranslationCts))
             {
                 HideTranslationOverlay();
@@ -329,6 +328,7 @@ public partial class CaptureOverlay
         }
         finally
         {
+            plan?.Dispose();
             bmp.Dispose();
             var isCurrent = ReferenceEquals(_translationCts, currentTranslationCts);
             if (isCurrent)

@@ -18,9 +18,6 @@ internal static class ForegroundPaste
     [DllImport("user32.dll")]
     private static extern bool SetForegroundWindow(IntPtr hWnd);
 
-    [DllImport("user32.dll")]
-    private static extern IntPtr GetForegroundWindow();
-
     [DllImport("user32.dll", SetLastError = true)]
     private static extern uint SendInput(uint numberOfInputs, Input[] inputs, int sizeOfInputStructure);
 
@@ -33,7 +30,7 @@ internal static class ForegroundPaste
         // 等目标窗口真正获得焦点后再发送按键，否则 Ctrl+V 可能落在正在关闭的窗口上。
         await Task.Delay(focusDelayMs);
         // 等待期间用户可能切换窗口，不能把剪贴板内容输入到另一个应用。
-        if (GetForegroundWindow() != targetWindow)
+        if (NativeWindows.GetForegroundWindow() != targetWindow)
             return false;
 
         var inputs = new[]

@@ -21,8 +21,8 @@ public class AnnotationCanvas
     public static readonly double[] MosaicSizes = { 16, 24, 40 };
 
     private readonly Canvas _canvas;
-    private readonly Stack<IAnnotationCommand> _undoStack = new();
-    private readonly Stack<IAnnotationCommand> _redoStack = new();
+    private readonly Stack<UIElement> _undoStack = new();
+    private readonly Stack<UIElement> _redoStack = new();
 
     private AnnotationTool _currentTool = AnnotationTool.None;
     private System.Windows.Media.Color _currentColor;
@@ -141,7 +141,7 @@ public class AnnotationCanvas
             return;
 
         _isDrawing = false;
-        ExecuteCommand(new AddShapeCommand(_currentElement));
+        CommitShape(_currentElement);
         _currentElement = null;
     }
 
@@ -245,7 +245,7 @@ public class AnnotationCanvas
         };
         Canvas.SetLeft(text, Canvas.GetLeft(box));
         Canvas.SetTop(text, Canvas.GetTop(box));
-        ExecuteCommand(new AddShapeCommand(text));
+        CommitShape(text);
     }
 
     private System.Windows.Media.Brush ResourceBrush(string key)
@@ -295,10 +295,12 @@ public class AnnotationCanvas
         }
     }
 
-    private void ExecuteCommand(IAnnotationCommand command)
+    /// <summary>把完成的标注元素挂上画布并记入撤销栈。绘制起点已临时加进画布的元素不重复添加。</summary>
+    private void CommitShape(UIElement element)
     {
-        command.Execute(_canvas);
-        _undoStack.Push(command);
+        if (!_canvas.Children.Contains(element))
+            _canvas.Children.Add(element);
+        _undoStack.Push(element);
         _redoStack.Clear();
     }
 
@@ -307,9 +309,9 @@ public class AnnotationCanvas
         CommitText();
         if (_undoStack.Count > 0)
         {
-            var command = _undoStack.Pop();
-            command.Undo(_canvas);
-            _redoStack.Push(command);
+            var element = _undoStack.Pop();
+            _canvas.Children.Remove(element);
+            _redoStack.Push(element);
         }
     }
 
@@ -318,9 +320,10 @@ public class AnnotationCanvas
         CommitText();
         if (_redoStack.Count > 0)
         {
-            var command = _redoStack.Pop();
-            command.Execute(_canvas);
-            _undoStack.Push(command);
+            var element = _redoStack.Pop();
+            if (!_canvas.Children.Contains(element))
+                _canvas.Children.Add(element);
+            _undoStack.Push(element);
         }
     }
 

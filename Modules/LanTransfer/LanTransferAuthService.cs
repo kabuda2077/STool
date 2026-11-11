@@ -5,10 +5,11 @@ using System.Text;
 namespace STool.Modules.LanTransfer;
 
 /// <summary>
-/// 局域网传输的配对与会话认证。会话绑定客户端 IP；验证码按 IP 与全局两级限流，
-/// 配对成功或触发全局锁定后自动更换二维码令牌与验证码。
+/// 局域网传输的配对与会话认证。会话绑定客户端 IP；二维码令牌与验证码有有效期，
+/// 到期、配对成功或全局失败次数达到阈值时自动更换。失败次数按来源 IP 限流，
+/// 全局阈值只触发换码而不锁定，避免任何人都能靠输错把正常用户挡在门外。
 /// </summary>
-internal sealed class LanTransferAuthService
+internal sealed class LanTransferAuthService : IDisposable
 {
     public const string SessionCookieName = "stool_session";
     public const string DeviceCookieName = "stool_device";
@@ -17,7 +18,9 @@ internal sealed class LanTransferAuthService
     private static readonly TimeSpan AddressLockout = TimeSpan.FromMinutes(1);
     private const int MaxGlobalFailures = 20;
     private static readonly TimeSpan GlobalFailureWindow = TimeSpan.FromMinutes(5);
-    private static readonly TimeSpan GlobalLockout = TimeSpan.FromMinutes(5);
+    /// <summary>二维码令牌与验证码的有效期，到期自动轮换。</summary>
+    internal static readonly TimeSpan CodeLifetime = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan ExpiryCheckInterval = TimeSpan.FromSeconds(15);
     internal static readonly TimeSpan SessionLifetime = TimeSpan.FromHours(12);
 
     private readonly DeviceTokenStore _deviceTokenStore;
@@ -26,13 +29,45 @@ internal sealed class LanTransferAuthService
     private readonly Dictionary<string, FailureState> _failures = new(StringComparer.OrdinalIgnoreCase);
     private readonly Queue<DateTimeOffset> _recentFailures = new();
     private readonly object _gate = new();
-    private DateTimeOffset _globalLockedUntil = DateTimeOffset.MinValue;
+    private readonly Timer? _expiryTimer;
 
-    public LanTransferAuthService(DeviceTokenStore deviceTokenStore, Func<DateTimeOffset>? now = null)
+    /// <param name="autoRotate">为 true 时后台定时检查有效期并触发 <see cref="AccessCodesRotated"/>（界面据此刷新）。</param>
+    public LanTransferAuthService(DeviceTokenStore deviceTokenStore, Func<DateTimeOffset>? now = null, bool autoRotate = false)
     {
         _deviceTokenStore = deviceTokenStore;
         _now = now ?? (() => DateTimeOffset.UtcNow);
-        RotateAccessCodes();
+        lock (_gate)
+            RotateAccessCodesLocked();
+        if (autoRotate)
+            _expiryTimer = new Timer(_ => RotateIfExpired(), null, ExpiryCheckInterval, ExpiryCheckInterval);
+    }
+
+    public void Dispose() => _expiryTimer?.Dispose();
+
+    /// <summary>当前二维码令牌与验证码的到期时间（UTC）。</summary>
+    public DateTimeOffset CodesExpireUtc { get; private set; }
+
+    /// <summary>已过期则换码并通知界面；返回是否发生了轮换。</summary>
+    public bool RotateIfExpired()
+    {
+        lock (_gate)
+        {
+            if (_now() < CodesExpireUtc)
+                return false;
+            RotateAccessCodesLocked();
+        }
+        AccessCodesRotated?.Invoke();
+        return true;
+    }
+
+    /// <summary>移除所有已记住的设备，同时让当前所有在线会话失效。</summary>
+    public void RevokeRememberedDevices()
+    {
+        lock (_gate)
+        {
+            _deviceTokenStore.RevokeAll();
+            _sessions.Clear();
+        }
     }
 
     /// <summary>二维码令牌或验证码已更换，界面应刷新显示。</summary>
@@ -57,6 +92,7 @@ internal sealed class LanTransferAuthService
             code = RandomNumberGenerator.GetInt32(0, 1_000_000).ToString("D6", System.Globalization.CultureInfo.InvariantCulture);
         } while (code == ManualCode);
         ManualCode = code;
+        CodesExpireUtc = _now() + CodeLifetime;
     }
 
     private void RemoveExpiredSessionsLocked(DateTimeOffset now)
@@ -76,8 +112,12 @@ internal sealed class LanTransferAuthService
         lock (_gate)
         {
             var now = _now();
-            if (_globalLockedUntil > now)
-                return false;
+            // 过期的验证码不再接受：先换码，本次提交的旧码自然失败。
+            if (now >= CodesExpireUtc)
+            {
+                RotateAccessCodesLocked();
+                rotate = true;
+            }
             if (_failures.TryGetValue(key, out var failure) && failure.LockedUntilUtc > now)
                 return false;
 
@@ -90,13 +130,12 @@ internal sealed class LanTransferAuthService
                     ? new FailureState(0, now + AddressLockout)
                     : new FailureState(count, DateTimeOffset.MinValue);
 
-                // 全局计数防止在同一网段换多个 IP 并行猜测验证码。
+                // 全局计数防止换多个 IP 并行猜测：达到阈值只换码，不锁定正常用户。
                 _recentFailures.Enqueue(now);
                 while (_recentFailures.Count > 0 && now - _recentFailures.Peek() > GlobalFailureWindow)
                     _recentFailures.Dequeue();
                 if (_recentFailures.Count >= MaxGlobalFailures)
                 {
-                    _globalLockedUntil = now + GlobalLockout;
                     _recentFailures.Clear();
                     rotate = true;
                 }
@@ -163,7 +202,6 @@ internal sealed class LanTransferAuthService
             _sessions.Clear();
             _failures.Clear();
             _recentFailures.Clear();
-            _globalLockedUntil = DateTimeOffset.MinValue;
         }
         RotateAccessCodes();
     }

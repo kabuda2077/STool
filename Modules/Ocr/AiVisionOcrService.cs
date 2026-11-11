@@ -95,8 +95,9 @@ public class AiVisionOcrService : IOcrService
             var imageBase64 = await Task.Run(() => EncodeImageAsPng(image), cancellationToken).ConfigureAwait(false);
             var request = new ChatCompletionRequest(
                 _model,
-                OpenAiChatClient.UserMessageWithImage(OcrPrompt, $"data:image/png;base64,{imageBase64}"),
-                MaxOutputTokens);
+                OpenAiChatClient.SystemAndUserMessageWithImage(OcrPrompt, "Transcribe this image.", $"data:image/png;base64,{imageBase64}"),
+                MaxOutputTokens,
+                DisableReasoning: true);
             var result = await OpenAiChatClient.CompleteAsync(
                 HttpDefaults.Shared,
                 _apiUrl,

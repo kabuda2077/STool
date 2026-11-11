@@ -27,6 +27,12 @@
     <sys:Double x:Key="ToolIconSizeMedium">16</sys:Double>
     <sys:Double x:Key="ToolIconSizeLarge">18</sys:Double>
 
+    <!-- ===== 截图原位翻译按目标语言选用的字体（缺字时 WPF 自动回退） ===== -->
+    <FontFamily x:Key="ScreenshotTranslationFontZh">Microsoft YaHei UI, Microsoft YaHei, Segoe UI</FontFamily>
+    <FontFamily x:Key="ScreenshotTranslationFontJa">Yu Gothic UI, Meiryo UI, Segoe UI</FontFamily>
+    <FontFamily x:Key="ScreenshotTranslationFontKo">Malgun Gothic, Segoe UI</FontFamily>
+    <FontFamily x:Key="ScreenshotTranslationFontLatin">Segoe UI</FontFamily>
+
     <FontWeight x:Key="FontWeightNormal">Normal</FontWeight>
     <FontWeight x:Key="FontWeightStrong">SemiBold</FontWeight>
 

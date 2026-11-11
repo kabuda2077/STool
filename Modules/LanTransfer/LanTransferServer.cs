@@ -21,8 +21,18 @@ internal sealed partial class LanTransferServer : IAsyncDisposable
     private static readonly TimeSpan CompletedDownloadGrace = TimeSpan.FromSeconds(10);
     private static readonly TimeSpan TerminalSessionGrace = TimeSpan.FromSeconds(2);
     private const int MaxParallelRangeRequests = 12;
+
+    /// <summary>请求被取消（非服务关闭）时返回的状态码，沿用常见的“客户端关闭请求”499。</summary>
+    internal const int ClientCanceledStatusCode = 499;
+
+    /// <summary>读写在该时间内没有任何字节进展就断开请求并释放传输名额。</summary>
+    internal TimeSpan TransferIdleTimeout { get; set; } = TimeSpan.FromSeconds(60);
+
+    /// <summary>等待传输名额的最长时间，超时返回 503 + Retry-After。</summary>
+    internal TimeSpan TransferSlotWaitTimeout { get; set; } = TimeSpan.FromSeconds(30);
     private static readonly JsonSerializerOptions JsonOptions = CreateJsonOptions();
-    private readonly NetworkEndpoint _endpoint;
+    // 监听前缀是通配地址，网络切换后只需更新对外显示的地址与来源网段校验，无需重新绑定。
+    private volatile NetworkEndpoint _endpoint;
     private readonly int _port;
     private readonly SharedFileCatalog _sharedFiles;
     private readonly LanTransferAuthService _auth;
@@ -55,7 +65,7 @@ internal sealed partial class LanTransferServer : IAsyncDisposable
         _port = port;
         _listenerHost = listenerHost;
         _sharedFiles = sharedFiles;
-        _auth = new LanTransferAuthService(deviceTokenStore);
+        _auth = new LanTransferAuthService(deviceTokenStore, autoRotate: true);
         _uploads = new UploadCoordinator(receiveDirectory, _sessions);
         _archives = new PreparedArchiveManager(receiveDirectory);
         _transferGate = new SemaphoreSlim(Math.Clamp(maxConcurrentTransfers, 1, 4));
@@ -74,6 +84,7 @@ internal sealed partial class LanTransferServer : IAsyncDisposable
     public event Action? AccessCodesRotated;
 
     public string Address => $"http://{_endpoint.Address}:{_port}/";
+    public NetworkEndpoint Endpoint => _endpoint;
     public string QrAddress => $"{Address}#token={Uri.EscapeDataString(_auth.QrToken)}";
     public string ManualCode => _auth.ManualCode;
     public int ActiveTransferCount => _sessions.ActiveCount;
@@ -93,7 +104,21 @@ internal sealed partial class LanTransferServer : IAsyncDisposable
         return Task.CompletedTask;
     }
 
+    /// <summary>网络地址变化后更新对外地址与允许的来源网段；不影响进行中的传输。</summary>
+    public void UpdateEndpoint(NetworkEndpoint endpoint)
+    {
+        ArgumentNullException.ThrowIfNull(endpoint);
+        _endpoint = endpoint;
+        Log.Information("LAN transfer endpoint updated to {Address} via {Interface}", Address, endpoint.InterfaceName);
+    }
+
     public void RotateAccessCodes() => _auth.RotateAccessCodes();
+
+    /// <summary>移除所有已记住的设备，并让现有在线会话立即失效。</summary>
+    public void RevokeRememberedDevices() => _auth.RevokeRememberedDevices();
+
+    /// <summary>当前验证码的到期时间（UTC）。</summary>
+    public DateTimeOffset AccessCodesExpireUtc => _auth.CodesExpireUtc;
 
     private async Task AcceptLoopAsync(CancellationToken cancellationToken)
     {
@@ -154,12 +179,28 @@ internal sealed partial class LanTransferServer : IAsyncDisposable
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
+            // 服务关闭导致的取消：服务不可用，客户端可稍后重连。
             context.Response.StatusCode = 503;
         }
         catch (OperationCanceledException)
         {
+            // 用户在电脑上取消/暂停任务，或客户端断开：不能返回 2xx，否则网页会把未完成的分块当作成功。
             Log.Information("LAN transfer request canceled method={Method} path={Path} remote={Remote}",
                 request.HttpMethod, path, remote);
+            await TryWriteErrorAsync(context.Response, ClientCanceledStatusCode, "传输已取消或暂停。 ");
+        }
+        catch (TimeoutException ex)
+        {
+            // 读写长时间没有任何字节进展（手机息屏等半开连接）：直接断开连接，释放传输名额。
+            Log.Warning(ex, "LAN transfer request timed out without progress method={Method} path={Path} remote={Remote}",
+                request.HttpMethod, path, remote);
+            try { context.Response.Abort(); }
+            catch (Exception abortEx) { Log.Debug(abortEx, "Failed to abort LAN response path={Path}", path); }
+        }
+        catch (TransferBusyException ex)
+        {
+            context.Response.Headers["Retry-After"] = ex.RetryAfterSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            await WriteErrorAsync(context.Response, 503, ex.Message, cancellationToken);
         }
         catch (HttpListenerException ex) when (ex.ErrorCode is 64 or 995 or 1229)
         {
@@ -176,9 +217,20 @@ internal sealed partial class LanTransferServer : IAsyncDisposable
         {
             await WriteErrorAsync(context.Response, 404, ex.Message, cancellationToken);
         }
-        catch (UnauthorizedAccessException ex)
+        catch (LanAuthException ex)
         {
             await WriteErrorAsync(context.Response, 401, ex.Message, cancellationToken);
+        }
+        catch (Exception ex) when (ex is LanRequestForbiddenException or TransferOwnershipException)
+        {
+            await WriteErrorAsync(context.Response, 403, ex.Message, cancellationToken);
+        }
+        catch (UnauthorizedAccessException ex)
+        {
+            // 本机文件系统权限不足，不是认证问题：返回 500，避免网页误以为登录失效。
+            Log.Warning(ex, "LAN transfer file access denied method={Method} path={Path}",
+                request.HttpMethod, path);
+            await WriteErrorAsync(context.Response, 500, "电脑上的文件或接收目录没有访问权限。 ", cancellationToken);
         }
         catch (InvalidDataException ex)
         {
@@ -380,6 +432,7 @@ internal sealed partial class LanTransferServer : IAsyncDisposable
             catch (Exception ex) { Log.Debug(ex, "LAN requests ended with an error during disposal"); }
         }
 
+        _auth.Dispose();
         _auth.Clear();
         _downloadProgress.Clear();
         _archives.ProgressChanged -= Archives_ProgressChanged;

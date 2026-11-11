@@ -1,3 +1,4 @@
+using System;
 using System.Windows;
 using System.Windows.Controls;
 using STool.Core;
@@ -6,24 +7,22 @@ using STool.Modules.Ocr;
 
 namespace STool.Views.Settings;
 
+/// <summary>
+/// OCR 设置：「OCR 识别」使用的引擎、失败策略和本地 OCR 语言。账号在「服务账号」页配置。
+/// </summary>
 public class OcrSettingsPanel : StackPanel
 {
     private readonly ConfigManager _configManager;
+    private readonly Action _openAccounts;
     private System.Windows.Controls.ComboBox _cmbProvider = null!;
     private System.Windows.Controls.ComboBox _cmbFallbackPolicy = null!;
+    private System.Windows.Controls.ComboBox _cmbLocalLanguage = null!;
+    private TextBlock _accountNote = null!;
 
-    // 腾讯云
-    private System.Windows.Controls.TextBox _txtTencentSecretId = null!;
-    private SecurePasswordField _pwdTencentSecretKey = null!;
-    private EncryptedSetting _tencentSecretId = new(null);
-    private EncryptedSetting _tencentSecretKey = new(null);
-
-    // AI Vision
-    private AiServiceSettingsSection _ai = null!;
-
-    public OcrSettingsPanel(ConfigManager configManager)
+    public OcrSettingsPanel(ConfigManager configManager, Action openAccounts)
     {
         _configManager = configManager;
+        _openAccounts = openAccounts;
         InitializeUI();
         LoadSettings();
         EnableAutoSave();
@@ -33,14 +32,20 @@ public class OcrSettingsPanel : StackPanel
     {
         Margin = new Thickness(0);
 
-        // ── OCR 提供商 ──
-        var baseSection = SettingsLayout.CreateSectionContent("OCR 提供商");
+        var baseSection = SettingsLayout.CreateSectionContent("OCR 识别");
+        _accountNote = SettingsLayout.CreateSectionNote("所选引擎的账号尚未配置。", "前往服务账号", _openAccounts);
+        _accountNote.Visibility = Visibility.Collapsed;
+        baseSection.Children.Add(_accountNote);
 
         _cmbProvider = SettingsLayout.CreateComboBox();
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "Windows 本地 OCR", Tag = OcrProvider.WindowsLocal });
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "腾讯云 OCR", Tag = OcrProvider.Tencent });
-        _cmbProvider.Items.Add(new ComboBoxItem { Content = "AI Vision OCR", Tag = OcrProvider.AI });
-        baseSection.Children.Add(SettingsLayout.CreateInlineField("当前引擎", _cmbProvider));
+        _cmbProvider.Items.Add(new ComboBoxItem { Content = "AI 视觉模型", Tag = OcrProvider.AI });
+        _cmbProvider.SelectionChanged += (_, _) => UpdateAccountNote();
+        baseSection.Children.Add(SettingsLayout.CreateInlineFieldWithHint(
+            "当前引擎",
+            _cmbProvider,
+            "用于截图工具栏的「OCR 识别」。截图翻译的识别引擎在翻译页设置。"));
 
         _cmbFallbackPolicy = SettingsLayout.CreateComboBox();
         _cmbFallbackPolicy.Items.Add(new ComboBoxItem { Content = "使用 Windows 本地 OCR", Tag = true });
@@ -52,47 +57,39 @@ public class OcrSettingsPanel : StackPanel
             isLast: true));
         Children.Add(SettingsLayout.CreateSection(baseSection));
 
-        // ── 腾讯云设置(可折叠,行内布局) ──
-        var (tencentContent, tencentCard, _) = SettingsLayout.CreateCompactCollapsibleSection("腾讯云设置");
+        var localSection = SettingsLayout.CreateSectionContent("Windows 本地 OCR");
+        _cmbLocalLanguage = SettingsLayout.CreateComboBox();
+        _cmbLocalLanguage.Items.Add(new ComboBoxItem { Content = "自动", Tag = "auto" });
+        foreach (var (tag, displayName) in WindowsOcrService.GetAvailableLanguages())
+            _cmbLocalLanguage.Items.Add(new ComboBoxItem { Content = displayName, Tag = tag });
+        localSection.Children.Add(SettingsLayout.CreateInlineFieldWithHint(
+            "识别语言",
+            _cmbLocalLanguage,
+            "只列出系统已安装的语言。需要其他语言时，在 Windows 设置 → 语言中添加对应语言包。",
+            isLast: true));
+        Children.Add(SettingsLayout.CreateSection(localSection));
+    }
 
-        _txtTencentSecretId = SettingsLayout.CreateTextBox();
-        tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret ID", _txtTencentSecretId));
-
-        _pwdTencentSecretKey = SettingsLayout.CreatePasswordField();
-        tencentContent.Children.Add(SettingsLayout.CreateInlineField("Secret Key", _pwdTencentSecretKey, isLast: true));
-
-        Children.Add(tencentCard);
-
-        // ── AI Vision 设置(可折叠,行内布局) ──
-        var (aiContent, aiCard, _) = SettingsLayout.CreateCompactCollapsibleSection("AI Vision 设置");
-        _ai = new AiServiceSettingsSection(
-            aiContent,
-            new[]
-            {
-                new AiPlatformOption("OpenAI", OcrAiPlatform.OpenAI, AiPlatformPreset.OpenAi),
-                new AiPlatformOption("Google AI Studio", OcrAiPlatform.GoogleAiStudio, AiPlatformPreset.GoogleAiStudio),
-                new AiPlatformOption("自定义", OcrAiPlatform.Custom, null)
-            },
-            (url, key, model) => AiVisionOcrService.TestAsync(url, key, model));
-        Children.Add(aiCard);
+    private void UpdateAccountNote()
+    {
+        var accounts = _configManager.Get().Accounts;
+        var provider = (_cmbProvider.SelectedItem as ComboBoxItem)?.Tag is OcrProvider selected ? selected : OcrProvider.WindowsLocal;
+        var configured = provider switch
+        {
+            OcrProvider.Tencent => accounts.Tencent.IsConfigured,
+            OcrProvider.AI => accounts.ResolveVision().IsConfigured,
+            _ => true
+        };
+        _accountNote.Visibility = configured ? Visibility.Collapsed : Visibility.Visible;
     }
 
     private void LoadSettings()
     {
         var config = _configManager.Get().Ocr;
-
         SelectByTag(_cmbProvider, config.Provider);
         SelectByTag(_cmbFallbackPolicy, config.FallbackToLocal);
-
-        _tencentSecretId = new EncryptedSetting(config.TencentSecretIdEncrypted);
-        _tencentSecretKey = new EncryptedSetting(config.TencentSecretKeyEncrypted);
-        _txtTencentSecretId.Text = _tencentSecretId.Plain;
-        _pwdTencentSecretKey.Password = _tencentSecretKey.Plain;
-
-        _ai.Load(config.AiPlatform, config.AiApiUrlEncrypted, config.AiApiKeyEncrypted, config.AiModel);
-
-        if (_tencentSecretId.IsUnreadable || _tencentSecretKey.IsUnreadable || _ai.HasUnreadableSecrets)
-            SettingsLayout.WarnUnreadableSecrets();
+        SelectByTag(_cmbLocalLanguage, config.LocalLanguage);
+        UpdateAccountNote();
     }
 
     private static void SelectByTag(System.Windows.Controls.ComboBox comboBox, object value)
@@ -114,12 +111,7 @@ public class OcrSettingsPanel : StackPanel
         var autoSave = new SettingsAutoSaveController(this, SaveSettings);
         autoSave.TrackImmediate(_cmbProvider);
         autoSave.TrackImmediate(_cmbFallbackPolicy);
-        autoSave.TrackImmediate(_ai.Platform);
-        autoSave.TrackDebounced(_txtTencentSecretId);
-        autoSave.TrackDebounced(_pwdTencentSecretKey);
-        autoSave.TrackDebounced(_ai.ApiUrl);
-        autoSave.TrackDebounced(_ai.ApiKey);
-        autoSave.TrackDebounced(_ai.Model);
+        autoSave.TrackImmediate(_cmbLocalLanguage);
         Children.Add(new Border { Height = 12 });
     }
 
@@ -128,37 +120,21 @@ public class OcrSettingsPanel : StackPanel
         var config = _configManager.Get().Ocr;
         var provider = (OcrProvider)((ComboBoxItem)_cmbProvider.SelectedItem).Tag;
         var fallbackToLocal = (_cmbFallbackPolicy.SelectedItem as ComboBoxItem)?.Tag is true;
-        var aiPlatform = (OcrAiPlatform)_ai.SelectedPlatformTag;
+        var localLanguage = (_cmbLocalLanguage.SelectedItem as ComboBoxItem)?.Tag as string ?? "auto";
 
         if (config.Provider == provider &&
             config.FallbackToLocal == fallbackToLocal &&
-            _tencentSecretId.Matches(_txtTencentSecretId.Text) &&
-            _tencentSecretKey.Matches(_pwdTencentSecretKey.Password) &&
-            _ai.IsUnchanged(config.AiPlatform, config.AiModel))
+            config.LocalLanguage == localLanguage)
         {
             return false;
         }
-
-        var secretId = _tencentSecretId.Resolve(_txtTencentSecretId.Text);
-        var secretKey = _tencentSecretKey.Resolve(_pwdTencentSecretKey.Password);
-        var (apiUrl, apiKey) = _ai.ResolveSecrets();
-        var aiModel = _ai.ModelName;
 
         _configManager.Update(current =>
         {
             current.Ocr.Provider = provider;
             current.Ocr.FallbackToLocal = fallbackToLocal;
-            current.Ocr.TencentSecretIdEncrypted = secretId;
-            current.Ocr.TencentSecretKeyEncrypted = secretKey;
-            current.Ocr.AiPlatform = aiPlatform;
-            current.Ocr.AiApiUrlEncrypted = apiUrl;
-            current.Ocr.AiApiKeyEncrypted = apiKey;
-            current.Ocr.AiModel = aiModel;
+            current.Ocr.LocalLanguage = localLanguage;
         });
-
-        _tencentSecretId.MarkSaved(_txtTencentSecretId.Text, secretId);
-        _tencentSecretKey.MarkSaved(_pwdTencentSecretKey.Password, secretKey);
-        _ai.MarkSaved(apiUrl, apiKey);
         return true;
     }
 }

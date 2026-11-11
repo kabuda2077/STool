@@ -99,7 +99,7 @@ internal sealed partial class LanTransferServer
         if (segments.Length == 1 && context.Request.HttpMethod == "GET")
         {
             if (!_sessions.CanControl(snapshot.Id, owner))
-                throw new UnauthorizedAccessException("该任务已由其他设备接收。 ");
+                throw new TransferOwnershipException("该任务已由其他设备接收。 ");
             await WriteJsonAsync(context.Response, EnrichOutgoingSnapshot(snapshot), cancellationToken);
             return;
         }
@@ -108,7 +108,7 @@ internal sealed partial class LanTransferServer
             context.Request.HttpMethod is "GET" or "HEAD")
         {
             if (!_sessions.TryClaim(snapshot.Id, owner))
-                throw new UnauthorizedAccessException("该任务已由其他设备接收，或当前不可下载。 ");
+                throw new TransferOwnershipException("该任务已由其他设备接收，或当前不可下载。 ");
             if (!_outgoing.TryGetValue(snapshot.Id, out var outgoing) ||
                 outgoing.Payloads.Count != 1 || !outgoing.Payloads[0].TryGetDownload(out var downloadPath))
                 throw new FileNotFoundException("下载内容尚未准备完成或已失效。 ");
@@ -121,7 +121,7 @@ internal sealed partial class LanTransferServer
             context.Request.HttpMethod is "GET" or "HEAD")
         {
             if (!_sessions.TryClaim(snapshot.Id, owner))
-                throw new UnauthorizedAccessException("该任务已由其他设备接收，或当前不可下载。 ");
+                throw new TransferOwnershipException("该任务已由其他设备接收，或当前不可下载。 ");
             if (!_outgoing.TryGetValue(snapshot.Id, out var outgoing) ||
                 outgoing.Mode != OutgoingTransferMode.Separate ||
                 !outgoing.TryGetPayload(segments[2], out var payload) || payload == null ||
@@ -142,12 +142,12 @@ internal sealed partial class LanTransferServer
 
         EnsureStateChangingRequest(context.Request);
         if (!_sessions.CanControl(snapshot.Id, owner))
-            throw new UnauthorizedAccessException("该任务已由其他设备接收。 ");
+            throw new TransferOwnershipException("该任务已由其他设备接收。 ");
 
         if (string.Equals(segments[1], "browse", StringComparison.OrdinalIgnoreCase))
         {
             if (!_sessions.TryClaim(snapshot.Id, owner))
-                throw new UnauthorizedAccessException("该任务已由其他设备接收，或当前不可浏览。 ");
+                throw new TransferOwnershipException("该任务已由其他设备接收，或当前不可浏览。 ");
             if (!_outgoing.TryGetValue(snapshot.Id, out var outgoing) ||
                 outgoing.Entries.Count != 1 || !outgoing.Entries[0].IsFolder)
             {
@@ -224,7 +224,7 @@ internal sealed partial class LanTransferServer
         if (!_sessions.TryGet(batchId, out var batch) || batch?.Direction != TransferDirection.ToComputer)
             throw new FileNotFoundException("上传批次不存在。 ");
         if (!_sessions.CanControl(batchId, GetRequestOwner(request)))
-            throw new UnauthorizedAccessException("该上传任务属于其他设备。 ");
+            throw new TransferOwnershipException("该上传任务属于其他设备。 ");
     }
 
     private async Task HandleUploadAsync(HttpListenerContext context, string id, CancellationToken cancellationToken)
@@ -266,7 +266,7 @@ internal sealed partial class LanTransferServer
             try
             {
                 var result = await _uploads.AppendAsync(
-                    id, offset, request.InputStream, request.ContentLength64, cancellationToken);
+                    id, offset, WrapIdleTimeout(request.InputStream, context.Response), request.ContentLength64, cancellationToken);
                 context.Response.Headers["Upload-Offset"] = result.Offset.ToString();
                 await WriteJsonAsync(context.Response, result, cancellationToken);
             }
@@ -354,7 +354,7 @@ internal sealed partial class LanTransferServer
             if (!_sessions.TryGet(segments[0], out var snapshot) || snapshot == null)
                 throw new FileNotFoundException("下载全部任务不存在或已过期。 ");
             if (!_sessions.CanControl(snapshot.Id, GetRequestOwner(context.Request)))
-                throw new UnauthorizedAccessException("该下载任务属于其他设备。 ");
+                throw new TransferOwnershipException("该下载任务属于其他设备。 ");
             await WriteJsonAsync(context.Response, ToArchiveStatus(snapshot), cancellationToken);
             return;
         }
@@ -436,7 +436,7 @@ internal sealed partial class LanTransferServer
                 input.Seek(start, SeekOrigin.Begin);
                 var sent = await CopyRangeAsync(
                     input,
-                    response.OutputStream,
+                    WrapIdleTimeout(response.OutputStream, response),
                     progressKey,
                     start,
                     end - start + 1,
@@ -568,7 +568,7 @@ internal sealed partial class LanTransferServer
             GetRemoteAddress(request),
             out var issuedSession);
         if (!valid)
-            throw new UnauthorizedAccessException("需要连接认证。 ");
+            throw new LanAuthException("需要连接认证。 ");
         if (issuedSession != null)
             SetCookie(context.Response, LanTransferAuthService.SessionCookieName, issuedSession, SessionCookiePath, SessionCookieLifetime);
         ClientActivity?.Invoke(this);
@@ -577,7 +577,7 @@ internal sealed partial class LanTransferServer
     private void EnsureStateChangingRequest(HttpListenerRequest request)
     {
         if (!string.Equals(request.Headers["X-STool-Request"], "1", StringComparison.Ordinal))
-            throw new UnauthorizedAccessException("请求来源无效。 ");
+            throw new LanRequestForbiddenException("请求来源无效。 ");
 
         var origin = request.Headers["Origin"];
         if (string.IsNullOrWhiteSpace(origin))
@@ -587,7 +587,7 @@ internal sealed partial class LanTransferServer
             !string.Equals(originUri.Host, request.Url?.Host, StringComparison.OrdinalIgnoreCase) ||
             originUri.Port != _port)
         {
-            throw new UnauthorizedAccessException("请求来源无效。 ");
+            throw new LanRequestForbiddenException("请求来源无效。 ");
         }
     }
 
@@ -616,13 +616,25 @@ internal sealed partial class LanTransferServer
     private static IPAddress GetRemoteAddress(HttpListenerRequest request) =>
         request.RemoteEndPoint?.Address ?? IPAddress.None;
 
+    private const int RetryAfterSeconds = 5;
+
+    /// <summary>给请求/响应流加“无进展超时”；超时时 Abort 连接，让挂起的 IO 立即结束。</summary>
+    private Stream WrapIdleTimeout(Stream stream, HttpListenerResponse response) =>
+        new IdleTimeoutStream(stream, TransferIdleTimeout, () =>
+        {
+            try { response.Abort(); }
+            catch (Exception ex) { Log.Debug(ex, "Failed to abort stalled LAN response"); }
+        });
+
     private async Task WithTransferSlotAsync(
         Func<Task> action,
         CancellationToken cancellationToken,
         SemaphoreSlim? transferGate = null)
     {
         transferGate ??= _transferGate;
-        await transferGate.WaitAsync(cancellationToken);
+        // 名额被半开连接长期占用时，新请求不能无限排队。
+        if (!await transferGate.WaitAsync(TransferSlotWaitTimeout, cancellationToken))
+            throw new TransferBusyException("电脑正忙，请稍后重试。 ", RetryAfterSeconds);
         try { await action(); }
         finally { transferGate.Release(); }
     }

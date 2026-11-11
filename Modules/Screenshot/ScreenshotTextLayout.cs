@@ -12,7 +12,11 @@ namespace STool.Modules.Screenshot;
 
 internal sealed record TranslationLine(string Text, Rectangle Box);
 
-internal sealed record TranslationParagraph(string Text, Rectangle Box, int MedianLineHeight);
+internal sealed record TranslationParagraph(string Text, Rectangle Box, int MedianLineHeight)
+{
+    /// <summary>组成段落的原始行（按从上到下的顺序）。</summary>
+    public IReadOnlyList<TranslationLine> Lines { get; init; } = Array.Empty<TranslationLine>();
+}
 
 /// <summary>
 /// 截图原位翻译的版面分析：OCR 词块合并成行、行归并成段、过滤界面噪声、采样背景色。
@@ -115,11 +119,7 @@ internal static partial class ScreenshotTextLayout
     /// </summary>
     public static List<TranslationParagraph> GroupParagraphs(IReadOnlyList<TranslationLine> lines)
     {
-        var ordered = lines
-            .Where(line => !string.IsNullOrWhiteSpace(line.Text) && line.Box.Width > 4 && line.Box.Height > 4)
-            .OrderBy(line => line.Box.Top)
-            .ThenBy(line => line.Box.Left)
-            .ToList();
+        var ordered = OrderForGrouping(lines);
 
         var paragraphs = new List<ParagraphGroup>();
         foreach (var line in ordered)
@@ -147,10 +147,21 @@ internal static partial class ScreenshotTextLayout
             .Select(group => new TranslationParagraph(
                 JoinParagraphText(group.Lines),
                 group.Bounds,
-                group.Lines.Select(l => l.Box.Height).OrderBy(h => h).ElementAt(group.Lines.Count / 2)))
+                group.Lines.Select(l => l.Box.Height).OrderBy(h => h).ElementAt(group.Lines.Count / 2))
+            {
+                Lines = group.Lines.ToArray()
+            })
             .Where(p => !string.IsNullOrWhiteSpace(p.Text))
             .ToList();
     }
+
+    /// <summary>段落分组使用的行顺序（过滤过小或空白的行后从上到下）。智能模式的行号也按这个顺序编号。</summary>
+    public static List<TranslationLine> OrderForGrouping(IReadOnlyList<TranslationLine> lines) =>
+        lines
+            .Where(line => !string.IsNullOrWhiteSpace(line.Text) && line.Box.Width > 4 && line.Box.Height > 4)
+            .OrderBy(line => line.Box.Top)
+            .ThenBy(line => line.Box.Left)
+            .ToList();
 
     internal static string JoinParagraphText(IReadOnlyList<TranslationLine> lines)
     {

@@ -45,7 +45,7 @@ public class TranslationManagerTests
     }
 
     [Fact]
-    public async Task TranslateAsync_SerializesProviderSwitchAndDisposesAfterCurrentRequest()
+    public async Task TranslateAsync_DifferentProviders_RunConcurrentlyWithoutDisposing()
     {
         using var fixture = new TranslationFixture();
         var firstService = new BlockingTranslationService();
@@ -56,144 +56,47 @@ public class TranslationManagerTests
 
         var first = manager.TranslateAsync("first", "auto", "zh", TranslationProvider.Google);
         await firstService.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        var second = manager.TranslateAsync("second", "auto", "zh", TranslationProvider.OpenAI);
+        var second = await manager.TranslateAsync("second", "auto", "zh", TranslationProvider.OpenAI);
 
-        await Task.Delay(30);
-        Assert.False(secondService.Started.Task.IsCompleted);
+        Assert.True(second.Success);
+        Assert.False(first.IsCompleted);
         Assert.False(firstService.Disposed);
 
         firstService.Complete();
         await first;
-        await second;
-
-        Assert.True(firstService.Disposed);
-        Assert.True(secondService.Started.Task.IsCompleted);
     }
 
     [Fact]
-    public async Task TranslateAsync_CanceledWhileWaiting_DoesNotInvokeService()
+    public async Task TranslateAsync_SameProvider_ReusesServiceInstance()
     {
         using var fixture = new TranslationFixture();
-        var activeService = new BlockingTranslationService();
-        var waitingService = new BlockingTranslationService(completeImmediately: true);
+        var created = 0;
         using var manager = new TranslationManager(
             fixture.Manager,
-            (provider, _) => provider == TranslationProvider.Google ? activeService : waitingService);
+            (_, _) =>
+            {
+                created++;
+                return new BlockingTranslationService(completeImmediately: true);
+            });
 
-        var active = manager.TranslateAsync("active", "auto", "zh", TranslationProvider.Google);
-        await activeService.Started.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        using var cancellation = new CancellationTokenSource();
-        var waiting = manager.TranslateAsync(
-            "waiting", "auto", "zh", TranslationProvider.OpenAI, cancellation.Token);
-        cancellation.Cancel();
+        await manager.TranslateAsync("a", "auto", "zh", TranslationProvider.Google);
+        await manager.TranslateAsync("b", "auto", "zh", TranslationProvider.OpenAI);
+        await manager.TranslateAsync("c", "auto", "zh", TranslationProvider.Google);
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => waiting);
-        Assert.False(waitingService.Started.Task.IsCompleted);
-
-        activeService.Complete();
-        await active;
-    }
-
-    // ---------- PackBlocks / TryUnpackBlocks round-trip ----------
-
-    [Fact]
-    public void PackThenUnpack_OpenAi_RoundTripsAllBlocks()
-    {
-        var blocks = new List<string> { "Hello", "World", "Foo" };
-
-        var packed = TranslationManager.PackBlocks(blocks, TranslationProvider.OpenAI);
-        var unpacked = TranslationManager.TryUnpackBlocks(packed, blocks.Count);
-
-        Assert.NotNull(unpacked);
-        Assert.Equal(blocks, unpacked);
+        Assert.Equal(2, created);
     }
 
     [Fact]
-    public void PackBlocks_OpenAi_IncludesInstructionLine()
+    public async Task TranslateBlocksAsync_UsesServiceBatch()
     {
-        var packed = TranslationManager.PackBlocks(new[] { "x" }, TranslationProvider.OpenAI);
-        Assert.Contains("[[STOOL-001]]", packed);
-        Assert.Contains("Translate each marked item", packed);
-    }
+        using var fixture = new TranslationFixture();
+        var service = new BlockingTranslationService(completeImmediately: true);
+        using var manager = new TranslationManager(fixture.Manager, (_, _) => service);
 
-    [Fact]
-    public void PackBlocks_Tencent_OmitsInstructionLine()
-    {
-        var packed = TranslationManager.PackBlocks(new[] { "x" }, TranslationProvider.Tencent);
-        Assert.Contains("[[STOOL-001]]", packed);
-        Assert.DoesNotContain("Translate each marked item", packed);
-    }
+        var result = await manager.TranslateBlocksAsync(new[] { "one", "two" }, "auto", "zh");
 
-    [Fact]
-    public void TryUnpackBlocks_MarkedOutput_ParsesInOrder()
-    {
-        var text = "<<<STOOL_001>>> 你好\n<<<STOOL_002>>> 世界";
-        var unpacked = TranslationManager.TryUnpackBlocks(text, 2);
-
-        Assert.NotNull(unpacked);
-        Assert.Equal(new[] { "你好", "世界" }, unpacked);
-    }
-
-    [Fact]
-    public void TryUnpackBlocks_AlternativeMarkerSyntax_IsAccepted()
-    {
-        var text = "[[STOOL-001]] A\n[[STOOL-002]] B";
-        var unpacked = TranslationManager.TryUnpackBlocks(text, 2);
-
-        Assert.NotNull(unpacked);
-        Assert.Equal(new[] { "A", "B" }, unpacked);
-    }
-
-    [Fact]
-    public void TryUnpackBlocks_NoMarkers_FallsBackToLineSplit()
-    {
-        var text = "第一行\n第二行";
-        var unpacked = TranslationManager.TryUnpackBlocks(text, 2);
-
-        Assert.NotNull(unpacked);
-        Assert.Equal(new[] { "第一行", "第二行" }, unpacked);
-    }
-
-    [Fact]
-    public void TryUnpackBlocks_CountMismatch_ReturnsNull()
-    {
-        var text = "<<<STOOL_001>>> only one";
-        Assert.Null(TranslationManager.TryUnpackBlocks(text, 3));
-    }
-
-    [Fact]
-    public void TryUnpackBlocks_DuplicateMarker_ReturnsNull()
-    {
-        var text = "<<<STOOL_001>>> A\n<<<STOOL_001>>> B";
-        Assert.Null(TranslationManager.TryUnpackBlocks(text, 2));
-    }
-
-    [Fact]
-    public void TryUnpackBlocks_EmptyBlockValue_ReturnsNull()
-    {
-        var text = "<<<STOOL_001>>> A\n<<<STOOL_002>>>   ";
-        Assert.Null(TranslationManager.TryUnpackBlocks(text, 2));
-    }
-
-    [Fact]
-    public void TryUnpackBlocks_HtmlEncodedLegacyMarkers_AreDecoded()
-    {
-        var text = "&lt;&lt;&lt;STOOL_001&gt;&gt;&gt; A\n&amp;lt;&amp;lt;&amp;lt;STOOL_002&amp;gt;&amp;gt;&amp;gt; B";
-
-        var unpacked = TranslationManager.TryUnpackBlocks(text, 2);
-
-        Assert.NotNull(unpacked);
-        Assert.Equal(new[] { "A", "B" }, unpacked);
-    }
-
-    [Fact]
-    public void TryUnpackBlocks_LooseLines_StripsMarkers()
-    {
-        var text = "[[STOOL-001]] A\n[[STOOL-002]] B";
-
-        var unpacked = TranslationManager.TryUnpackBlocks(text, 2);
-
-        Assert.Equal(new[] { "A", "B" }, unpacked);
+        Assert.True(result.Success);
+        Assert.Equal(new[] { "one", "two" }, result.TranslatedBlocks);
     }
 
     private sealed class BlockingTranslationService(bool completeImmediately = false) : ITranslationService

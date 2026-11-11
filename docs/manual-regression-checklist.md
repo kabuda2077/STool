@@ -26,7 +26,10 @@ Run this checklist on Windows 10/11 after a release build. Record the OS version
 - [ ] Capture across multiple monitors with mixed DPI; verify the frozen image, selection coordinates, toolbar placement, and saved crop align.
 - [ ] Confirm a screenshot while another process temporarily occupies the clipboard; verify retry or an explicit error and no silent close.
 - [ ] Run local OCR and each configured cloud/AI OCR provider; verify result window, provider label, cancellation, and fallback behavior.
-- [ ] Run screenshot translation in Fast and Smart modes; verify the button tooltip names the mode and clicking during a request cancels it.
+- [ ] Run screenshot translation in Fast and Smart modes with both recognition engines (Tencent / Windows local); verify the button tooltip names the mode and clicking during a request cancels it.
+- [ ] Select Smart mode without an AI text model; verify a one-time notice and that Fast mode is used.
+- [ ] Translate text on solid, gradient, and image backgrounds; verify the original text is erased without visible blocks on solid/gradient backgrounds, text color/bold/alignment/size follow the original, and holding Ctrl shows the original image.
+- [ ] Translate a long English paragraph into Chinese and vice versa; verify the translation expands right/down into free space before shrinking, and never covers other text.
 - [ ] Use a small selection, long paragraph, image background, and multi-line text; verify translation blocks remain inside the selection, text in the exported image is sharp, and annotations stay above the translation.
 
 ## Translation
@@ -38,7 +41,8 @@ Run this checklist on Windows 10/11 after a release build. Record the OS version
 - [ ] Test empty input, invalid credentials, invalid endpoint, timeout, cancellation, rate limiting, and an empty provider response.
 - [ ] Change input while a request is running; verify the old result cannot overwrite the new input.
 - [ ] Verify copy, copy-and-hide, and copy-and-input, including when the original target window has closed.
-- [ ] Verify AI model discovery, custom endpoint normalization, and test request feedback for both translation and OCR settings.
+- [ ] In Service Accounts, verify AI model discovery, custom endpoint normalization, and test feedback for the Tencent account, the AI text model, and the AI vision model (with and without "same account as text model").
+- [ ] With DeepSeek / OpenAI / Gemini presets, verify translation and smart screenshot translation succeed (reasoning is disabled or lowered automatically).
 
 ## Clipboard
 
@@ -62,7 +66,8 @@ Run this checklist on Windows 10/11 after a release build. Record the OS version
 
 ## Settings and LAN transfer
 
-- [ ] Change OCR and translation providers, credentials, endpoints, models, fallback policy, and screenshot mode; verify debounced auto-save.
+- [ ] Change OCR and translation providers, service accounts, fallback policy, local OCR language, screenshot recognition engine, and screenshot mode; verify debounced auto-save and that missing-account notes link to Service Accounts.
+- [ ] Start with a v1 config (OCR and translation each with their own keys); verify keys are merged into Service Accounts, `config.json.v1.bak` is created, and the migration does not run again on the next start.
 - [ ] Replace `Data\secure.key` in a test copy and open settings; verify a warning appears and saved keys are kept until re-entered.
 - [ ] Restart STool and verify all settings persist; corrupt the primary config in a test copy and verify backup recovery/default fallback.
 - [ ] Enable diagnostic logging; verify memory checkpoints and capture timing appear in the log only while enabled.

@@ -27,11 +27,18 @@ internal enum ChatCompletionError
     Empty
 }
 
+/// <param name="DisableReasoning">
+/// 尽量关闭或压低模型的“思考”。翻译、OCR 等对延迟敏感的任务应开启：按平台发送对应参数，
+/// 不支持时由兼容性降级自动去掉。
+/// </param>
+/// <param name="JsonResponse">要求返回 JSON 对象（response_format: json_object）。提示词里必须出现 "JSON" 字样。</param>
 internal sealed record ChatCompletionRequest(
     string Model,
     JsonArray Messages,
     int MaxOutputTokens,
-    double? Temperature = null);
+    double? Temperature = null,
+    bool DisableReasoning = false,
+    bool JsonResponse = false);
 
 /// <summary>Chat Completions 调用结果。Truncated 时 Content 保留已生成的部分文本。</summary>
 internal sealed record ChatCompletionResult(
@@ -45,8 +52,24 @@ internal sealed record ChatCompletionResult(
     public bool Success => Error == ChatCompletionError.None;
 }
 
-/// <summary>同一接口 + 模型组合需要的参数形态。推理模型不接受 max_tokens 和非默认 temperature。</summary>
-internal readonly record struct ChatCompatibility(bool UseMaxCompletionTokens, bool OmitTemperature);
+/// <summary>
+/// 同一接口 + 模型组合需要的参数形态。推理模型不接受 max_tokens 和非默认 temperature；
+/// 旧模型或部分兼容平台不认识思考控制参数和 response_format。
+/// </summary>
+internal readonly record struct ChatCompatibility(
+    bool UseMaxCompletionTokens,
+    bool OmitTemperature,
+    bool OmitReasoningControl = false,
+    bool OmitResponseFormat = false);
+
+/// <summary>按接口主机识别的平台，用于生成各家不同的思考控制参数。</summary>
+internal enum AiEndpointKind
+{
+    Other,
+    OpenAi,
+    DeepSeek,
+    GoogleAiStudio
+}
 
 /// <summary>
 /// OpenAI 兼容 Chat Completions 客户端，翻译、AI OCR 与截图智能翻译共用。
@@ -57,10 +80,23 @@ internal static class OpenAiChatClient
     /// <summary>推理模型的 max_completion_tokens 包含思考过程，额外预留的额度。</summary>
     private const int ReasoningHeadroomTokens = 4096;
     private const int MaxCompletionTokensCap = 32768;
-    private const int MaxAttempts = 3;
+    private const int MaxAttempts = 5;
 
     private static readonly ConcurrentDictionary<string, ChatCompatibility> Compatibility =
         new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>指令放 system，正文放 user：避免正文里的文字被当作指令执行。</summary>
+    public static JsonArray SystemAndUserMessages(string systemPrompt, string userText) =>
+        new(
+            new JsonObject { ["role"] = "system", ["content"] = systemPrompt },
+            new JsonObject { ["role"] = "user", ["content"] = userText });
+
+    public static JsonArray SystemAndUserMessageWithImage(string systemPrompt, string userText, string imageDataUrl)
+    {
+        var messages = UserMessageWithImage(userText, imageDataUrl);
+        messages.Insert(0, new JsonObject { ["role"] = "system", ["content"] = systemPrompt });
+        return messages;
+    }
 
     public static JsonArray UserMessage(string text) =>
         new(new JsonObject
@@ -95,12 +131,15 @@ internal static class OpenAiChatClient
     {
         var endpoints = AiApiEndpointResolver.ResolveChatCompletionCandidates(apiUrl);
         var compatibilityKey = endpoints[0] + "|" + request.Model;
-        var compatibility = Compatibility.TryGetValue(compatibilityKey, out var known) ? known : default;
+        var endpointKind = DetectEndpointKind(endpoints[0]);
+        var compatibility = Compatibility.TryGetValue(compatibilityKey, out var known)
+            ? known
+            : DefaultCompatibility(endpointKind);
         AiApiHttpResult? response = null;
 
         for (var attempt = 0; attempt < MaxAttempts; attempt++)
         {
-            var payloadJson = BuildPayload(request, compatibility).ToJsonString();
+            var payloadJson = BuildPayload(request, compatibility, endpointKind).ToJsonString();
             response = await AiApiRequestSender.SendAsync(
                 httpClient,
                 endpoints,
@@ -121,6 +160,13 @@ internal static class OpenAiChatClient
                 break;
             compatibility = adjusted.Value;
         }
+
+        Serilog.Log.Warning(
+            "[AI] Request failed host={Host} model={Model} status={Status} body={Body}",
+            SafeHost(endpoints[0]),
+            request.Model,
+            response?.StatusCode is { } status ? (int)status : 0,
+            Truncate(response?.Body, 300));
 
         return new ChatCompletionResult(
             ChatCompletionError.Http,
@@ -173,7 +219,28 @@ internal static class OpenAiChatClient
             .ToArray();
     }
 
-    internal static JsonObject BuildPayload(ChatCompletionRequest request, ChatCompatibility compatibility)
+    internal static AiEndpointKind DetectEndpointKind(string endpoint)
+    {
+        if (!Uri.TryCreate(endpoint, UriKind.Absolute, out var uri))
+            return AiEndpointKind.Other;
+
+        return uri.Host.ToLowerInvariant() switch
+        {
+            "api.openai.com" => AiEndpointKind.OpenAi,
+            "api.deepseek.com" => AiEndpointKind.DeepSeek,
+            "generativelanguage.googleapis.com" => AiEndpointKind.GoogleAiStudio,
+            _ => AiEndpointKind.Other
+        };
+    }
+
+    /// <summary>OpenAI 官方接口对所有模型都接受 max_completion_tokens，推理模型则只接受它，直接使用。</summary>
+    internal static ChatCompatibility DefaultCompatibility(AiEndpointKind kind) =>
+        new(UseMaxCompletionTokens: kind == AiEndpointKind.OpenAi, OmitTemperature: false);
+
+    internal static JsonObject BuildPayload(
+        ChatCompletionRequest request,
+        ChatCompatibility compatibility,
+        AiEndpointKind endpointKind = AiEndpointKind.Other)
     {
         var payload = new JsonObject
         {
@@ -181,15 +248,48 @@ internal static class OpenAiChatClient
             ["messages"] = request.Messages.DeepClone()
         };
 
+        var reasoningControlled = request.DisableReasoning &&
+                                  !compatibility.OmitReasoningControl &&
+                                  AddReasoningControl(payload, endpointKind);
+
         if (compatibility.UseMaxCompletionTokens)
-            payload["max_completion_tokens"] = Math.Min(MaxCompletionTokensCap, request.MaxOutputTokens + ReasoningHeadroomTokens);
+        {
+            // 不能确定思考已关闭时，额度要给思考过程预留空间，否则正文会被截断。
+            var headroom = reasoningControlled && endpointKind == AiEndpointKind.OpenAi ? 0 : ReasoningHeadroomTokens;
+            payload["max_completion_tokens"] = Math.Min(MaxCompletionTokensCap, request.MaxOutputTokens + headroom);
+        }
         else
+        {
             payload["max_tokens"] = request.MaxOutputTokens;
+        }
 
         if (request.Temperature is double temperature && !compatibility.OmitTemperature)
             payload["temperature"] = temperature;
 
+        if (request.JsonResponse && !compatibility.OmitResponseFormat)
+            payload["response_format"] = new JsonObject { ["type"] = "json_object" };
+
         return payload;
+    }
+
+    /// <summary>按平台写入“关闭/压低思考”的参数。返回是否写入了参数。</summary>
+    private static bool AddReasoningControl(JsonObject payload, AiEndpointKind endpointKind)
+    {
+        switch (endpointKind)
+        {
+            case AiEndpointKind.OpenAi:
+                payload["reasoning_effort"] = "none";
+                return true;
+            case AiEndpointKind.DeepSeek:
+                payload["thinking"] = new JsonObject { ["type"] = "disabled" };
+                return true;
+            case AiEndpointKind.GoogleAiStudio:
+                // Gemini 3 系列不能完全关闭思考，low 是所有型号都支持的最低档。
+                payload["reasoning_effort"] = "low";
+                return true;
+            default:
+                return false;
+        }
     }
 
     /// <summary>根据 400 错误内容判断是否需要换一种参数形态重试；无法识别时返回 null。</summary>
@@ -215,7 +315,29 @@ internal static class OpenAiChatClient
             return current with { OmitTemperature = true };
         }
 
+        if (!current.OmitReasoningControl &&
+            (body.Contains("reasoning_effort", StringComparison.Ordinal) ||
+             body.Contains("reasoning effort", StringComparison.Ordinal) ||
+             body.Contains("thinking", StringComparison.Ordinal)))
+        {
+            return current with { OmitReasoningControl = true };
+        }
+
+        if (!current.OmitResponseFormat && body.Contains("response_format", StringComparison.Ordinal))
+            return current with { OmitResponseFormat = true };
+
         return null;
+    }
+
+    private static string SafeHost(string endpoint) =>
+        Uri.TryCreate(endpoint, UriKind.Absolute, out var uri) ? uri.Host : "invalid";
+
+    private static string Truncate(string? value, int maxLength)
+    {
+        if (string.IsNullOrEmpty(value))
+            return string.Empty;
+        var singleLine = value.ReplaceLineEndings(" ");
+        return singleLine.Length <= maxLength ? singleLine : singleLine[..maxLength] + "...";
     }
 
     internal static ChatCompletionResult ParseResponse(string responseJson, long elapsedMilliseconds = 0)

@@ -80,7 +80,7 @@ STool 并不打算成为通用的应用启动器或插件平台。它舍弃了�
 
 - 支持 Google、腾讯和 AI 三种翻译引擎
 - 支持常用语言策略以及复制、复制并隐藏、复制并输入
-- 截图翻译提供快速模式和智能原位覆盖模式
+- 截图翻译在原位置擦除原文并按原样式贴回译文，提供快速（本地规则）和智能（AI 挑选正文）两种模式
 
 ### 剪贴板历史
 
@@ -117,7 +117,7 @@ STool 并不打算成为通用的应用启动器或插件平台。它舍弃了�
 | `Alt+4` | 局域网传输 |
 | `Alt+5` | 设置 |
 
-快捷键可以在通用设置中修改。OCR、翻译服务和托盘行为也会在设置页自动保存。
+快捷键可以在通用设置中修改。腾讯云和 AI 账号在「服务账号」页统一配置一次，OCR、翻译按需引用；所有设置自动保存。
 
 <details>
 <summary><strong>查看设置界面</strong></summary>
@@ -176,7 +176,7 @@ Data\
 <summary><strong>系统要求</strong></summary>
 
 - Windows 10 或 Windows 11，64 位
-- [.NET 9 Desktop Runtime（x64）](https://dotnet.microsoft.com/download/dotnet/9.0)
+- [.NET 10 Desktop Runtime（x64）](https://dotnet.microsoft.com/download/dotnet/10.0)
 - 局域网传输需要电脑和手机处于可互相访问的同一网络
 - AI OCR、AI 翻译和腾讯云服务需要用户自行配置对应账号或 API
 

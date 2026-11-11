@@ -281,7 +281,7 @@
                                    Text="搜索，↑↓ 选择，Enter 粘贴"
                                    Foreground="{StaticResource TextSecondaryBrush}"
                                    FontSize="{StaticResource FontSizeBody}"
-                                   Opacity="0.72"
+                                   Opacity="0.9"
                                    IsHitTestVisible="False"
                                    VerticalAlignment="Center"/>
                         <TextBox x:Name="txtSearch"
@@ -579,17 +579,13 @@
             </Button>
         </Grid>
 
+        <!-- 图片预览浮层:不压暗背景,图片本体带阴影直接浮在列表上,点击任意处或 Esc 关闭。 -->
         <Grid x:Name="imagePreviewOverlay"
               Grid.RowSpan="2"
-              Background="{StaticResource OverlayBrush}"
+              Background="{StaticResource TransparentBrush}"
               Visibility="Collapsed"
               MouseLeftButtonDown="ImagePreviewOverlay_MouseLeftButtonDown">
-            <Border Width="560"
-                    MaxWidth="{Binding ActualWidth, RelativeSource={RelativeSource AncestorType=Grid}}"
-                    MaxHeight="{Binding ActualHeight, RelativeSource={RelativeSource AncestorType=Grid}}"
-                    Background="{StaticResource SurfaceBrush}"
-                    CornerRadius="{StaticResource CornerRadiusMedium}"
-                    Padding="10"
+            <Border MaxWidth="680"
                     HorizontalAlignment="Center"
                     VerticalAlignment="Center"
                     MouseLeftButtonDown="ImagePreviewCard_MouseLeftButtonDown">
@@ -599,42 +595,25 @@
                 <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto"/>
-                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
 
-                    <Grid Margin="0,0,0,8">
-                        <TextBlock x:Name="imagePreviewTitle"
-                                   Foreground="{StaticResource TextPrimaryBrush}"
-                                   FontSize="{StaticResource FontSizeBody}"
-                                   FontWeight="{StaticResource FontWeightStrong}"
-                                   VerticalAlignment="Center"/>
-                        <Button Width="28"
-                                Height="28"
-                                HorizontalAlignment="Right"
-                                Style="{StaticResource IconButton}"
-                                ToolTip="关闭预览"
-                                Click="ClosePreview_Click">
-                            <Viewbox Width="13" Height="13">
-                                <Canvas Width="24" Height="24">
-                                    <Path Data="{StaticResource IconX}"
-                                          Stroke="{StaticResource TextSecondaryBrush}"
-                                          StrokeThickness="2"
-                                          StrokeStartLineCap="Round"
-                                          StrokeEndLineCap="Round"/>
-                                </Canvas>
-                            </Viewbox>
-                        </Button>
-                    </Grid>
-
-                    <Border Grid.Row="1"
-                            Background="{StaticResource SurfaceAltBrush}"
-                            CornerRadius="6"
+                    <Border Background="{StaticResource SurfaceAltBrush}"
+                            CornerRadius="8"
                             ClipToBounds="True">
                         <Image x:Name="imagePreview"
                                MaxHeight="420"
                                Stretch="Uniform"
                                RenderOptions.BitmapScalingMode="HighQuality"/>
                     </Border>
+
+                    <TextBlock x:Name="imagePreviewTitle"
+                               Grid.Row="1"
+                               Margin="0,8,0,0"
+                               HorizontalAlignment="Center"
+                               Foreground="{StaticResource TextSecondaryBrush}"
+                               FontSize="{StaticResource FontSizeCaption}"
+                               TextTrimming="CharacterEllipsis"/>
                 </Grid>
             </Border>
         </Grid>

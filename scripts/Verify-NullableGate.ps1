@@ -12,7 +12,7 @@ $utf8 = [Text.UTF8Encoding]::new($false)
 [IO.File]::WriteAllText($project, @'
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net9.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
 </Project>
 '@, $utf8)

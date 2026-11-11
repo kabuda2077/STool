@@ -32,9 +32,9 @@ public class ThumbnailCacheTests
         cache.Set("b", CreateImage(), 100);
         cache.Set("c", CreateImage(), 100);
 
-        Assert.False(cache.Contains("a"));
-        Assert.True(cache.Contains("b"));
-        Assert.True(cache.Contains("c"));
+        Assert.False(cache.TryGet("a", out _));
+        Assert.True(cache.TryGet("b", out _));
+        Assert.True(cache.TryGet("c", out _));
         Assert.Equal(new[] { "a" }, evicted);
     }
 
@@ -49,7 +49,7 @@ public class ThumbnailCacheTests
 
         Assert.Equal(2, cache.Count);
         Assert.Equal(200, cache.EstimatedBytes);
-        Assert.False(cache.Contains("a"));
+        Assert.False(cache.TryGet("a", out _));
     }
 
     [Fact]
@@ -62,9 +62,9 @@ public class ThumbnailCacheTests
         Assert.True(cache.TryGet("a", out _));
         cache.Set("c", CreateImage(), 100);
 
-        Assert.True(cache.Contains("a"));
-        Assert.False(cache.Contains("b"));
-        Assert.True(cache.Contains("c"));
+        Assert.True(cache.TryGet("a", out _));
+        Assert.False(cache.TryGet("b", out _));
+        Assert.True(cache.TryGet("c", out _));
     }
 
     [Fact]

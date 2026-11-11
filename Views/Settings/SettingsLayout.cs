@@ -11,107 +11,38 @@ using Path = System.Windows.Shapes.Path;
 
 namespace STool.Views.Settings;
 
-/// <summary>设置页布局参数。默认值用于正式页面,设计预览台可临时覆盖。</summary>
-internal sealed class SettingsLayoutMetrics
-{
-    public double SpacingXS { get; init; } = 4;
-    public double SpacingSM { get; init; } = 8;
-    public double SpacingMD { get; init; } = 8;
-    public double SpacingLG { get; init; } = 16;
-    public double InlineLabelWidth { get; init; } = 112;
-    public double HotkeyLabelWidth { get; init; } = 112;
-    public double InputHeight { get; init; } = 34;
-    public double SectionPadding { get; init; } = 0;
-    public double SectionSpacing { get; init; } = 18;
-    public double SectionBorderThickness { get; init; } = 0.5;
-    public bool SectionShadow { get; init; } = false;
-    public double ContentHorizontalMargin { get; init; } = 24;
-    public double ContentTopMargin { get; init; } = 12;
-    public double NavigationButtonVerticalPadding { get; init; } = 10;
-
-    public static SettingsLayoutMetrics Default { get; } = new();
-
-    public SettingsLayoutMetrics With(
-        double? spacingMD = null,
-        double? inlineLabelWidth = null,
-        double? hotkeyLabelWidth = null,
-        double? inputHeight = null,
-        double? sectionPadding = null,
-        double? sectionSpacing = null,
-        double? sectionBorderThickness = null,
-        double? contentHorizontalMargin = null,
-        double? contentTopMargin = null,
-        double? navigationButtonVerticalPadding = null,
-        bool? sectionShadow = null)
-    {
-        return new SettingsLayoutMetrics
-        {
-            SpacingXS = SpacingXS,
-            SpacingSM = SpacingSM,
-            SpacingMD = spacingMD ?? SpacingMD,
-            SpacingLG = SpacingLG,
-            InlineLabelWidth = inlineLabelWidth ?? InlineLabelWidth,
-            HotkeyLabelWidth = hotkeyLabelWidth ?? HotkeyLabelWidth,
-            InputHeight = inputHeight ?? InputHeight,
-            SectionPadding = sectionPadding ?? SectionPadding,
-            SectionSpacing = sectionSpacing ?? SectionSpacing,
-            SectionBorderThickness = sectionBorderThickness ?? SectionBorderThickness,
-            SectionShadow = sectionShadow ?? SectionShadow,
-            ContentHorizontalMargin = contentHorizontalMargin ?? ContentHorizontalMargin,
-            ContentTopMargin = contentTopMargin ?? ContentTopMargin,
-            NavigationButtonVerticalPadding = navigationButtonVerticalPadding ?? NavigationButtonVerticalPadding
-        };
-    }
-}
-
 /// <summary>设置面板共享的布局参数和 UI 工厂方法。</summary>
 internal static class SettingsLayout
 {
-    private static SettingsLayoutMetrics _metrics = SettingsLayoutMetrics.Default;
-
-    // ── 间距 Token ──
-    public static double SpacingXS => _metrics.SpacingXS;
-    public static double SpacingSM => _metrics.SpacingSM;
-    public static double SpacingMD => _metrics.SpacingMD;
-    public static double SpacingLG => _metrics.SpacingLG;
+    // ── 间距与尺寸常量 ──
+    public const double SpacingXS = 4;
+    public const double SpacingSM = 8;
+    public const double SpacingMD = 8;
 
     /// <summary>行内字段 Label 列宽。</summary>
-    public static double InlineLabelWidth => _metrics.InlineLabelWidth;
+    public const double InlineLabelWidth = 112;
 
     /// <summary>快捷键行内字段 Label 列宽(标签较短)。</summary>
-    public static double HotkeyLabelWidth => _metrics.HotkeyLabelWidth;
+    public const double HotkeyLabelWidth = 112;
 
     /// <summary>输入控件统一高度。</summary>
-    public static double InputHeight => _metrics.InputHeight;
+    public const double InputHeight = 34;
+    public const double SectionPadding = 0;
+    public const double SectionSpacing = 18;
+    public const double SectionBorderThickness = 0.5;
+    public const double ContentHorizontalMargin = 24;
+    public const double ContentTopMargin = 12;
+    public const double InputHintSpacing = 5;
+    public const double FormTextInset = 12;
+
     public static double BodyFontSize => (double)Application.Current.FindResource("FontSizeBody");
     public static double HintFontSize => (double)Application.Current.FindResource("FontSizeHint");
-
-    public static double SectionPadding => _metrics.SectionPadding;
-    public static double SectionSpacing => _metrics.SectionSpacing;
-    public static double ContentHorizontalMargin => _metrics.ContentHorizontalMargin;
-    public static double ContentTopMargin => _metrics.ContentTopMargin;
-    public static double NavigationButtonVerticalPadding => _metrics.NavigationButtonVerticalPadding;
-    public static double InputHintSpacing => 5;
-    public static double FormTextInset => 12;
 
     // ── 常用 Margin ──
     public static Thickness FieldSpacing => new(24, 0, 24, 0);
     public static Thickness HintMargin => new(FormTextInset, 3, 0, 0);
     public static Thickness InlineHintMargin => new(InlineLabelWidth + FormTextInset, 3, 0, 0);
-    public static Thickness SaveButtonMargin => new(0, SpacingSM, 0, 0);
     public static Thickness ActionRowMargin => new(24 + InlineLabelWidth, SpacingSM, 24, 16);
-
-    public static SettingsLayoutMetrics CurrentMetrics => _metrics;
-
-    public static void ApplyMetrics(SettingsLayoutMetrics metrics)
-    {
-        _metrics = metrics;
-    }
-
-    public static void ResetMetrics()
-    {
-        _metrics = SettingsLayoutMetrics.Default;
-    }
 
     /// <summary>已保存的密钥无法解密时提示用户重新填写，而不是静默显示为空。</summary>
     public static void WarnUnreadableSecrets()
@@ -299,7 +230,7 @@ internal static class SettingsLayout
             Focusable = true,
             FocusVisualStyle = (Style)Application.Current.FindResource("ModernFocusVisual"),
             BorderBrush = (System.Windows.Media.Brush)Application.Current.FindResource("SettingsSectionBorderBrush"),
-            BorderThickness = new Thickness(0, 0, 0, isLast ? 0 : _metrics.SectionBorderThickness)
+            BorderThickness = new Thickness(0, 0, 0, isLast ? 0 : SectionBorderThickness)
         };
         System.Windows.Automation.AutomationProperties.SetName(row, title);
         System.Windows.Automation.AutomationProperties.SetHelpText(row, description);
@@ -420,7 +351,7 @@ internal static class SettingsLayout
             Height = InputHeight,
             Padding = new Thickness(10, 0, 10, 0),
             BorderBrush = (System.Windows.Media.Brush)Application.Current.FindResource("SettingsSectionBorderBrush"),
-            BorderThickness = new Thickness(_metrics.SectionBorderThickness)
+            BorderThickness = new Thickness(SectionBorderThickness)
         };
 
         var titleBlock = new TextBlock
@@ -495,6 +426,29 @@ internal static class SettingsLayout
         };
     }
 
+    /// <summary>
+    /// 分组顶部的说明文字；可附带一个链接（如「前往服务账号」）。
+    /// </summary>
+    public static TextBlock CreateSectionNote(string text, string? linkText = null, Action? onLink = null)
+    {
+        var block = CreateHint(text);
+        block.Margin = new Thickness(ContentHorizontalMargin, 12, ContentHorizontalMargin, 0);
+        if (linkText != null && onLink != null)
+        {
+            var link = new System.Windows.Documents.Hyperlink(new System.Windows.Documents.Run(linkText))
+            {
+                Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("PrimaryBrush"),
+                TextDecorations = null,
+                Cursor = System.Windows.Input.Cursors.Hand
+            };
+            link.Click += (_, _) => onLink();
+            block.Inlines.Add(new System.Windows.Documents.Run(" "));
+            block.Inlines.Add(link);
+        }
+
+        return block;
+    }
+
     /// <summary>创建设置页轻量分组容器。</summary>
     public static StackPanel CreateSectionContent(string title)
     {
@@ -520,7 +474,7 @@ internal static class SettingsLayout
             return new Border
             {
                 Background = (System.Windows.Media.Brush)Application.Current.FindResource("TransparentBrush"),
-                Margin = new Thickness(0, 0, 0, _metrics.SectionSpacing),
+                Margin = new Thickness(0, 0, 0, SectionSpacing),
                 Child = wrapper
             };
         }
@@ -533,12 +487,9 @@ internal static class SettingsLayout
         return new Border
         {
             Style = (Style)Application.Current.FindResource("SettingsFlatSection"),
-            Padding = new Thickness(_metrics.SectionPadding),
-            Margin = new Thickness(0, 0, 0, includeMargin ? _metrics.SectionSpacing : 0),
-            BorderThickness = new Thickness(_metrics.SectionBorderThickness),
-            Effect = _metrics.SectionShadow
-                ? (System.Windows.Media.Effects.Effect)Application.Current.FindResource("PaneShadow")
-                : null,
+            Padding = new Thickness(SectionPadding),
+            Margin = new Thickness(0, 0, 0, includeMargin ? SectionSpacing : 0),
+            BorderThickness = new Thickness(SectionBorderThickness),
             Child = content
         };
     }
@@ -596,212 +547,5 @@ internal static class SettingsLayout
         var result = CreateCollapsibleSection(title, isExpanded);
         result.section.Padding = new Thickness(0);
         return result;
-    }
-
-    /// <summary>设置页主保存按钮。</summary>
-    public static Button CreateSaveButton(string content = "保存设置")
-    {
-        return new Button
-        {
-            Content = content,
-            Style = (Style)Application.Current.FindResource("ModernButton"),
-            MinHeight = 38,
-            MinWidth = 96,
-            Padding = new Thickness(18, 8, 18, 8),
-            Margin = SaveButtonMargin,
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
-    }
-}
-
-/// <summary>安全密码框组件，支持密文定长遮罩与显示/隐藏状态切换。</summary>
-public class SecurePasswordField : Grid
-{
-    private readonly PasswordBox _pwd;
-    private readonly TextBox _txt;
-    private readonly Button _btn;
-    private readonly Path _iconPath;
-
-    private string _realPassword = "";
-    private bool _isRevealed = false;
-    private bool _isSyncing = false;
-
-    // 使用定长 16 个圆点作为象征性遮罩，防止溢出裁切，同时更美观和安全
-    private const string MaskPlaceholder = "••••••••••••••••";
-
-    public event EventHandler? PasswordChanged;
-
-    public string Password
-    {
-        get => _realPassword;
-        set
-        {
-            _realPassword = value ?? "";
-            UpdateUI();
-        }
-    }
-
-    public SecurePasswordField()
-    {
-        Height = SettingsLayout.InputHeight;
-        HorizontalAlignment = HorizontalAlignment.Stretch;
-
-        _pwd = new PasswordBox
-        {
-            Style = (Style)Application.Current.FindResource("SunkenPasswordBox"),
-            Height = SettingsLayout.InputHeight,
-            FontSize = SettingsLayout.BodyFontSize,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            HorizontalContentAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(5, 3, 38, 3)
-        };
-
-        _txt = new TextBox
-        {
-            Style = (Style)Application.Current.FindResource("SunkenTextBox"),
-            Height = SettingsLayout.InputHeight,
-            FontSize = SettingsLayout.BodyFontSize,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            HorizontalContentAlignment = HorizontalAlignment.Left,
-            TextAlignment = TextAlignment.Left,
-            Padding = new Thickness(5, 3, 38, 3),
-            Visibility = Visibility.Collapsed
-        };
-
-        _iconPath = new Path
-        {
-            Data = (System.Windows.Media.Geometry)Application.Current.FindResource("IconEye"),
-            Stroke = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush"),
-            StrokeThickness = 2,
-            StrokeStartLineCap = System.Windows.Media.PenLineCap.Round,
-            StrokeEndLineCap = System.Windows.Media.PenLineCap.Round,
-            StrokeLineJoin = System.Windows.Media.PenLineJoin.Round,
-            Fill = (System.Windows.Media.Brush)Application.Current.FindResource("TransparentBrush"),
-            Stretch = System.Windows.Media.Stretch.Uniform
-        };
-
-        _btn = new Button
-        {
-            Style = (Style)Application.Current.FindResource("IconButton"),
-            Width = SettingsLayout.InputHeight,
-            Height = SettingsLayout.InputHeight,
-            Padding = new Thickness(0),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
-            ToolTip = "显示密钥",
-            Content = new Viewbox
-            {
-                Width = 15,
-                Height = 15,
-                Child = _iconPath
-            }
-        };
-
-        _pwd.PasswordChanged += (s, e) =>
-        {
-            if (_isSyncing) return;
-            var newText = _pwd.Password;
-            if (newText.Contains('•'))
-            {
-                var cleanText = newText.Replace("•", "");
-                _realPassword = cleanText;
-                _isSyncing = true;
-                _pwd.Password = cleanText;
-                _isSyncing = false;
-            }
-            else
-            {
-                _realPassword = newText;
-            }
-            _isSyncing = true;
-            _txt.Text = _realPassword;
-            _isSyncing = false;
-            PasswordChanged?.Invoke(this, EventArgs.Empty);
-        };
-
-        _txt.TextChanged += (s, e) =>
-        {
-            if (_isSyncing) return;
-            _realPassword = _txt.Text;
-            _isSyncing = true;
-            if (_isRevealed)
-            {
-                _pwd.Password = _realPassword;
-            }
-            else
-            {
-                _pwd.Password = string.IsNullOrEmpty(_realPassword) ? "" : MaskPlaceholder;
-            }
-            _isSyncing = false;
-            PasswordChanged?.Invoke(this, EventArgs.Empty);
-        };
-
-        _pwd.GotFocus += (s, e) => _pwd.SelectAll();
-        _txt.GotFocus += (s, e) => _txt.SelectAll();
-
-        _pwd.PreviewMouseLeftButtonDown += (s, e) =>
-        {
-            if (!_pwd.IsKeyboardFocusWithin)
-            {
-                _pwd.Focus();
-                e.Handled = true;
-            }
-        };
-        _txt.PreviewMouseLeftButtonDown += (s, e) =>
-        {
-            if (!_txt.IsKeyboardFocusWithin)
-            {
-                _txt.Focus();
-                e.Handled = true;
-            }
-        };
-
-        _btn.Click += (s, e) => ToggleReveal();
-
-        Children.Add(_pwd);
-        Children.Add(_txt);
-        Children.Add(_btn);
-    }
-
-    private void ToggleReveal()
-    {
-        _isRevealed = !_isRevealed;
-        _isSyncing = true;
-        if (_isRevealed)
-        {
-            _txt.Text = _realPassword;
-            _pwd.Visibility = Visibility.Collapsed;
-            _txt.Visibility = Visibility.Visible;
-            _btn.ToolTip = "隐藏密钥";
-            _iconPath.Data = (System.Windows.Media.Geometry)Application.Current.FindResource("IconEyeOff");
-            _txt.Focus();
-            _txt.CaretIndex = _txt.Text.Length;
-        }
-        else
-        {
-            _pwd.Password = string.IsNullOrEmpty(_realPassword) ? "" : MaskPlaceholder;
-            _txt.Visibility = Visibility.Collapsed;
-            _pwd.Visibility = Visibility.Visible;
-            _btn.ToolTip = "显示密钥";
-            _iconPath.Data = (System.Windows.Media.Geometry)Application.Current.FindResource("IconEye");
-            _pwd.Focus();
-        }
-        _isSyncing = false;
-    }
-
-    private void UpdateUI()
-    {
-        _isSyncing = true;
-        if (_isRevealed)
-        {
-            _txt.Text = _realPassword;
-            _pwd.Password = _realPassword;
-        }
-        else
-        {
-            _txt.Text = _realPassword;
-            _pwd.Password = string.IsNullOrEmpty(_realPassword) ? "" : MaskPlaceholder;
-        }
-        _isSyncing = false;
     }
 }

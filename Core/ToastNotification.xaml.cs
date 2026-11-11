@@ -11,8 +11,11 @@ namespace STool.Core
         private const string SettingsSavedKey = "settings-saved";
         private DispatcherTimer? _timer;
         private Action? _action;
-        private static readonly System.Collections.Generic.Dictionary<string, ToastNotification> ActiveByKey = new();
         private const int DEFAULT_DURATION = 2500; // 毫秒
+        private const double ToastGap = 12;
+
+        private static readonly System.Collections.Generic.Dictionary<string, ToastNotification> ActiveByKey = new();
+        private static readonly System.Collections.Generic.List<ToastNotification> VisibleToasts = new();
 
         public enum ToastType
         {
@@ -21,6 +24,14 @@ namespace STool.Core
             Warning,
             Error
         }
+
+        public enum ToastPlacement
+        {
+            BottomCenter,
+            BottomRight
+        }
+
+        private ToastPlacement _placement = ToastPlacement.BottomCenter;
 
         public ToastNotification()
         {
@@ -38,15 +49,37 @@ namespace STool.Core
 
             if (owner != null)
             {
-                Left = owner.Left + (owner.ActualWidth - ActualWidth) / 2;
                 Top = owner.Top + owner.ActualHeight - ActualHeight - 44;
+                Left = _placement == ToastPlacement.BottomRight
+                    ? owner.Left + owner.ActualWidth - ActualWidth - 24
+                    : owner.Left + (owner.ActualWidth - ActualWidth) / 2;
             }
             else
             {
                 var workArea = SystemParameters.WorkArea;
-                Left = workArea.Left + (workArea.Width - ActualWidth) / 2;
                 Top = workArea.Bottom - ActualHeight - 44;
+                Left = _placement == ToastPlacement.BottomRight
+                    ? workArea.Right - ActualWidth - 24
+                    : workArea.Left + (workArea.Width - ActualWidth) / 2;
             }
+
+            // 并发提示向上堆叠，避免互相遮挡。
+            lock (VisibleToasts)
+            {
+                foreach (var other in VisibleToasts)
+                {
+                    if (ReferenceEquals(other, this) || !other.IsVisible)
+                        continue;
+                    Top -= other.ActualHeight + ToastGap;
+                }
+                VisibleToasts.Add(this);
+            }
+
+            Closed += (_, _) =>
+            {
+                lock (VisibleToasts)
+                    VisibleToasts.Remove(this);
+            };
 
             if (MotionSettings.ShouldReduceMotion)
             {
@@ -131,7 +164,8 @@ namespace STool.Core
             int duration = DEFAULT_DURATION,
             string? actionText = null,
             Action? action = null,
-            string? dedupeKey = null)
+            string? dedupeKey = null,
+            ToastPlacement placement = ToastPlacement.BottomCenter)
         {
             System.Windows.Application.Current.Dispatcher.Invoke(() =>
             {
@@ -145,6 +179,7 @@ namespace STool.Core
                 }
 
                 var toast = new ToastNotification();
+                toast._placement = placement;
                 toast.titleText.Text = title;
 
                 if (!string.IsNullOrWhiteSpace(message))
@@ -218,9 +253,10 @@ namespace STool.Core
             string actionText,
             Action action,
             ToastType type = ToastType.Success,
-            int duration = 5000)
+            int duration = 5000,
+            ToastPlacement placement = ToastPlacement.BottomCenter)
         {
-            Show(title, message, type, duration, actionText, action);
+            Show(title, message, type, duration, actionText, action, placement: placement);
         }
 
         private void ActionButton_Click(object sender, RoutedEventArgs e)

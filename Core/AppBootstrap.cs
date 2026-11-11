@@ -205,19 +205,9 @@ public sealed class AppBootstrap : IAppShell, IDisposable
 
     private void OnScreenshotHotkey()
     {
+        // HotkeyManager 已在 WM_HOTKEY 返回后才调用这里，可以直接创建窗口。
         Log.Information("Screenshot hotkey triggered");
-
-        var dispatcher = System.Windows.Application.Current?.Dispatcher;
-        if (dispatcher == null)
-        {
-            ShowScreenshotOverlay();
-            return;
-        }
-
-        // Do not create/show the WPF overlay inside the WM_HOTKEY hook itself.
-        // Posting it lets the hotkey message unwind first, so mouse input can flow
-        // normally as soon as the overlay is visible.
-        dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Normal, new Action(ShowScreenshotOverlay));
+        ShowScreenshotOverlay();
     }
 
     private void ShowScreenshotOverlay()
@@ -265,7 +255,7 @@ public sealed class AppBootstrap : IAppShell, IDisposable
     private void OnLanTransferHotkey()
     {
         Log.Information("LAN transfer hotkey triggered");
-        _windows.ShowSingle("lan-transfer", () => new LanTransferWindow(_configManager));
+        _windows.ShowSingle("lan-transfer", () => new LanTransferWindow(new LanTransferController(_configManager)));
     }
 
     public void ShowSettings()

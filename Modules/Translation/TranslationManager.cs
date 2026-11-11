@@ -1,8 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Text;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using Serilog;
@@ -17,10 +15,12 @@ namespace STool.Modules.Translation;
 public class TranslationManager : IDisposable
 {
     private readonly ConfigManager _configManager;
-    private readonly Func<TranslationProvider, TranslationConfig, ITranslationService?>? _serviceFactory;
-    private readonly SemaphoreSlim _translationGate = new(1, 1);
-    private ITranslationService? _service;
-    private TranslationServiceOptions? _serviceOptions;
+    private readonly Func<TranslationProvider, AccountsConfig, ITranslationService?>? _serviceFactory;
+
+    // 服务实例无内部状态、共用 HttpClient，可并发使用；锁只保护实例的创建与替换。
+    private readonly object _serviceGate = new();
+    private readonly Dictionary<TranslationProvider, (string Signature, ITranslationService? Service)> _services = new();
+    private readonly List<ITranslationService> _retiredServices = new();
     private ScreenContentSelector? _contentSelector;
     private string? _contentSelectorSignature;
 
@@ -30,7 +30,7 @@ public class TranslationManager : IDisposable
 
     internal TranslationManager(
         ConfigManager configManager,
-        Func<TranslationProvider, TranslationConfig, ITranslationService?>? serviceFactory)
+        Func<TranslationProvider, AccountsConfig, ITranslationService?>? serviceFactory)
     {
         _configManager = configManager;
         _serviceFactory = serviceFactory;
@@ -47,11 +47,6 @@ public class TranslationManager : IDisposable
             return;
 
         _configManager.Update(config => config.Translation.Provider = provider);
-    }
-
-    public string GetConfiguredTargetLanguage()
-    {
-        return _configManager.Get().Translation.TargetLanguage;
     }
 
     public string GetConfiguredTranslationMode()
@@ -83,39 +78,23 @@ public class TranslationManager : IDisposable
         });
     }
 
-    public void SaveConfiguredLanguages(string sourceLanguage, string targetLanguage)
-    {
-        var config = _configManager.Get();
-        if (config.Translation.SourceLanguage == sourceLanguage &&
-            config.Translation.TargetLanguage == targetLanguage)
-        {
-            return;
-        }
-
-        _configManager.Update(current =>
-        {
-            current.Translation.SourceLanguage = sourceLanguage;
-            current.Translation.TargetLanguage = targetLanguage;
-        });
-    }
-
     /// <summary>
     /// 翻译文本(使用配置中的默认提供商)
     /// </summary>
     public Task<TranslationResult> TranslateAsync(string text, string? sourceLanguage = null, string? targetLanguage = null, CancellationToken cancellationToken = default)
     {
-        var config = _configManager.Get().Translation;
-        return TranslateAsync(text, sourceLanguage, targetLanguage, config.Provider, config, cancellationToken);
+        var config = _configManager.Get();
+        return TranslateAsync(text, sourceLanguage, targetLanguage, config.Translation.Provider, config, cancellationToken);
     }
 
+    /// <summary>
+    /// 批量翻译互相独立的文本块（截图原位翻译），使用配置中的翻译引擎和各服务原生的批量接口。
+    /// 结果与输入一一对应。
+    /// </summary>
     public async Task<BlockTranslationResult> TranslateBlocksAsync(IReadOnlyList<string> blocks, string? sourceLanguage = null, string? targetLanguage = null, CancellationToken cancellationToken = default)
     {
-        var normalized = blocks
-            .Select(block => block?.Trim() ?? string.Empty)
-            .Where(block => !string.IsNullOrWhiteSpace(block))
-            .ToArray();
-
-        if (normalized.Length == 0)
+        var normalized = blocks.Select(block => block?.Trim() ?? string.Empty).ToArray();
+        if (normalized.Length == 0 || normalized.Any(string.IsNullOrWhiteSpace))
         {
             return new BlockTranslationResult
             {
@@ -124,43 +103,40 @@ public class TranslationManager : IDisposable
             };
         }
 
-        var config = _configManager.Get().Translation;
-        sourceLanguage ??= config.SourceLanguage;
-        targetLanguage ??= ResolveTargetLanguage(string.Join("\n", normalized), config.TranslationMode);
+        var config = _configManager.Get();
+        var provider = config.Translation.Provider;
+        sourceLanguage ??= config.Translation.SourceLanguage;
+        targetLanguage ??= ResolveTargetLanguage(string.Join("\n", normalized), config.Translation.TranslationMode);
 
-        var packedText = PackBlocks(normalized, config.Provider);
-        var result = await TranslateAsync(packedText, sourceLanguage, targetLanguage, config.Provider, config, cancellationToken);
-        if (!result.Success)
+        var service = GetOrCreateService(provider, config.Accounts);
+        if (service == null || !service.IsAvailable())
         {
             return new BlockTranslationResult
             {
                 Success = false,
-                ErrorMessage = result.ErrorMessage
+                ErrorMessage = UnavailableMessage(provider)
             };
         }
 
-        var translatedBlocks = TryUnpackBlocks(result.TranslatedText, normalized.Length);
-        if (translatedBlocks == null)
+        Log.Information("Batch translating blocks={Count} provider={Provider}", normalized.Length, provider);
+        var result = await service.TranslateBatchAsync(normalized, sourceLanguage, targetLanguage, cancellationToken);
+        if (!result.Success || result.Translations.Count != normalized.Length)
         {
-            Log.Warning(
-                "[ScreenshotTranslate] Block translation count mismatch expected={Expected} rawLength={RawLength}",
-                normalized.Length,
-                result.TranslatedText.Length);
-
+            Log.Warning("Batch translation failed provider={Provider}: {Error}", provider, result.ErrorMessage);
             return new BlockTranslationResult
             {
                 Success = false,
-                ErrorMessage = "分块翻译结果数量不匹配"
+                ErrorMessage = result.ErrorMessage ?? "分块翻译结果数量不匹配"
             };
         }
 
         return new BlockTranslationResult
         {
             Success = true,
-            SourceLanguage = result.SourceLanguage,
-            TargetLanguage = result.TargetLanguage,
+            SourceLanguage = sourceLanguage,
+            TargetLanguage = targetLanguage,
             Provider = result.Provider,
-            TranslatedBlocks = translatedBlocks
+            TranslatedBlocks = result.Translations
         };
     }
 
@@ -169,7 +145,7 @@ public class TranslationManager : IDisposable
     /// </summary>
     public Task<TranslationResult> TranslateAsync(string text, string? sourceLanguage, string? targetLanguage, TranslationProvider provider, CancellationToken cancellationToken = default)
     {
-        return TranslateAsync(text, sourceLanguage, targetLanguage, provider, _configManager.Get().Translation, cancellationToken);
+        return TranslateAsync(text, sourceLanguage, targetLanguage, provider, _configManager.Get(), cancellationToken);
     }
 
     private async Task<TranslationResult> TranslateAsync(
@@ -177,45 +153,41 @@ public class TranslationManager : IDisposable
         string? sourceLanguage,
         string? targetLanguage,
         TranslationProvider provider,
-        TranslationConfig config,
+        AppConfig config,
         CancellationToken cancellationToken)
     {
-        // 使用配置的默认语言
-        sourceLanguage ??= config.SourceLanguage;
-        targetLanguage ??= ResolveTargetLanguage(text, config.TranslationMode);
+        sourceLanguage ??= config.Translation.SourceLanguage;
+        targetLanguage ??= ResolveTargetLanguage(text, config.Translation.TranslationMode);
 
-        // ponytail: serialize provider changes; add service leases only if concurrent translation becomes necessary.
-        await _translationGate.WaitAsync(cancellationToken);
-        try
+        var service = GetOrCreateService(provider, config.Accounts);
+        if (service == null || !service.IsAvailable())
         {
-            var service = GetOrCreateService(provider, config);
-
-            if (service == null || !service.IsAvailable())
+            Log.Warning("Translation service {Provider} not available", provider);
+            return new TranslationResult
             {
-                Log.Warning("Translation service {Provider} not available", provider);
-                return new TranslationResult
-                {
-                    Success = false,
-                    ErrorMessage = $"翻译服务 {provider} 未配置",
-                    Provider = provider.ToString()
-                };
-            }
-
-            Log.Information("Translating with provider: {Provider}", provider);
-            var result = await service.TranslateAsync(text, sourceLanguage, targetLanguage, cancellationToken);
-
-            if (result.Success)
-                Log.Information("Translation succeeded with provider: {Provider}", provider);
-            else
-                Log.Warning("Translation failed with provider {Provider}: {ErrorMessage}", provider, result.ErrorMessage);
-
-            return result;
+                Success = false,
+                ErrorMessage = UnavailableMessage(provider),
+                Provider = provider.ToString()
+            };
         }
-        finally
-        {
-            _translationGate.Release();
-        }
+
+        Log.Information("Translating with provider: {Provider}", provider);
+        var result = await service.TranslateAsync(text, sourceLanguage, targetLanguage, cancellationToken);
+
+        if (result.Success)
+            Log.Information("Translation succeeded with provider: {Provider}", provider);
+        else
+            Log.Warning("Translation failed with provider {Provider}: {ErrorMessage}", provider, result.ErrorMessage);
+
+        return result;
     }
+
+    private static string UnavailableMessage(TranslationProvider provider) => provider switch
+    {
+        TranslationProvider.Tencent => "腾讯云账号未配置，请在「设置 → 服务账号」中填写。",
+        TranslationProvider.OpenAI => "AI 文本模型未配置，请在「设置 → 服务账号」中填写。",
+        _ => $"翻译服务 {provider} 不可用"
+    };
 
     public static string ResolveTargetLanguage(string text, string? mode)
     {
@@ -275,190 +247,89 @@ public class TranslationManager : IDisposable
         return "zh";
     }
 
-    internal static string PackBlocks(IReadOnlyList<string> blocks, TranslationProvider provider)
-    {
-        var sb = new StringBuilder();
-        if (provider == TranslationProvider.OpenAI)
-        {
-            sb.AppendLine("Translate each marked item. Keep every [[STOOL-###]] marker exactly once and in the same order. Return only the translated marked items, one item per line.");
-        }
-
-        for (var i = 0; i < blocks.Count; i++)
-        {
-            sb.Append("[[STOOL-");
-            sb.Append((i + 1).ToString("D3"));
-            sb.Append("]] ");
-            sb.AppendLine(blocks[i]);
-        }
-
-        return sb.ToString();
-    }
-
-    internal static IReadOnlyList<string>? TryUnpackBlocks(string text, int expectedCount)
-    {
-        var decoded = DecodeHtmlEntities(text);
-        var markerPattern = @"(?:\[\[STOOL-(\d{3})\]\]|<<<STOOL_(\d{3})>>>)";
-        var matches = Regex.Matches(decoded, markerPattern, RegexOptions.Singleline);
-
-        if (matches.Count != expectedCount)
-        {
-            var looseLines = decoded
-                .Split(new[] { "\r\n", "\n" }, StringSplitOptions.None)
-                .Select(StripBlockMarker)
-                .Where(line => !string.IsNullOrWhiteSpace(line))
-                .ToArray();
-
-            return looseLines.Length == expectedCount ? looseLines : null;
-        }
-
-        var results = new string[expectedCount];
-        for (var i = 0; i < matches.Count; i++)
-        {
-            var match = matches[i];
-            var numberText = match.Groups[1].Success ? match.Groups[1].Value : match.Groups[2].Value;
-            if (!int.TryParse(numberText, out var number))
-                return null;
-
-            var index = number - 1;
-            if (index < 0 || index >= expectedCount || results[index] != null)
-                return null;
-
-            var start = match.Index + match.Length;
-            var end = i + 1 < matches.Count ? matches[i + 1].Index : decoded.Length;
-            var value = decoded[start..end].Trim();
-            if (string.IsNullOrWhiteSpace(value))
-                return null;
-
-            results[index] = value;
-        }
-
-        return results.Any(string.IsNullOrWhiteSpace) ? null : results;
-    }
-
-    private static string StripBlockMarker(string line)
-    {
-        return Regex.Replace(
-            line.Trim(),
-            @"^(?:\[\[STOOL-\d{3}\]\]|<<<STOOL_\d{3}>>>)\s*",
-            string.Empty,
-            RegexOptions.IgnoreCase);
-    }
-
-    private static string DecodeHtmlEntities(string text)
-    {
-        var decoded = text;
-        for (var i = 0; i < 3; i++)
-        {
-            var next = System.Net.WebUtility.HtmlDecode(decoded);
-            if (next == decoded)
-            {
-                break;
-            }
-
-            decoded = next;
-        }
-
-        return decoded;
-    }
-
-    private ITranslationService? CreateTencentService(TranslationConfig config)
-    {
-        if (string.IsNullOrEmpty(config.TencentSecretIdEncrypted) ||
-            string.IsNullOrEmpty(config.TencentSecretKeyEncrypted))
-        {
-            return null;
-        }
-
-        return new TencentTranslationService(
-            config.TencentSecretIdEncrypted,
-            config.TencentSecretKeyEncrypted
-        );
-    }
-
-    private ITranslationService? CreateAiService(TranslationConfig config)
-    {
-        if (string.IsNullOrEmpty(config.AiApiUrlEncrypted) ||
-            string.IsNullOrEmpty(config.AiApiKeyEncrypted) ||
-            string.IsNullOrEmpty(config.AiModel))
-        {
-            return null;
-        }
-
-        return new AiTranslationService(
-            config.AiApiUrlEncrypted,
-            config.AiApiKeyEncrypted,
-            config.AiModel
-        );
-    }
-
+    /// <summary>
+    /// 截图翻译智能模式的内容选择器，使用「服务账号」里的 AI 文本模型，与当前翻译引擎无关。
+    /// 未配置时返回 null。
+    /// </summary>
     public ScreenContentSelector? TryCreateContentSelector()
     {
-        var config = _configManager.Get().Translation;
-        if (string.IsNullOrEmpty(config.AiApiUrlEncrypted) ||
-            string.IsNullOrEmpty(config.AiApiKeyEncrypted) ||
-            string.IsNullOrEmpty(config.AiModel))
+        var account = _configManager.Get().Accounts.AiText;
+        lock (_serviceGate)
         {
-            _contentSelector = null;
-            _contentSelectorSignature = null;
-            return null;
-        }
-
-        var signature = string.Join("|", config.AiApiUrlEncrypted, config.AiApiKeyEncrypted, config.AiModel);
-        if (_contentSelector == null || _contentSelectorSignature != signature)
-        {
-            _contentSelector = new ScreenContentSelector(
-                config.AiApiUrlEncrypted,
-                config.AiApiKeyEncrypted,
-                config.AiModel);
-            _contentSelectorSignature = signature;
-        }
-
-        return _contentSelector.IsAvailable() ? _contentSelector : null;
-    }
-
-    private ITranslationService? GetOrCreateService(TranslationProvider provider, TranslationConfig config)
-    {
-        var options = TranslationServiceOptions.From(provider, config);
-        if (_service != null && _serviceOptions == options)
-        {
-            return _service;
-        }
-
-        _service?.Dispose();
-        _service = _serviceFactory != null
-            ? _serviceFactory(provider, config)
-            : provider switch
+            if (!account.IsConfigured)
             {
-                TranslationProvider.Tencent => CreateTencentService(config),
-                TranslationProvider.OpenAI => CreateAiService(config),
-                TranslationProvider.Google => new GoogleTranslationService(),
-                _ => null
-            };
-        _serviceOptions = options;
+                _contentSelector = null;
+                _contentSelectorSignature = null;
+                return null;
+            }
 
-        return _service;
+            var signature = string.Join("|", account.ApiUrlEncrypted, account.ApiKeyEncrypted, account.Model);
+            if (_contentSelector == null || _contentSelectorSignature != signature)
+            {
+                _contentSelector = new ScreenContentSelector(account.ApiUrlEncrypted!, account.ApiKeyEncrypted!, account.Model!);
+                _contentSelectorSignature = signature;
+            }
+
+            return _contentSelector.IsAvailable() ? _contentSelector : null;
+        }
     }
 
-    private sealed record TranslationServiceOptions(
-        TranslationProvider Provider,
-        string? TencentSecretId,
-        string? TencentSecretKey,
-        string? AiApiUrl,
-        string? AiApiKey,
-        string? AiModel)
+    /// <summary>
+    /// 每个引擎缓存一个服务实例，账号变化时才重建。翻译面板来回切换引擎不再反复销毁、重建。
+    /// 被替换的旧实例可能仍有请求在用，延后到 Dispose 时统一释放。
+    /// </summary>
+    private ITranslationService? GetOrCreateService(TranslationProvider provider, AccountsConfig accounts)
     {
-        public static TranslationServiceOptions From(TranslationProvider provider, TranslationConfig config) => new(
-            provider,
-            config.TencentSecretIdEncrypted,
-            config.TencentSecretKeyEncrypted,
-            config.AiApiUrlEncrypted,
-            config.AiApiKeyEncrypted,
-            config.AiModel);
+        var signature = ServiceSignature(provider, accounts);
+        lock (_serviceGate)
+        {
+            if (_services.TryGetValue(provider, out var cached) && cached.Signature == signature)
+                return cached.Service;
+
+            if (cached.Service != null)
+                _retiredServices.Add(cached.Service);
+
+            var service = _serviceFactory != null
+                ? _serviceFactory(provider, accounts)
+                : CreateService(provider, accounts);
+            _services[provider] = (signature, service);
+            return service;
+        }
+    }
+
+    private static string ServiceSignature(TranslationProvider provider, AccountsConfig accounts) => provider switch
+    {
+        TranslationProvider.Tencent => string.Join("|", accounts.Tencent.SecretIdEncrypted, accounts.Tencent.SecretKeyEncrypted),
+        TranslationProvider.OpenAI => string.Join("|", accounts.AiText.ApiUrlEncrypted, accounts.AiText.ApiKeyEncrypted, accounts.AiText.Model),
+        _ => string.Empty
+    };
+
+    private static ITranslationService? CreateService(TranslationProvider provider, AccountsConfig accounts)
+    {
+        switch (provider)
+        {
+            case TranslationProvider.Tencent when accounts.Tencent.IsConfigured:
+                return new TencentTranslationService(accounts.Tencent.SecretIdEncrypted!, accounts.Tencent.SecretKeyEncrypted!);
+            case TranslationProvider.OpenAI when accounts.AiText.IsConfigured:
+                return new AiTranslationService(accounts.AiText.ApiUrlEncrypted!, accounts.AiText.ApiKeyEncrypted!, accounts.AiText.Model!);
+            case TranslationProvider.Google:
+                return new GoogleTranslationService();
+            default:
+                return null;
+        }
     }
 
     public void Dispose()
     {
-        _service?.Dispose();
+        lock (_serviceGate)
+        {
+            foreach (var (_, service) in _services.Values)
+                service?.Dispose();
+            foreach (var service in _retiredServices)
+                service.Dispose();
+            _services.Clear();
+            _retiredServices.Clear();
+        }
     }
 }
 

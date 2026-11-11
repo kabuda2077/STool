@@ -1,5 +1,7 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.Security.Principal;
+using Serilog;
 
 namespace STool.Core;
 
@@ -36,6 +38,81 @@ internal static class LanTransferSetup
         {
             return false;
         }
+    }
+
+    /// <summary>
+    /// 检查当前防火墙里是否已有覆盖该端口的 STool 入站放行规则。
+    /// 返回 null 表示无法判断（例如读取防火墙策略失败），调用方不应据此提示修复。
+    /// </summary>
+    public static bool? IsFirewallOpenForPort(int port)
+    {
+        try
+        {
+            var type = Type.GetTypeFromProgID("HNetCfg.FwPolicy2");
+            if (type == null)
+                return null;
+            dynamic? policy = Activator.CreateInstance(type);
+            if (policy == null)
+                return null;
+
+            foreach (dynamic rule in policy.Rules)
+            {
+                if (!string.Equals((string?)rule.Name, FirewallRuleName, StringComparison.OrdinalIgnoreCase))
+                    continue;
+                if (FirewallRuleCoversPort(
+                        (bool)rule.Enabled,
+                        (int)rule.Direction,
+                        (int)rule.Action,
+                        (int)rule.Protocol,
+                        (string?)rule.LocalPorts,
+                        port))
+                    return true;
+            }
+
+            return false;
+        }
+        catch (Exception ex)
+        {
+            Log.Debug(ex, "Failed to read Windows Firewall rules for LAN transfer");
+            return null;
+        }
+    }
+
+    /// <summary>规则属性取自 INetFwRule：Direction 1=入站，Action 1=允许，Protocol 6=TCP / 256=任意。</summary>
+    internal static bool FirewallRuleCoversPort(
+        bool enabled, int direction, int action, int protocol, string? localPorts, int port) =>
+        enabled &&
+        direction == 1 &&
+        action == 1 &&
+        protocol is 6 or 256 &&
+        PortListCovers(localPorts, port);
+
+    /// <summary>解析防火墙的本地端口表达式（"*"、"17654"、"17000-18000"、逗号分隔组合）。</summary>
+    internal static bool PortListCovers(string? localPorts, int port)
+    {
+        if (string.IsNullOrWhiteSpace(localPorts))
+            return true;
+
+        foreach (var part in localPorts.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+        {
+            if (part == "*")
+                return true;
+
+            var dash = part.IndexOf('-');
+            if (dash > 0)
+            {
+                if (int.TryParse(part.AsSpan(0, dash), NumberStyles.None, CultureInfo.InvariantCulture, out var low) &&
+                    int.TryParse(part.AsSpan(dash + 1), NumberStyles.None, CultureInfo.InvariantCulture, out var high) &&
+                    port >= low && port <= high)
+                    return true;
+                continue;
+            }
+
+            if (int.TryParse(part, NumberStyles.None, CultureInfo.InvariantCulture, out var single) && single == port)
+                return true;
+        }
+
+        return false;
     }
 
     public static LanTransferSetupResult ConfigureCurrentUser(int port)

@@ -34,6 +34,12 @@
                         Margin="0,6,0,0"
                         Content="剪贴板"/>
 
+                <Button x:Name="btnAccountsSettings"
+                        Click="BtnAccountsSettings_Click"
+                        Style="{StaticResource NavigationButton}"
+                        Margin="0,6,0,0"
+                        Content="服务账号"/>
+
                 <Button x:Name="btnOcrSettings"
                         Click="BtnOcrSettings_Click"
                         Style="{StaticResource NavigationButton}"

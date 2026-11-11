@@ -23,6 +23,7 @@
     <Color x:Key="TextPrimaryColor">#18181B</Color>
     <Color x:Key="TextSecondaryColor">#6B7280</Color>
     <Color x:Key="SuccessColor">#2DC472</Color>
+    <Color x:Key="WarningColor">#D97706</Color>
     <Color x:Key="ErrorColor">#DC2626</Color>
     <Color x:Key="ErrorHoverColor">#EF4444</Color>
     <Color x:Key="ErrorPressedColor">#B91C1C</Color>
@@ -50,17 +51,20 @@
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}"/>
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}"/>
     <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}"/>
+    <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}"/>
     <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}"/>
     <SolidColorBrush x:Key="ErrorHoverBrush" Color="{StaticResource ErrorHoverColor}"/>
     <SolidColorBrush x:Key="ErrorPressedBrush" Color="{StaticResource ErrorPressedColor}"/>
+    <SolidColorBrush x:Key="ErrorSoftBrush" Color="#FEF2F2"/>
+    <SolidColorBrush x:Key="ErrorSoftPressedBrush" Color="#FEE2E2"/>
+    <SolidColorBrush x:Key="NeutralPressedBrush" Color="#E9EBEF"/>
+    <SolidColorBrush x:Key="PrimarySoftPressedBrush" Color="#E1EAFF"/>
 
-    <!-- Overlay for modals/screenshots -->
-    <SolidColorBrush x:Key="OverlayBrush" Color="#99000000"/>
+    <!-- Screenshot overlay brushes -->
     <SolidColorBrush x:Key="ScreenshotOverlayBackgroundBrush" Color="#1A1A1A"/>
     <SolidColorBrush x:Key="ScreenshotMaskBrush" Color="#66000000"/>
     <SolidColorBrush x:Key="ScreenshotSizeLabelBrush" Color="#D21A1A1A"/>
     <!-- 截图原位译文在浅色背景上的文字色，比正文色略浅，贴近原图文字观感 -->
-    <SolidColorBrush x:Key="ScreenshotTranslationDarkTextBrush" Color="#4E4E58"/>
     <SolidColorBrush x:Key="PinnedCloseBackgroundBrush" Color="#8C3F3F46"/>
     <Color x:Key="AnnotationDefaultColor">#DC2626</Color>
 

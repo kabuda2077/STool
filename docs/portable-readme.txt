@@ -29,12 +29,12 @@ STool v{{VERSION}} - 便携版
 ## 系统要求
 
 - Windows 10/11 (64位)
-- .NET 9 Desktop Runtime (x64)
+- .NET 10 Desktop Runtime (x64)
 
 如果启动时提示需要安装运行时，请访问：
-https://dotnet.microsoft.com/download/dotnet/9.0
+https://dotnet.microsoft.com/download/dotnet/10.0
 
-选择 ".NET Desktop Runtime 9.x.x - Windows x64 Installer" 下载安装。
+选择 ".NET Desktop Runtime 10.x.x - Windows x64 Installer" 下载安装。
 
 ## 开机自启
 

@@ -439,8 +439,13 @@ function patchChunk(id, offset, blob, onProgress) {
       } else if (xhr.status === 409) {
         resolve({ offset: Number(xhr.getResponseHeader("Upload-Offset") || offset), retry: true });
       } else {
-        try { reject(new Error(JSON.parse(xhr.responseText).error)); }
-        catch { reject(new Error(`上传失败 (${xhr.status})`)); }
+        // 非 2xx（含 499 任务被取消/暂停、503 电脑忙）一律视为这一块没有传完，不能显示完成。
+        let message = `上传失败 (${xhr.status})`;
+        try { message = JSON.parse(xhr.responseText).error || message; } catch { }
+        const error = new Error(message);
+        error.status = xhr.status;
+        error.retryAfter = Number(xhr.getResponseHeader("Retry-After")) || 0;
+        reject(error);
       }
     };
     xhr.onloadend = () => state.uploadRequests.delete(id);
@@ -471,6 +476,8 @@ async function uploadFile(file, row, batchId) {
       offset = result.offset;
       if (result.complete) break;
     } catch (error) {
+      if (error.status === 503 && error.retryAfter)
+        await new Promise(resolve => setTimeout(resolve, error.retryAfter * 1000));
       const transfer = await waitUntilUploadCanContinue(batchId, row);
       if (transfer.state === "canceled" || transfer.state === "rejected")
         throw new Error("传输已取消");

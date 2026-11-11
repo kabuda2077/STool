@@ -4,6 +4,8 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Threading;
+using System.Threading.Tasks;
 using Microsoft.Data.Sqlite;
 using Serilog;
 using STool.Core;
@@ -39,6 +41,8 @@ public class ClipboardStorage : IDisposable
     private readonly string _imagesDirectory;
     private readonly string _thumbnailsDirectory;
     private readonly object _gate = new();
+    private readonly object _deletionGate = new();
+    private Task _fileDeletion = Task.CompletedTask;
     private SqliteConnection _connection = null!;
     private bool _disposed;
 
@@ -387,8 +391,42 @@ public class ClipboardStorage : IDisposable
             transaction.Commit();
         }
 
-        DeleteImageFiles(imagePaths);
+        // 数据库记录已提交，图片文件交给后台删除，调用方（可能是 UI 线程）不等待文件 IO。
+        DeleteImageFilesInBackground(imagePaths);
         return deleted;
+    }
+
+    /// <summary>等待已排队的后台图片删除完成。主要用于测试和退出时收尾。</summary>
+    internal Task WaitForFileDeletionAsync()
+    {
+        lock (_deletionGate)
+            return _fileDeletion;
+    }
+
+    private void DeleteImageFilesInBackground(List<string> paths)
+    {
+        if (paths.Count == 0)
+            return;
+
+        lock (_deletionGate)
+        {
+            // 串成一条链，保证删除顺序且同一时间只有一个后台删除任务。
+            _fileDeletion = _fileDeletion.ContinueWith(
+                _ =>
+                {
+                    try
+                    {
+                        DeleteImageFiles(paths);
+                    }
+                    catch (Exception ex)
+                    {
+                        Log.Warning(ex, "Failed to delete clipboard image files in background");
+                    }
+                },
+                CancellationToken.None,
+                TaskContinuationOptions.None,
+                TaskScheduler.Default);
+        }
     }
 
     private ClipboardItem? QueryById(string id, bool includeFullText)

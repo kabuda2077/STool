@@ -6,6 +6,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
 using System.Windows.Threading;
+using Serilog;
 using STool.Core;
 using STool.Models;
 
@@ -13,8 +14,6 @@ namespace STool.Modules.Translation;
 
 public partial class TranslationPanel : Window
 {
-    [DllImport("user32.dll")] private static extern IntPtr GetForegroundWindow();
-
     private readonly TranslationManager _translationManager;
     private TranslationProvider _provider = TranslationProvider.Google;
     private bool _busy;
@@ -26,7 +25,7 @@ public partial class TranslationPanel : Window
 
     public TranslationPanel(TranslationManager translationManager)
     {
-        _targetHwnd = GetForegroundWindow();   // 在 Show() 之前抓取 = 用户原来的应用
+        _targetHwnd = NativeWindows.GetForegroundWindow();   // 在 Show() 之前抓取 = 用户原来的应用
         _translationManager = translationManager;
         InitializeComponent();
         _provider = _translationManager.GetConfiguredProvider();
@@ -240,6 +239,7 @@ public partial class TranslationPanel : Window
         }
         catch (Exception ex)
         {
+            Log.Warning(ex, "Failed to copy translation result");
             ToastNotification.Show("复制失败", ex.Message, ToastNotification.ToastType.Error);
             return false;
         }

@@ -78,7 +78,7 @@ internal sealed class PreparedArchiveManager : IAsyncDisposable
                 replaced.Dispose();
             }
             var fullPath = Path.Combine(_sessionRoot, id + ".zip");
-            var totalBytes = items.Aggregate(0L, (total, item) => AddSaturating(total, item.Size));
+            var totalBytes = items.Aggregate(0L, (total, item) => LanMath.AddSaturating(total, item.Size));
             var job = new ArchiveJob(
                 id,
                 sourceKey,
@@ -294,7 +294,7 @@ internal sealed class PreparedArchiveManager : IAsyncDisposable
             return;
 
         var overhead = Math.Max(64L * 1024 * 1024, sourceBytes / 100);
-        var required = AddSaturating(sourceBytes, overhead);
+        var required = LanMath.AddSaturating(sourceBytes, overhead);
         var drive = new DriveInfo(root);
         if (drive.AvailableFreeSpace < required)
             throw new IOException("临时 ZIP 所在磁盘空间不足。");
@@ -359,9 +359,6 @@ internal sealed class PreparedArchiveManager : IAsyncDisposable
     private static string EnsureZipExtension(string name) =>
         name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase) ? name : name + ".zip";
 
-    private static long AddSaturating(long left, long right) =>
-        left > long.MaxValue - right ? long.MaxValue : left + right;
-
     private static void TryDeleteFile(string path)
     {
         try { if (File.Exists(path)) File.Delete(path); }
@@ -409,7 +406,7 @@ internal sealed class PreparedArchiveManager : IAsyncDisposable
         public void AddProcessed(int bytes)
         {
             lock (_gate)
-                _processedBytes = AddSaturating(_processedBytes, bytes);
+                _processedBytes = LanMath.AddSaturating(_processedBytes, bytes);
         }
 
         public void SetReady(long size)

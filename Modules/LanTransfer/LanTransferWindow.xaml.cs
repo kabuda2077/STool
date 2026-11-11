@@ -2,58 +2,37 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.Net;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
-using Microsoft.Win32;
 using QRCoder;
-using Serilog;
 using STool.Core;
 using Forms = System.Windows.Forms;
 
 namespace STool.Modules.LanTransfer;
 
+/// <summary>局域网传输面板：只负责绑定与渲染，服务与业务逻辑见 <see cref="LanTransferController"/>。</summary>
 public partial class LanTransferWindow : Window
 {
-    internal enum ServerLifecycleState
-    {
-        Stopped,
-        Starting,
-        PermissionRequired,
-        Running,
-        Stopping,
-        Failed
-    }
-
-    private static readonly TimeSpan ClientPresenceTimeout = TimeSpan.FromSeconds(12);
-    private readonly ConfigManager _configManager;
-    private readonly SharedFileCatalog _sharedFiles = new();
-    private readonly DeviceTokenStore _deviceTokens = new();
-    private readonly TransferHistoryStore _historyStore = new();
+    private readonly LanTransferController _controller;
     private readonly ObservableCollection<TransferRow> _activeRows = [];
     private readonly ObservableCollection<HistoryRow> _historyRows = [];
-    private readonly HashSet<string> _separateOutgoingIds = new(StringComparer.Ordinal);
-    private LanTransferServer? _server;
-    private NetworkEndpoint? _endpoint;
-    private readonly LatestOperationCoordinator _serverLifecycle = new();
-    private ServerLifecycleState _serverState = ServerLifecycleState.Stopped;
-    private bool _closing;
-    private bool _cleanupCompleted;
     private readonly DispatcherTimer _progressTimer;
     private readonly DispatcherTimer _connectionTimer;
-    private readonly object _progressGate = new();
-    private readonly Dictionary<string, TransferSessionSnapshot> _pendingProgress = new(StringComparer.Ordinal);
-    private long _lastClientActivityTimestamp;
-    private bool _phoneConnected;
+    private string? _renderedQrAddress;
+    private bool _closeStarted;
+    private bool _cleanupCompleted;
     private bool _showingHistory;
 
-    public LanTransferWindow(ConfigManager configManager)
+    internal LanTransferWindow(LanTransferController controller)
     {
         InitializeComponent();
-        _configManager = configManager;
+        _controller = controller;
+        _controller.Changed += Render;
+        _controller.BatchReceived += Controller_BatchReceived;
+        _controller.HistoryAdded += AddHistoryRow;
         sharedList.ItemsSource = _activeRows;
         transferList.ItemsSource = _historyRows;
         UpdateActiveTransferVisibility();
@@ -74,156 +53,32 @@ public partial class LanTransferWindow : Window
 
     private async void LanTransferWindow_Loaded(object sender, RoutedEventArgs e)
     {
-        var config = _configManager.Get();
-        if (string.IsNullOrWhiteSpace(config.LanTransfer.ReceiveDirectory))
-        {
-            var defaultDirectory = GetDefaultReceiveDirectory();
-            config = _configManager.Update(current => current.LanTransfer.ReceiveDirectory = defaultDirectory);
-        }
-
-        receiveDirectoryText.Text = config.LanTransfer.ReceiveDirectory;
+        receiveDirectoryText.Text = _controller.EnsureReceiveDirectory();
         LoadTransferHistory();
         UpdateTransferTabUi(false);
-        await RestartServerAsync();
+        await _controller.RestartAsync();
     }
 
-    private Task RestartServerAsync()
+    /// <summary>按控制器的当前状态刷新状态栏、按钮可用性、地址与二维码。</summary>
+    private void Render()
     {
-        if (_closing)
-            return Task.CompletedTask;
-
-        return _serverLifecycle.RunLatestAsync(RestartServerCoreAsync);
-    }
-
-    private async Task RestartServerCoreAsync(CancellationToken cancellationToken)
-    {
-        try
+        var state = _controller.State;
+        var permissionRequired = state == ServerLifecycleState.PermissionRequired;
+        permissionSetupPanel.Visibility = permissionRequired ? Visibility.Visible : Visibility.Collapsed;
+        connectionDetailsPanel.Visibility = permissionRequired ? Visibility.Collapsed : Visibility.Visible;
+        repairButton.Visibility = _controller.RepairVisible ? Visibility.Visible : Visibility.Collapsed;
+        if (permissionRequired)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            await StopServerCoreAsync(updateState: false);
-            cancellationToken.ThrowIfCancellationRequested();
-            SetServerState(ServerLifecycleState.Starting);
-
-            _endpoint = NetworkEndpointSelector.GetPreferred();
-            if (_endpoint == null)
-            {
-                ShowConnectionDetails();
-                addressText.Text = "请先连接 Wi-Fi 或有线局域网";
-                repairButton.Visibility = Visibility.Collapsed;
-                SetServerState(ServerLifecycleState.Failed, "未找到可用的局域网");
-                return;
-            }
-
-            var config = _configManager.Get();
-            if (string.IsNullOrWhiteSpace(config.LanTransfer.ConfiguredExecutablePath))
-            {
-                ShowPermissionSetup();
-                SetServerState(ServerLifecycleState.PermissionRequired);
-                return;
-            }
-
-            ShowConnectionDetails();
-            Directory.CreateDirectory(config.LanTransfer.ReceiveDirectory);
-            var server = new LanTransferServer(
-                _endpoint,
-                config.LanTransfer.Port,
-                config.LanTransfer.ReceiveDirectory,
-                config.LanTransfer.MaxConcurrentTransfers,
-                _sharedFiles,
-                _deviceTokens);
-            AttachServer(server);
-            _server = server;
-
-            try
-            {
-                await server.StartAsync();
-                cancellationToken.ThrowIfCancellationRequested();
-                if (!ReferenceEquals(_server, server))
-                    return;
-
-                UpdateConnectionDetails();
-                var needsRepair = !string.Equals(
-                    config.LanTransfer.ConfiguredExecutablePath,
-                    Environment.ProcessPath,
-                    StringComparison.OrdinalIgnoreCase);
-                repairButton.Visibility = needsRepair ? Visibility.Visible : Visibility.Collapsed;
-                ResetClientPresence();
-                SetServerState(
-                    ServerLifecycleState.Running,
-                    needsRepair ? "服务已启动，建议修复防火墙" : "等待手机连接");
-                MemoryDiagnostics.LogCheckpoint("LanTransferOpened");
-            }
-            catch
-            {
-                await StopServerCoreAsync(updateState: false);
-                throw;
-            }
+            qrImage.Source = null;
+            _renderedQrAddress = null;
         }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        else
         {
-            Log.Debug("LAN transfer server restart superseded or canceled");
+            RenderConnectionDetails();
         }
-        catch (Exception ex) when (ex is HttpListenerException or UnauthorizedAccessException)
-        {
-            Log.Warning(ex, "LAN transfer listener requires setup");
-            ShowPermissionSetup();
-            SetServerState(ServerLifecycleState.PermissionRequired);
-        }
-        catch (Exception ex)
-        {
-            Log.Error(ex, "Failed to start LAN transfer");
-            ShowConnectionDetails();
-            addressText.Text = ex.Message;
-            repairButton.Visibility = Visibility.Visible;
-            SetServerState(ServerLifecycleState.Failed);
-        }
-    }
 
-    private void AttachServer(LanTransferServer server)
-    {
-        server.BatchReceived += Server_BatchReceived;
-        server.TransferChanged += Server_TransferChanged;
-        server.OutgoingItemCompleted += Server_OutgoingItemCompleted;
-        server.ClientActivity += Server_ClientActivity;
-        server.AccessCodesRotated += Server_AccessCodesRotated;
-    }
-
-    private void DetachServer(LanTransferServer server)
-    {
-        server.BatchReceived -= Server_BatchReceived;
-        server.TransferChanged -= Server_TransferChanged;
-        server.OutgoingItemCompleted -= Server_OutgoingItemCompleted;
-        server.ClientActivity -= Server_ClientActivity;
-        server.AccessCodesRotated -= Server_AccessCodesRotated;
-    }
-
-    /// <summary>配对成功或触发限流后服务端会自动换码，二维码与验证码随之刷新。</summary>
-    private void Server_AccessCodesRotated()
-    {
-        if (_closing)
-            return;
-
-        Dispatcher.BeginInvoke(() =>
-        {
-            if (!_closing && _server?.IsRunning == true)
-                UpdateConnectionDetails();
-        });
-    }
-
-    private void SetServerState(ServerLifecycleState state, string? status = null)
-    {
-        _serverState = state;
-        var text = status ?? state switch
-        {
-            ServerLifecycleState.Stopped => "服务已停止",
-            ServerLifecycleState.Starting => "正在启动服务",
-            ServerLifecycleState.PermissionRequired => "等待配置局域网权限",
-            ServerLifecycleState.Running => "等待手机连接",
-            ServerLifecycleState.Stopping => "正在停止服务",
-            ServerLifecycleState.Failed => "服务启动失败",
-            _ => "等待手机连接"
-        };
-        SetStatus(text, state == ServerLifecycleState.Running && _phoneConnected);
+        var status = _controller.Status;
+        SetStatus(StatusText(status), status == LanStatusKind.PhoneConnected);
 
         var transitioning = state is ServerLifecycleState.Starting or ServerLifecycleState.Stopping;
         var running = state == ServerLifecycleState.Running;
@@ -234,35 +89,50 @@ public partial class LanTransferWindow : Window
         revokeDevicesButton.IsEnabled = running;
         addFilesButton.IsEnabled = running;
         addFolderButton.IsEnabled = running;
-        allowLanAccessButton.IsEnabled = state == ServerLifecycleState.PermissionRequired;
-        permissionLaterButton.IsEnabled = state == ServerLifecycleState.PermissionRequired;
+        allowLanAccessButton.IsEnabled = permissionRequired;
+        permissionLaterButton.IsEnabled = permissionRequired;
         AllowDrop = running;
     }
 
-    private void ShowPermissionSetup()
+    private void RenderConnectionDetails()
     {
-        ResetClientPresence();
-        connectionDetailsPanel.Visibility = Visibility.Collapsed;
-        permissionSetupPanel.Visibility = Visibility.Visible;
-        repairButton.Visibility = Visibility.Collapsed;
-        qrImage.Source = null;
-        SetStatus("等待手机连接", false);
-    }
+        switch (_controller.AddressNotice)
+        {
+            case LanAddressNotice.NoNetwork:
+                addressText.Text = "请先连接 Wi-Fi 或有线局域网";
+                return;
+            case LanAddressNotice.Error:
+                addressText.Text = _controller.ErrorMessage ?? string.Empty;
+                return;
+        }
 
-    private void ShowConnectionDetails()
-    {
-        permissionSetupPanel.Visibility = Visibility.Collapsed;
-        connectionDetailsPanel.Visibility = Visibility.Visible;
-    }
-
-    private void UpdateConnectionDetails()
-    {
-        if (_server == null)
+        var address = _controller.Address;
+        var qrAddress = _controller.QrAddress;
+        if (address == null || qrAddress == null)
             return;
-        addressText.Text = _server.Address;
-        codeText.Text = _server.ManualCode;
-        qrImage.Source = CreateQrImage(_server.QrAddress);
+
+        addressText.Text = address;
+        codeText.Text = _controller.ManualCode;
+        if (qrAddress != _renderedQrAddress)
+        {
+            _renderedQrAddress = qrAddress;
+            qrImage.Source = CreateQrImage(qrAddress);
+        }
     }
+
+    private static string StatusText(LanStatusKind status) => status switch
+    {
+        LanStatusKind.Stopped => "服务已停止",
+        LanStatusKind.Starting => "正在启动服务",
+        LanStatusKind.WaitingForPermission => "等待配置局域网权限",
+        LanStatusKind.WaitingForPhone => "等待手机连接",
+        LanStatusKind.PhoneConnected => "手机已连接",
+        LanStatusKind.Stopping => "正在停止服务",
+        LanStatusKind.StartFailed => "服务启动失败",
+        LanStatusKind.NoNetwork => "未找到可用的局域网",
+        LanStatusKind.FirewallRepairSuggested => "服务已启动，建议修复防火墙",
+        _ => "等待手机连接"
+    };
 
     private void SetStatus(string text, bool online)
     {
@@ -300,50 +170,13 @@ public partial class LanTransferWindow : Window
             animate && IsLoaded);
     }
 
-    private void Server_ClientActivity(LanTransferServer server)
-    {
-        if (_closing || !ReferenceEquals(_server, server))
-            return;
-
-        Interlocked.Exchange(ref _lastClientActivityTimestamp, Stopwatch.GetTimestamp());
-        Dispatcher.BeginInvoke(() =>
-        {
-            if (_closing || !ReferenceEquals(_server, server) || _phoneConnected)
-                return;
-            _phoneConnected = true;
-            SetStatus("手机已连接", true);
-        });
-    }
-
-    private void ConnectionTimer_Tick(object? sender, EventArgs e)
-    {
-        if (_closing || _server?.IsRunning != true)
-            return;
-
-        var lastActivity = Interlocked.Read(ref _lastClientActivityTimestamp);
-        var connected = IsClientPresent(lastActivity, Stopwatch.GetTimestamp());
-        if (connected == _phoneConnected)
-            return;
-
-        _phoneConnected = connected;
-        SetStatus(connected ? "手机已连接" : "等待手机连接", connected);
-    }
-
-    internal static bool IsClientPresent(long lastActivityTimestamp, long currentTimestamp) =>
-        lastActivityTimestamp != 0 &&
-        Stopwatch.GetElapsedTime(lastActivityTimestamp, currentTimestamp) <= ClientPresenceTimeout;
-
-    private void ResetClientPresence()
-    {
-        Interlocked.Exchange(ref _lastClientActivityTimestamp, 0);
-        _phoneConnected = false;
-    }
+    private void ConnectionTimer_Tick(object? sender, EventArgs e) => _controller.CheckClientPresence();
 
     private async void RepairConnection_Click(object sender, RoutedEventArgs e)
     {
         repairButton.IsEnabled = false;
         repairButton.Content = "配置中...";
-        var success = await LanTransferSetup.RunElevatedAsync(_configManager.Get().LanTransfer.Port);
+        var success = await _controller.ConfigureAccessAsync();
         repairButton.IsEnabled = true;
         repairButton.Content = "修复连接";
         if (!success)
@@ -352,9 +185,8 @@ public partial class LanTransferWindow : Window
             return;
         }
 
-        _configManager.Update(config => config.LanTransfer.ConfiguredExecutablePath = Environment.ProcessPath);
         ToastNotification.Show("连接已修复", type: ToastNotification.ToastType.Success);
-        await RestartServerAsync();
+        await _controller.RestartAsync();
     }
 
     private void PermissionLater_Click(object sender, RoutedEventArgs e)
@@ -369,7 +201,7 @@ public partial class LanTransferWindow : Window
         {
             await UiBusyState.RunWithBusyStateAsync(allowLanAccessButton, "配置中…", async () =>
             {
-                var success = await LanTransferSetup.RunElevatedAsync(_configManager.Get().LanTransfer.Port);
+                var success = await _controller.ConfigureAccessAsync();
                 if (!success)
                 {
                     ToastNotification.Show(
@@ -379,9 +211,8 @@ public partial class LanTransferWindow : Window
                     return;
                 }
 
-                _configManager.Update(config => config.LanTransfer.ConfiguredExecutablePath = Environment.ProcessPath);
                 ToastNotification.Show("局域网访问已允许", type: ToastNotification.ToastType.Success);
-                await RestartServerAsync();
+                await _controller.RestartAsync();
             });
         }
         finally
@@ -392,12 +223,13 @@ public partial class LanTransferWindow : Window
 
     private async void CopyAddress_Click(object sender, RoutedEventArgs e)
     {
-        if (_server == null)
+        var address = _controller.Address;
+        if (address == null)
             return;
 
         try
         {
-            await ClipboardWriter.SetTextAsync(_server.Address);
+            await ClipboardWriter.SetTextAsync(address);
             ToastNotification.Show("地址已复制");
         }
         catch (Exception ex)
@@ -408,10 +240,9 @@ public partial class LanTransferWindow : Window
 
     private void RefreshCode_Click(object sender, RoutedEventArgs e)
     {
-        if (_server == null)
+        if (!_controller.RotateAccessCodes())
             return;
-        // 换码会触发 AccessCodesRotated，由它刷新二维码与验证码。
-        _server.RotateAccessCodes();
+        // 换码后控制器会通知刷新二维码与验证码。
         ToastNotification.Show("连接码已刷新");
     }
 
@@ -426,13 +257,14 @@ public partial class LanTransferWindow : Window
         if (!confirmed)
             return;
 
-        _deviceTokens.RevokeAll();
+        // 同时让当前在线会话失效；服务未运行时只清理记住的设备。
+        _controller.RevokeRememberedDevices();
         ToastNotification.Show("已移除记住的设备");
     }
 
     private async void BrowseReceiveDirectory_Click(object sender, RoutedEventArgs e)
     {
-        if (_server?.ActiveTransferCount > 0)
+        if (_controller.ActiveTransferCount > 0)
         {
             ToastNotification.Show("正在传输文件", "传输完成后再更改接收目录。", ToastNotification.ToastType.Info);
             return;
@@ -448,9 +280,9 @@ public partial class LanTransferWindow : Window
         if (dialog.ShowDialog() != Forms.DialogResult.OK)
             return;
 
-        _configManager.Update(config => config.LanTransfer.ReceiveDirectory = dialog.SelectedPath);
+        _controller.SetReceiveDirectory(dialog.SelectedPath);
         receiveDirectoryText.Text = dialog.SelectedPath;
-        await RestartServerAsync();
+        await _controller.RestartAsync();
         ToastNotification.Show("接收目录已更新");
     }
 
@@ -475,62 +307,30 @@ public partial class LanTransferWindow : Window
 
     private async Task AddSharedPathsAsync(IEnumerable<string> paths)
     {
-        if (_closing)
-            return;
-
-        var added = _sharedFiles.AddPaths(paths, allowDuplicatePaths: true).ToArray();
-        if (added.Length == 0)
+        var outcome = await _controller.AddSharedPathsAsync(paths);
+        switch (outcome.Result)
         {
-            ToastNotification.Show("没有找到可发送的文件或文件夹");
-            return;
-        }
-
-        if (_server?.IsRunning != true)
-            await RestartServerAsync();
-
-        var server = _server;
-        if (server?.IsRunning != true)
-        {
-            foreach (var item in added)
-                _sharedFiles.Remove(item.Id);
-            ToastNotification.Show("传输服务尚未启动", type: ToastNotification.ToastType.Error);
-            return;
-        }
-
-        var available = added.Where(item => item.IsAvailable).ToArray();
-        if (available.Length != added.Length)
-        {
-            foreach (var item in added)
-                _sharedFiles.Remove(item.Id);
-            ToastNotification.Show("部分发送项目已被移动或删除", type: ToastNotification.ToastType.Error);
-            return;
-        }
-
-        var mode = ResolveOutgoingMode(available);
-        try
-        {
-            var transfer = server.QueueOutgoing(available, mode);
-            if (mode == OutgoingTransferMode.Separate)
-                _separateOutgoingIds.Add(transfer.Id);
-        }
-        catch (Exception ex)
-        {
-            foreach (var item in added)
-                _sharedFiles.Remove(item.Id);
-            ToastNotification.Show("无法创建发送任务", ex.Message, ToastNotification.ToastType.Error);
+            case AddSharedResult.ScanFailed:
+                ToastNotification.Show("无法读取所选文件或文件夹", outcome.Error ?? string.Empty, ToastNotification.ToastType.Error);
+                break;
+            case AddSharedResult.NothingFound:
+                ToastNotification.Show("没有找到可发送的文件或文件夹");
+                break;
+            case AddSharedResult.ServerNotRunning:
+                ToastNotification.Show("传输服务尚未启动", type: ToastNotification.ToastType.Error);
+                break;
+            case AddSharedResult.ItemsUnavailable:
+                ToastNotification.Show("部分发送项目已被移动或删除", type: ToastNotification.ToastType.Error);
+                break;
+            case AddSharedResult.QueueFailed:
+                ToastNotification.Show("无法创建发送任务", outcome.Error ?? string.Empty, ToastNotification.ToastType.Error);
+                break;
         }
     }
 
-    internal static OutgoingTransferMode ResolveOutgoingMode(IReadOnlyList<SharedFileEntry> entries) =>
-        entries.Count >= 6 || entries.Count == 1 && entries[0].IsFolder
-            ? OutgoingTransferMode.CombinedArchive
-            : entries.Count == 1
-                ? OutgoingTransferMode.Automatic
-                : OutgoingTransferMode.Separate;
-
     private void Window_DragOver(object sender, System.Windows.DragEventArgs e)
     {
-        e.Effects = _serverState == ServerLifecycleState.Running &&
+        e.Effects = _controller.State == ServerLifecycleState.Running &&
                     e.Data.GetDataPresent(System.Windows.DataFormats.FileDrop)
             ? System.Windows.DragDropEffects.Copy
             : System.Windows.DragDropEffects.None;
@@ -539,73 +339,37 @@ public partial class LanTransferWindow : Window
 
     private async void Window_Drop(object sender, System.Windows.DragEventArgs e)
     {
-        if (_serverState == ServerLifecycleState.Running &&
+        if (_controller.State == ServerLifecycleState.Running &&
             e.Data.GetData(System.Windows.DataFormats.FileDrop) is string[] paths)
             await AddSharedPathsAsync(paths);
     }
 
-    private void Server_BatchReceived(ReceivedBatchInfo info)
-    {
-        if (_closing)
-            return;
-        Dispatcher.BeginInvoke(() => ToastNotification.ShowWithAction(
+    private void Controller_BatchReceived(ReceivedBatchInfo info) =>
+        ToastNotification.ShowWithAction(
             "接收完成",
             $"{info.Name} · {FormatBytes(info.Size)}",
             "打开位置",
-            () => OpenHistoryLocation(info.FullPath, info.IsDirectory)));
-    }
-
-    private void Server_OutgoingItemCompleted(TransferHistoryEntry entry)
-    {
-        if (_closing)
-            return;
-        Dispatcher.BeginInvoke(() => AddHistoryEntry(entry));
-    }
-
-    private void Server_TransferChanged(TransferSessionSnapshot snapshot)
-    {
-        if (_closing)
-            return;
-        lock (_progressGate)
-            _pendingProgress[snapshot.Id] = snapshot;
-    }
+            () => OpenHistoryLocation(info.FullPath, info.IsDirectory),
+            placement: ToastNotification.ToastPlacement.BottomRight);
 
     private void ProgressTimer_Tick(object? sender, EventArgs e)
     {
-        TransferSessionSnapshot[] updates;
-        lock (_progressGate)
+        foreach (var update in _controller.DrainTransferUpdates())
         {
-            if (_pendingProgress.Count == 0)
-                return;
-            updates = _pendingProgress.Values.ToArray();
-            _pendingProgress.Clear();
-        }
+            if (update.Kind == TransferUpdateKind.Finished)
+            {
+                RemoveActiveRow(update.Snapshot.Id);
+                continue;
+            }
 
-        foreach (var snapshot in updates.OrderBy(item => item.StartedUtc))
-        {
-            if (_closing)
-                return;
-            if (snapshot.State == TransferState.Completed)
-            {
-                RemoveActiveRow(snapshot.Id);
-                if (!_separateOutgoingIds.Remove(snapshot.Id))
-                    AddCompletedHistory(snapshot);
-                continue;
-            }
-            if (snapshot.State is TransferState.Canceled or TransferState.Rejected)
-            {
-                _separateOutgoingIds.Remove(snapshot.Id);
-                RemoveActiveRow(snapshot.Id);
-                continue;
-            }
-            var row = FindActiveRow(snapshot.Id);
+            var row = FindActiveRow(update.Snapshot.Id);
             if (row == null)
             {
-                row = new TransferRow(snapshot.Id, snapshot.Name);
+                row = new TransferRow(update.Snapshot.Id, update.Snapshot.Name);
                 _activeRows.Insert(0, row);
                 UpdateActiveTransferVisibility();
             }
-            row.Apply(snapshot);
+            row.Apply(update.Snapshot);
         }
     }
 
@@ -627,32 +391,11 @@ public partial class LanTransferWindow : Window
         shareEmptyText.Visibility = hasTransfers ? Visibility.Collapsed : Visibility.Visible;
     }
 
-    private void AddCompletedHistory(TransferSessionSnapshot snapshot)
-    {
-        var path = snapshot.DestinationPath;
-        if (string.IsNullOrWhiteSpace(path))
-            path = snapshot.Direction == TransferDirection.ToComputer
-                ? receiveDirectoryText.Text
-                : snapshot.SourcePaths.FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(path))
-            return;
-
-        AddHistoryEntry(new TransferHistoryEntry(
-            snapshot.Id,
-            snapshot.Name,
-            snapshot.Direction,
-            snapshot.TotalBytes,
-            snapshot.FileCount,
-            path,
-            Directory.Exists(path),
-            snapshot.CompletedUtc ?? DateTimeOffset.UtcNow));
-    }
-
     private void RemoveTransferRecord_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not System.Windows.Controls.Button { CommandParameter: HistoryRow row })
             return;
-        _historyStore.Remove(row.Id);
+        _controller.RemoveHistory(row.Id);
         _historyRows.Remove(row);
         UpdateTransferHistoryVisibility();
     }
@@ -670,7 +413,7 @@ public partial class LanTransferWindow : Window
             ToastNotification.Show("暂无可清除的已完成记录");
             return;
         }
-        _historyStore.Clear();
+        _controller.ClearHistory();
         _historyRows.Clear();
         UpdateTransferHistoryVisibility();
     }
@@ -685,14 +428,14 @@ public partial class LanTransferWindow : Window
     private void LoadTransferHistory()
     {
         _historyRows.Clear();
-        foreach (var entry in _historyStore.Snapshot())
+        foreach (var entry in _controller.LoadHistory())
             _historyRows.Add(new HistoryRow(entry));
         UpdateTransferHistoryVisibility();
     }
 
-    private void AddHistoryEntry(TransferHistoryEntry entry)
+    /// <summary>历史记录已由控制器写入存储，这里只更新界面列表。</summary>
+    private void AddHistoryRow(TransferHistoryEntry entry)
     {
-        _historyStore.Add(entry);
         var existing = _historyRows.FirstOrDefault(item => item.Id == entry.Id);
         if (existing != null)
             _historyRows.Remove(existing);
@@ -705,19 +448,19 @@ public partial class LanTransferWindow : Window
     private void PauseTransfer_Click(object sender, RoutedEventArgs e)
     {
         if (sender is System.Windows.Controls.Button { CommandParameter: TransferRow row })
-            _server?.PauseTransfer(row.Id);
+            _controller.PauseTransfer(row.Id);
     }
 
     private void ResumeTransfer_Click(object sender, RoutedEventArgs e)
     {
         if (sender is System.Windows.Controls.Button { CommandParameter: TransferRow row })
-            _server?.ResumeTransfer(row.Id);
+            _controller.ResumeTransfer(row.Id);
     }
 
     private void RetryTransfer_Click(object sender, RoutedEventArgs e)
     {
         if (sender is System.Windows.Controls.Button { CommandParameter: TransferRow row } &&
-            _server?.RetryTransfer(row.Id) != true)
+            !_controller.RetryTransfer(row.Id))
             ToastNotification.Show("无法重试该任务");
     }
 
@@ -727,13 +470,11 @@ public partial class LanTransferWindow : Window
             return;
         if (row.State == TransferState.Failed)
         {
-            if (_server != null)
-                await _server.RemoveTransferAsync(row.Id);
-            _separateOutgoingIds.Remove(row.Id);
+            await _controller.RemoveFailedTransferAsync(row.Id);
             RemoveActiveRow(row.Id);
             return;
         }
-        await (_server?.CancelTransferAsync(row.Id) ?? Task.FromResult(false));
+        await _controller.CancelTransferAsync(row.Id);
     }
 
     private static void OpenHistoryLocation(string path, bool isDirectory)
@@ -768,18 +509,6 @@ public partial class LanTransferWindow : Window
         return image;
     }
 
-    private static string GetDefaultReceiveDirectory()
-    {
-        var userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        return Path.Combine(userProfile, "Downloads", "STool");
-    }
-
-    private static void OpenDirectory(string path)
-    {
-        Directory.CreateDirectory(path);
-        Process.Start(new ProcessStartInfo("explorer.exe", $"\"{path}\"") { UseShellExecute = true });
-    }
-
     private static string FormatBytes(long value)
     {
         string[] units = ["B", "KB", "MB", "GB", "TB"];
@@ -799,7 +528,7 @@ public partial class LanTransferWindow : Window
 
     protected override void OnClosing(CancelEventArgs e)
     {
-        if (!_closing && _server?.ActiveTransferCount > 0)
+        if (!_closeStarted && _controller.ActiveTransferCount > 0)
         {
             var close = ConfirmDialog.Show(
                 this,
@@ -817,8 +546,11 @@ public partial class LanTransferWindow : Window
         if (!_cleanupCompleted)
         {
             e.Cancel = true;
-            _closing = true;
-            _ = CompleteCloseAsync();
+            if (!_closeStarted)
+            {
+                _closeStarted = true;
+                _ = CompleteCloseAsync();
+            }
             return;
         }
 
@@ -829,15 +561,7 @@ public partial class LanTransferWindow : Window
     {
         try
         {
-            await _serverLifecycle.RunFinalAsync(async () =>
-            {
-                SetServerState(ServerLifecycleState.Stopping);
-                await StopServerCoreAsync(updateState: false);
-            });
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "LAN transfer cleanup failed during close");
+            await _controller.ShutdownAsync();
         }
         finally
         {
@@ -852,41 +576,16 @@ public partial class LanTransferWindow : Window
         _progressTimer.Tick -= ProgressTimer_Tick;
         _connectionTimer.Stop();
         _connectionTimer.Tick -= ConnectionTimer_Tick;
-        lock (_progressGate)
-            _pendingProgress.Clear();
         Loaded -= LanTransferWindow_Loaded;
-        _serverLifecycle.Dispose();
+        _controller.Changed -= Render;
+        _controller.BatchReceived -= Controller_BatchReceived;
+        _controller.HistoryAdded -= AddHistoryRow;
+        _controller.Dispose();
         qrImage.Source = null;
-        _sharedFiles.Clear();
         _activeRows.Clear();
         _historyRows.Clear();
-        _separateOutgoingIds.Clear();
         MemoryDiagnostics.LogCheckpoint("LanTransferClosed");
         base.OnClosed(e);
-    }
-
-    private async Task StopServerCoreAsync(bool updateState)
-    {
-        var server = _server;
-        _server = null;
-        if (server == null)
-        {
-            if (updateState)
-                SetServerState(ServerLifecycleState.Stopped);
-            return;
-        }
-
-        DetachServer(server);
-        ResetClientPresence();
-        try
-        {
-            await server.DisposeAsync();
-        }
-        finally
-        {
-            if (updateState)
-                SetServerState(ServerLifecycleState.Stopped);
-        }
     }
 
     private sealed class TransferRow : INotifyPropertyChanged

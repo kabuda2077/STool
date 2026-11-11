@@ -30,7 +30,7 @@ foreach ($file in $files) {
     Assert-PackagePath $relative
     $expected.Add($relative, $file)
 }
-foreach ($required in @('STool.exe', 'README.txt', 'e_sqlite3.dll')) {
+foreach ($required in @('STool.exe', 'e_sqlite3.dll')) {
     if (-not $expected.ContainsKey($required) -or $expected[$required].Length -eq 0) {
         throw "Missing required package file: $required"
     }
@@ -40,10 +40,6 @@ $exePath = $expected['STool.exe'].FullName
 $version = [Diagnostics.FileVersionInfo]::GetVersionInfo($exePath)
 if ($version.ProductVersion.Split('+')[0] -ne $ExpectedVersion.Split('+')[0]) {
     throw "Product version mismatch: $($version.ProductVersion), expected $ExpectedVersion"
-}
-$readme = [IO.File]::ReadAllText($expected['README.txt'].FullName)
-if (-not $readme.Contains("STool v$ExpectedVersion") -or $readme.Contains('{{VERSION}}')) {
-    throw 'README version was not rendered correctly.'
 }
 
 $reader = [IO.BinaryReader]::new([IO.File]::OpenRead($exePath))

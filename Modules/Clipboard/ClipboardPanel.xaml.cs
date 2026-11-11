@@ -23,9 +23,6 @@ public partial class ClipboardPanel : Window
     private const double LoadMoreThreshold = 240;
     private static readonly TimeSpan TabContentDelay = TimeSpan.FromMilliseconds(70);
 
-    [System.Runtime.InteropServices.DllImport("user32.dll")]
-    private static extern IntPtr GetForegroundWindow();
-
     private readonly ClipboardManager _manager;
     private readonly IntPtr _targetHwnd;
     private readonly ObservableCollection<ClipboardItemViewModel> _items = new();
@@ -45,7 +42,7 @@ public partial class ClipboardPanel : Window
     public ClipboardPanel(ClipboardManager manager)
     {
         _manager = manager;
-        _targetHwnd = GetForegroundWindow();
+        _targetHwnd = NativeWindows.GetForegroundWindow();
         InitializeComponent();
         itemsList.ItemsSource = _items;
 

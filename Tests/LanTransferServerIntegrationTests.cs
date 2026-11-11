@@ -45,7 +45,7 @@ public class LanTransferServerIntegrationTests
 
             // 缺少防跨站请求头的状态修改请求直接拒绝，不计入配对尝试。
             var withoutHeader = await client.PostAsync("api/auth/exchange", Json($"{{\"code\":\"{server.ManualCode}\"}}"));
-            Assert.Equal(HttpStatusCode.Unauthorized, withoutHeader.StatusCode);
+            Assert.Equal(HttpStatusCode.Forbidden, withoutHeader.StatusCode);
 
             var exchange = await SendAsync(client, HttpMethod.Post, "api/auth/exchange",
                 Json($"{{\"code\":\"{server.ManualCode}\",\"remember\":true}}"));
@@ -79,12 +79,12 @@ public class LanTransferServerIntegrationTests
                 Assert.Equal(HttpStatusCode.OK, paired.StatusCode);
                 using var head = new HttpRequestMessage(HttpMethod.Head, $"api/uploads/{uploadId}");
                 using var deniedRead = await other.SendAsync(head);
-                Assert.Equal(HttpStatusCode.Unauthorized, deniedRead.StatusCode);
+                Assert.Equal(HttpStatusCode.Forbidden, deniedRead.StatusCode);
                 using var deniedWrite = await PatchAsync(other, uploadId, 0, "he");
-                Assert.Equal(HttpStatusCode.Unauthorized, deniedWrite.StatusCode);
+                Assert.Equal(HttpStatusCode.Forbidden, deniedWrite.StatusCode);
                 using var deniedAdd = await SendAsync(other, HttpMethod.Post, "api/uploads",
                     Json(JsonSerializer.Serialize(new { name = "other.txt", size = 0, batchId })));
-                Assert.Equal(HttpStatusCode.Unauthorized, deniedAdd.StatusCode);
+                Assert.Equal(HttpStatusCode.Forbidden, deniedAdd.StatusCode);
             }
 
             var mismatch = await PatchAsync(client, uploadId, 2, "llo");

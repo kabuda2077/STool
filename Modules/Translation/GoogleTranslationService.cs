@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using System.Net.Http;
 using System.Text;
@@ -22,7 +23,48 @@ public class GoogleTranslationService : ITranslationService
     /// <summary>单次请求 q 参数编码后的最大长度。中文按 UTF-8 百分号编码后约膨胀 9 倍。</summary>
     internal const int MaxEncodedChunkLength = 5000;
 
+    /// <summary>批量翻译时同时进行的请求数。非官方端点，并发过高容易被限流。</summary>
+    private const int MaxParallelRequests = 4;
+
     public bool IsAvailable() => true;
+
+    public async Task<BatchTranslationResult> TranslateBatchAsync(
+        IReadOnlyList<string> texts,
+        string sourceLanguage,
+        string targetLanguage,
+        CancellationToken cancellationToken = default)
+    {
+        var results = new string[texts.Count];
+        string? error = null;
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        try
+        {
+            await Parallel.ForEachAsync(
+                Enumerable.Range(0, texts.Count),
+                new ParallelOptions { MaxDegreeOfParallelism = MaxParallelRequests, CancellationToken = linked.Token },
+                async (index, token) =>
+                {
+                    var result = await TranslateAsync(texts[index], sourceLanguage, targetLanguage, token);
+                    if (result.Success)
+                    {
+                        results[index] = result.TranslatedText;
+                        return;
+                    }
+
+                    // 一段失败就取消其余请求，整批失败。
+                    Interlocked.CompareExchange(ref error, result.ErrorMessage ?? "翻译失败", null);
+                    linked.Cancel();
+                });
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            // 由某段失败触发的内部取消，不是用户取消。
+        }
+
+        return error == null
+            ? BatchTranslationResult.Succeeded(results, ProviderName)
+            : BatchTranslationResult.Failed(error, ProviderName);
+    }
 
     public async Task<TranslationResult> TranslateAsync(
         string text,

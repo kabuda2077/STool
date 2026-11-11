@@ -66,7 +66,7 @@ public class ConfigManagerTests
     public void Save_WhenWriteFails_KeepsCachedAndPersistedConfiguration()
     {
         using var fixture = new ConfigFixture();
-        fixture.Manager.Save(new AppConfig { HideTrayIcon = true });
+        fixture.Manager.Update(config => config.HideTrayIcon = true);
         using var lockedTemp = new FileStream(
             fixture.ConfigPath + ".tmp",
             FileMode.Create,
@@ -74,7 +74,7 @@ public class ConfigManagerTests
             FileShare.None);
 
         Assert.ThrowsAny<IOException>(() =>
-            fixture.Manager.Save(new AppConfig { HideTrayIcon = false }));
+            fixture.Manager.Update(config => config.HideTrayIcon = false));
 
         Assert.True(fixture.Manager.Get().HideTrayIcon);
         Assert.True(fixture.CreateManager().Get().HideTrayIcon);
@@ -84,8 +84,8 @@ public class ConfigManagerTests
     public void Reload_CorruptPrimary_RestoresValidBackup()
     {
         using var fixture = new ConfigFixture();
-        fixture.Manager.Save(new AppConfig { HideTrayIcon = true });
-        fixture.Manager.Save(new AppConfig { HideTrayIcon = false });
+        fixture.Manager.Update(config => config.HideTrayIcon = true);
+        fixture.Manager.Update(config => config.HideTrayIcon = false);
         File.WriteAllText(fixture.ConfigPath, "{broken");
 
         var config = fixture.CreateManager().Get();
@@ -107,6 +107,23 @@ public class ConfigManagerTests
         Assert.Equal("Alt+1", config.Hotkeys.Screenshot);
         Assert.Equal("broken-primary", File.ReadAllText(fixture.ConfigPath));
         Assert.True(File.Exists(fixture.ConfigPath + ".corrupt"));
+    }
+
+    [Fact]
+    public void Get_PrimaryLocked_ThrowsWithoutOverwritingPrimaryOrUsingBackup()
+    {
+        using var fixture = new ConfigFixture();
+        fixture.Manager.Update(config => config.HideTrayIcon = true);
+        fixture.Manager.Update(config => config.HideTrayIcon = false);
+        var before = File.ReadAllText(fixture.ConfigPath);
+
+        using (new FileStream(fixture.ConfigPath, FileMode.Open, FileAccess.Read, FileShare.None))
+        {
+            Assert.ThrowsAny<IOException>(() => fixture.CreateManager().Get());
+        }
+
+        Assert.Equal(before, File.ReadAllText(fixture.ConfigPath));
+        Assert.False(File.Exists(fixture.ConfigPath + ".corrupt"));
     }
 
     [Fact]
@@ -133,12 +150,154 @@ public class ConfigManagerTests
             isPortable: value => value.StartsWith("v2:", StringComparison.Ordinal));
         fixture.Write(new AppConfig
         {
-            Ocr = new OcrConfig { TencentSecretIdEncrypted = "legacy-secret" }
+            Ocr = new OcrConfig
+            {
+                LegacyTencentSecretIdEncrypted = "legacy-secret",
+                LegacyTencentSecretKeyEncrypted = "legacy-secret"
+            }
         });
 
         var config = fixture.CreateManager().Get();
 
-        Assert.Equal("v2:test:plain-secret", config.Ocr.TencentSecretIdEncrypted);
+        Assert.Equal("v2:test:plain-secret", config.Accounts.Tencent.SecretIdEncrypted);
+    }
+
+    [Fact]
+    public void MigrateToV2_MergesAccountsPreferringTranslation()
+    {
+        var config = new AppConfig
+        {
+            Ocr = new OcrConfig
+            {
+                Provider = OcrProvider.Tencent,
+                LegacyTencentSecretIdEncrypted = "ocr-id",
+                LegacyTencentSecretKeyEncrypted = "ocr-key",
+                LegacyAiApiUrlEncrypted = "url",
+                LegacyAiApiKeyEncrypted = "key",
+                LegacyAiModel = "vision-model"
+            },
+            Translation = new TranslationConfig
+            {
+                LegacyTencentSecretIdEncrypted = "tr-id",
+                LegacyTencentSecretKeyEncrypted = "tr-key",
+                LegacyAiPlatform = AiPlatform.DeepSeek,
+                LegacyAiApiUrlEncrypted = "url",
+                LegacyAiApiKeyEncrypted = "key",
+                LegacyAiModel = "deepseek-chat"
+            }
+        };
+
+        ConfigManager.MigrateToV2(config);
+
+        Assert.Equal(2, config.ConfigVersion);
+        Assert.Equal("tr-id", config.Accounts.Tencent.SecretIdEncrypted);
+        Assert.Equal("tr-key", config.Accounts.Tencent.SecretKeyEncrypted);
+        Assert.Equal(AiPlatform.DeepSeek, config.Accounts.AiText.Platform);
+        Assert.Equal("deepseek-flash", config.Accounts.AiText.Model);
+        Assert.True(config.Accounts.AiVision.SameAccountAsText);
+        Assert.Equal("vision-model", config.Accounts.AiVision.Model);
+        Assert.Equal(ScreenshotOcrEngine.Tencent, config.Translation.ScreenshotOcr);
+        Assert.Null(config.Ocr.LegacyTencentSecretIdEncrypted);
+        Assert.Null(config.Translation.LegacyAiApiKeyEncrypted);
+    }
+
+    [Fact]
+    public void MigrateToV2_UsesOcrTencentWhenTranslationEmpty_AndKeepsSeparateVisionAccount()
+    {
+        var config = new AppConfig
+        {
+            Ocr = new OcrConfig
+            {
+                LegacyTencentSecretIdEncrypted = "ocr-id",
+                LegacyTencentSecretKeyEncrypted = "ocr-key",
+                LegacyAiPlatform = AiPlatform.GoogleAiStudio,
+                LegacyAiApiUrlEncrypted = "vision-url",
+                LegacyAiApiKeyEncrypted = "vision-key",
+                LegacyAiModel = "gemini-flash-latest"
+            },
+            Translation = new TranslationConfig
+            {
+                LegacyAiApiUrlEncrypted = "text-url",
+                LegacyAiApiKeyEncrypted = "text-key",
+                LegacyAiModel = "my-model"
+            }
+        };
+
+        ConfigManager.MigrateToV2(config);
+
+        Assert.Equal("ocr-id", config.Accounts.Tencent.SecretIdEncrypted);
+        Assert.False(config.Accounts.AiVision.SameAccountAsText);
+        Assert.Equal("vision-url", config.Accounts.AiVision.ApiUrlEncrypted);
+        Assert.Equal(AiPlatform.GoogleAiStudio, config.Accounts.AiVision.Platform);
+        Assert.Equal("my-model", config.Accounts.AiText.Model);
+        Assert.Equal(ScreenshotOcrEngine.WindowsLocal, config.Translation.ScreenshotOcr);
+    }
+
+    [Fact]
+    public void MigrateToV2_OcrAiWithoutKey_FollowsTextModel()
+    {
+        var config = new AppConfig
+        {
+            Ocr = new OcrConfig { LegacyAiApiUrlEncrypted = "unused-url", LegacyAiModel = "gpt-4o-mini" },
+            Translation = new TranslationConfig
+            {
+                LegacyAiPlatform = AiPlatform.DeepSeek,
+                LegacyAiApiUrlEncrypted = "url",
+                LegacyAiApiKeyEncrypted = "key",
+                LegacyAiModel = "deepseek-flash"
+            }
+        };
+
+        ConfigManager.MigrateToV2(config);
+
+        Assert.True(config.Accounts.AiVision.SameAccountAsText);
+        Assert.Equal("deepseek-flash", config.Accounts.AiVision.Model);
+        Assert.True(config.Accounts.ResolveVision().IsConfigured);
+    }
+
+    [Theory]
+    [InlineData("deepseek-reasoner", "k", "deepseek-flash")]
+    [InlineData("gpt-4o-mini", null, null)]
+    [InlineData("gpt-4o-mini", "k", "gpt-4o-mini")]
+    [InlineData("custom", null, "custom")]
+    [InlineData("  ", null, null)]
+    public void MigrateModelName_ReplacesRetiredModels(string model, string? key, string? expected)
+    {
+        Assert.Equal(expected, ConfigManager.MigrateModelName(model, key));
+    }
+
+    [Fact]
+    public void Get_V2Config_DoesNotRerunHotkeyMigration()
+    {
+        using var fixture = new ConfigFixture();
+        fixture.Write(new AppConfig
+        {
+            ConfigVersion = AppConfig.CurrentVersion,
+            Hotkeys = new HotkeyConfig { Settings = "Alt+4", LanTransfer = "Alt+5" }
+        });
+
+        var config = fixture.CreateManager().Get();
+
+        Assert.Equal("Alt+4", config.Hotkeys.Settings);
+        Assert.Equal("Alt+5", config.Hotkeys.LanTransfer);
+    }
+
+    [Fact]
+    public void Get_V1Config_WritesBackupAndDropsLegacyFields()
+    {
+        using var fixture = new ConfigFixture();
+        File.WriteAllText(fixture.ConfigPath, """
+            {"ocr":{"provider":"Tencent","tencentSecretIdEncrypted":"v2:a","tencentSecretKeyEncrypted":"v2:b"},
+             "translation":{"provider":"Google"}}
+            """);
+
+        var config = fixture.CreateManager().Get();
+        var saved = File.ReadAllText(fixture.ConfigPath);
+
+        Assert.True(File.Exists(fixture.ConfigPath + ".v1.bak"));
+        Assert.Equal("v2:a", config.Accounts.Tencent.SecretIdEncrypted);
+        Assert.DoesNotContain("tencentSecretIdEncrypted\":\"v2:a\",\"tencentSecretKey", saved.Replace(" ", ""));
+        Assert.Contains("\"configVersion\": 2", saved);
     }
 
     private sealed class ConfigFixture : IDisposable

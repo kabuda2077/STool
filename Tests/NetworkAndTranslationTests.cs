@@ -62,7 +62,7 @@ public class NetworkAndTranslationTests
     [Fact]
     public void LanTransferLifecycleState_ContainsExpectedStates()
     {
-        var names = Enum.GetNames<LanTransferWindow.ServerLifecycleState>();
+        var names = Enum.GetNames<ServerLifecycleState>();
 
         Assert.Equal(
             ["Stopped", "Starting", "PermissionRequired", "Running", "Stopping", "Failed"],

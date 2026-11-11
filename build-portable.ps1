@@ -57,9 +57,6 @@ $timer.Stop()
 if ($LASTEXITCODE -ne 0) { throw 'Publish failed; no package was created.' }
 
 $utf8 = [Text.UTF8Encoding]::new($false)
-$utf8Bom = [Text.UTF8Encoding]::new($true)
-$template = [IO.File]::ReadAllText((Join-Path $repoRoot 'docs/portable-readme.txt'), $utf8)
-[IO.File]::WriteAllText((Join-Path $publishDir 'README.txt'), $template.Replace('{{VERSION}}', $Version), $utf8Bom)
 [IO.Directory]::CreateDirectory($releaseDir) | Out-Null
 [IO.Compression.ZipFile]::CreateFromDirectory($publishDir, $zipPath)
 

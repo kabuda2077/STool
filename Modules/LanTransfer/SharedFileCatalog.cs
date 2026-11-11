@@ -73,7 +73,7 @@ internal sealed class SharedFileCatalog
                     var directoryPath = prefix + directoryName;
                     directories.TryGetValue(directoryName, out var aggregate);
                     directories[directoryName] = (
-                        AddSaturating(aggregate.Size, file.Size),
+                        LanMath.AddSaturating(aggregate.Size, file.Size),
                         aggregate.FileCount + 1);
                     continue;
                 }
@@ -268,7 +268,4 @@ internal sealed class SharedFileCatalog
     }
 
     private static string NormalizeStoredPath(string value) => value.Replace('\\', '/').Trim('/');
-
-    private static long AddSaturating(long left, long right) =>
-        left > long.MaxValue - right ? long.MaxValue : left + right;
 }

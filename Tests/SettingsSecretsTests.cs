@@ -86,3 +86,48 @@ public class SettingsSecretsTests : IDisposable
         Assert.Equal(encrypted, setting.Resolve(string.Empty));
     }
 }
+
+public class SecurePasswordFieldEditTests
+{
+    private const string Mask = "••••";
+
+    [Theory]
+    [InlineData("•••")]      // 退格删掉一个圆点
+    [InlineData("••")]
+    [InlineData(Mask)]
+    public void PartialMaskDeletion_KeepsSavedSecret(string displayed)
+    {
+        var result = SecurePasswordField.ResolveMaskedEdit("sk-real", displayed, Mask);
+
+        Assert.Equal("sk-real", result.Password);
+        Assert.True(result.RestoreMask);
+    }
+
+    [Fact]
+    public void ClearingWholeMask_ClearsSecret()
+    {
+        var result = SecurePasswordField.ResolveMaskedEdit("sk-real", string.Empty, Mask);
+
+        Assert.Equal(string.Empty, result.Password);
+        Assert.False(result.RestoreMask);
+    }
+
+    [Fact]
+    public void TypingNextToMask_ReplacesWithTypedText()
+    {
+        var result = SecurePasswordField.ResolveMaskedEdit("sk-real", "••x••", Mask);
+
+        Assert.Equal("x", result.Password);
+        Assert.True(result.ReplaceDisplay);
+    }
+
+    [Fact]
+    public void EditingUnmaskedValue_PassesThrough()
+    {
+        var result = SecurePasswordField.ResolveMaskedEdit(string.Empty, "abc", Mask);
+
+        Assert.Equal("abc", result.Password);
+        Assert.False(result.RestoreMask);
+        Assert.False(result.ReplaceDisplay);
+    }
+}

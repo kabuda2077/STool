@@ -6,7 +6,8 @@
 
 **STool** 是一个 Windows 托盘效率工具：截图与标注、OCR、翻译、剪贴板历史、局域网文件传输。
 
-- 技术栈：.NET 9 + WPF + Windows Forms interop
+- 技术栈：.NET 10 + WPF + Windows Forms interop
+- 开发环境：.NET 10 SDK；运行发布包需要 .NET 10 Desktop Runtime（x64）
 - 仓库：https://github.com/kabuda2077/STool，默认分支 `main`
 - 版本号唯一来源：`Directory.Build.props` 中的 `<Version>`
 - 解决方案：`STool.sln` 同时包含主程序与测试项目；`Directory.Build.targets` 移除 WinForms 自动注入的重名 using
@@ -17,10 +18,10 @@
 ```powershell
 dotnet build
 dotnet test .\Tests\STool.Tests.csproj
-Start-Process .\artifacts\bin\Debug\net9.0-windows10.0.26100.0\STool.exe
+Start-Process .\artifacts\bin\Debug\net10.0-windows10.0.26100.0\STool.exe
 .\build-portable.ps1                 # 先跑测试，再按 Directory.Build.props 的版本打包
 .\build-portable.ps1 -Version 1.6.0  # 指定版本（写入 exe 和压缩包名）
-Get-Content .\artifacts\bin\Debug\net9.0-windows10.0.26100.0\Data\Logs\app*.log
+Get-Content .\artifacts\bin\Debug\net10.0-windows10.0.26100.0\Data\Logs\app*.log
 ```
 
 构建提示 `STool.exe` 被占用时先结束进程：`Get-Process STool -ErrorAction SilentlyContinue | Stop-Process -Force`。
@@ -49,12 +50,14 @@ Core/
   AppLogging / MemoryDiagnostics  日志与诊断（诊断开关在通用设置）
 Models/AppConfig.cs           配置模型
 Modules/
-  Clipboard/                  监听（UI 线程只取内容）→ 管理器（后台查重、编码、入库）→ SQLite 存储 → 面板
-  Ocr/                        OCR 管理器与各服务
-  Screenshot/                 截图窗口（partial 按职责拆分）、ScreenshotTextLayout（版面分析，可单测）、标注
-  Translation/                翻译管理器、各服务、翻译面板
-  LanTransfer/                HTTP 服务（partial：核心/接口/发送任务/HTTP 辅助）、认证、上传、打包、手机网页
-Views/Settings/               通用、剪贴板、OCR、翻译设置页；AiServiceSettingsSection 为 AI 配置共用字段组
+  Clipboard/                  监听（UI 线程只做轻量检查，专属 STA 线程读取）→ 管理器（后台查重、编码、入库）→ SQLite 存储 → 面板
+  Ocr/                        OCR 管理器（「OCR 识别」与截图翻译两条入口）与各服务
+  Screenshot/                 截图窗口（partial 按职责拆分）、ScreenshotTextLayout（版面分析）、
+                              ScreenshotTranslationPipeline（截图翻译流程）、ScreenshotTranslationRenderer（擦除与样式），均可单测；标注
+  Translation/                翻译管理器、各服务（单条 + 批量）、截图翻译智能模式选择器、翻译面板
+  LanTransfer/                HTTP 服务（partial：核心/接口/发送任务/HTTP 辅助）、认证、上传、打包、手机网页；
+                              LanTransferController（服务生命周期、地址、修复判断，不依赖 WPF），窗口只做界面
+Views/Settings/               通用、剪贴板、服务账号、OCR、翻译设置页；AiServiceSettingsSection 为 AI 账号字段组；SecurePasswordField 为密钥输入框
 Styles/                       颜色、字体、图标、按钮、输入、窗口、导航等资源
 Tests/                        xUnit 单元测试
 docs/                         用户文档、手工回归清单、便携包 README 模板
@@ -64,7 +67,10 @@ docs/                         用户文档、手工回归清单、便携包 READ
 
 - **依赖通过构造函数传入。** 窗口和设置页从 `AppBootstrap` 拿到需要的服务（`CaptureOverlayServices`、`IAppShell` 等），不要再通过 `Application.Current` 反查服务。
 - **剪贴板写入统一走 `ClipboardWriter`**，自动粘贴统一走 `ForegroundPaste`。
-- **AI 接口统一走 `OpenAiChatClient`**：它负责地址候选、推理模型参数兼容（`max_completion_tokens`、temperature）和截断/拦截/拒答识别。
+- **快捷键**：`RegisterHotKey` 带 `MOD_NOREPEAT`；回调在 WM_HOTKEY 返回后以 Input 优先级执行，可以直接创建窗口。
+- **AI 接口统一走 `OpenAiChatClient`**：它负责地址候选、推理模型参数兼容（`max_completion_tokens`、temperature）、按平台关闭思考（`DisableReasoning`）、JSON 输出（`JsonResponse`）、不支持参数时自动去掉重试，以及截断/拦截/拒答识别。指令放 system 消息，用户文本放 user 消息。
+- **账号只在 `AppConfig.Accounts` 保存一份**（腾讯云、AI 文本模型、AI 视觉模型），各功能引用。配置结构变化时提升 `AppConfig.CurrentVersion`，在 `ConfigManager` 里按版本写一次性迁移，不要每次启动都跑。
+- **截图翻译**：① 识别（`OcrManager.RecognizeForLayoutAsync`，只用能返回位置的腾讯云/本地）→ ② 挑选（智能：`ScreenContentSelector`；快速：本地规则）→ ③ 翻译（`ITranslationService.TranslateBatchAsync`）。降级：智能 → 快速 → 整段翻译；不跨翻译服务兜底。
 - **不要拿界面文案当状态值。** 状态用枚举或常量（如 `ArchiveProgressStage`、`ArchiveStatusNames`），Toast 去重用 `dedupeKey`。
 - **UI 线程只做界面相关的事。** 文件 IO、编码、数据库查询放到后台，结果回到 UI 线程再赋值。
 - 纯逻辑尽量放进不依赖窗口的类里并补单元测试（参考 `ScreenshotTextLayout`、`ClipboardPrivacy`）。

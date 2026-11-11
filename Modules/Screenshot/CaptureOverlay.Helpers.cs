@@ -53,6 +53,9 @@ public partial class CaptureOverlay
             return crop;
         }
 
+        // 按住 Ctrl 对比原图时译文图层是透明的，导出时仍应包含译文（VisualBrush 在 Render 时才取图层内容）。
+        var blockOpacity = translationBlockCanvas.Opacity;
+        translationBlockCanvas.Opacity = 1;
         try
         {
             var target = new Rect(0, 0, pixelRect.Width, pixelRect.Height);
@@ -60,7 +63,9 @@ public partial class CaptureOverlay
             var visual = new DrawingVisual();
             using (var ctx = visual.RenderOpen())
             {
-                ctx.DrawImage(BitmapInterop.ToBitmapSource(crop), target);
+                // 原位翻译的底图直接按原始像素绘制，避免经 VisualBrush 重采样变糊。
+                var basePixels = hasBlockTranslation && _translationPlan != null ? _translationPlan.Background : crop;
+                ctx.DrawImage(BitmapInterop.ToBitmapSource(basePixels), target);
                 if (hasBlockTranslation)
                     DrawSelectionLayer(ctx, translationBlockCanvas, target);
                 if (hasTranslation)
@@ -76,21 +81,28 @@ public partial class CaptureOverlay
         }
         finally
         {
+            translationBlockCanvas.Opacity = blockOpacity;
             crop.Dispose();
         }
     }
 
-    /// <summary>把贴合选区的图层按选区大小(DIP)映射到输出像素区域。</summary>
-    private void DrawSelectionLayer(DrawingContext ctx, FrameworkElement layer, Rect target)
+    /// <summary>
+    /// 把贴合选区的图层按选区大小(DIP)映射到输出像素区域。
+    /// VisualBrush 的 Absolute Viewbox 按元素根视觉坐标解释,而 annotationCanvas 等
+    /// 图层通过 Canvas.SetLeft/Top 定位在选区左上角,采样窗口必须先平移到那里,
+    /// 否则采到的是选区左上方向偏移后的空白区域,导出时标注会消失或大幅偏移。
+    /// </summary>
+    internal static void DrawSelectionLayer(DrawingContext ctx, FrameworkElement layer, Rect target)
     {
         layer.UpdateLayout();
+        var offset = VisualTreeHelper.GetOffset(layer);
         var brush = new VisualBrush(layer)
         {
             Stretch = Stretch.Fill,
             AlignmentX = AlignmentX.Left,
             AlignmentY = AlignmentY.Top,
             ViewboxUnits = BrushMappingMode.Absolute,
-            Viewbox = new Rect(0, 0, Math.Max(1, _selection.Width), Math.Max(1, _selection.Height))
+            Viewbox = new Rect(offset.X, offset.Y, Math.Max(1, layer.RenderSize.Width), Math.Max(1, layer.RenderSize.Height))
         };
         ctx.DrawRectangle(brush, null, target);
     }

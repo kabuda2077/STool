@@ -3,10 +3,7 @@ using System.Net;
 
 namespace STool.Modules.LanTransfer;
 
-internal sealed record NetworkEndpoint(IPAddress Address, IPAddress Mask, string InterfaceName)
-{
-    public string DisplayAddress => Address.ToString();
-}
+internal sealed record NetworkEndpoint(IPAddress Address, IPAddress Mask, string InterfaceName);
 
 internal sealed record AuthExchangeRequest(string? Token, string? Code, bool Remember);
 

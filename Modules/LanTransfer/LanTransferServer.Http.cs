@@ -65,6 +65,13 @@ internal sealed partial class LanTransferServer
         return WriteJsonAsync(response, new { error = message }, cancellationToken);
     }
 
+    /// <summary>尽力写出错误；连接可能已断开，失败时只记录调试日志。</summary>
+    private static async Task TryWriteErrorAsync(HttpListenerResponse response, int statusCode, string message)
+    {
+        try { await WriteErrorAsync(response, statusCode, message, CancellationToken.None); }
+        catch (Exception ex) { Serilog.Log.Debug(ex, "Failed to write LAN error response status={Status}", statusCode); }
+    }
+
     private static string? GetCookie(HttpListenerRequest request, string name) => request.Cookies[name]?.Value;
 
     // 每个 Cookie 单独一行 Set-Cookie：HttpListener 的 AppendCookie 会把多个 Cookie
@@ -176,7 +183,4 @@ internal sealed partial class LanTransferServer
         }
         return common;
     }
-
-    private static long AddSaturating(long left, long right) =>
-        left > long.MaxValue - right ? long.MaxValue : left + right;
 }

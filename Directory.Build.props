@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <WarningsAsErrors>$(WarningsAsErrors);nullable</WarningsAsErrors>
     <ImplicitUsings>enable</ImplicitUsings>
-    <AnalysisLevel>9.0</AnalysisLevel>
+    <AnalysisLevel>10.0</AnalysisLevel>
     <EnableNETAnalyzers>true</EnableNETAnalyzers>
   </PropertyGroup>
 

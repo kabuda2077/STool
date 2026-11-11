@@ -354,11 +354,6 @@ public partial class ClipboardPanel
         }
     }
 
-    private void ClosePreview_Click(object sender, RoutedEventArgs e)
-    {
-        HideImagePreview();
-    }
-
     private void ImagePreviewOverlay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         HideImagePreview();

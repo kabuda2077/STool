@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Threading;
-using System.Threading.Channels;
 using System.Threading.Tasks;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
@@ -23,16 +22,20 @@ public class ClipboardManager : IDisposable
     /// <summary>超过这个原始像素体积的图片直接跳过，避免在后台一次性申请过大的内存。</summary>
     private const long MaxRawImageBytes = 512L * 1024 * 1024;
 
+    /// <summary>待处理队列的条数上限。</summary>
+    internal const int MaxPendingCaptures = 16;
+
+    /// <summary>待处理队列的估算总字节上限，超出时丢弃最旧的图片。</summary>
+    internal const long MaxPendingBytes = 256L * 1024 * 1024;
+
     private readonly ConfigManager _configManager;
     private readonly ClipboardMonitor _monitor;
     private readonly ClipboardStorage _storage;
     private readonly string _imagesDirectory;
-    private readonly Channel<ClipboardCapture> _captures = Channel.CreateBounded<ClipboardCapture>(
-        new BoundedChannelOptions(16)
-        {
-            FullMode = BoundedChannelFullMode.DropOldest,
-            SingleReader = true
-        });
+    private readonly PendingCaptureQueue<ClipboardCapture> _captures = new(
+        MaxPendingCaptures,
+        MaxPendingBytes,
+        capture => capture.EstimatedBytes);
     private readonly CancellationTokenSource _lifetime = new();
     private readonly Task _processing;
     private Timer? _cleanupTimer;
@@ -58,7 +61,7 @@ public class ClipboardManager : IDisposable
         {
             SourceFilter = sourceApp => ClipboardPrivacy.IsExcludedApp(sourceApp, _settings.ExcludedApps)
         };
-        _monitor.ContentCaptured += (_, capture) => _captures.Writer.TryWrite(capture);
+        _monitor.ContentCaptured += (_, capture) => _captures.TryEnqueue(capture);
         _processing = Task.Run(ProcessCapturesAsync);
     }
 
@@ -118,20 +121,15 @@ public class ClipboardManager : IDisposable
                     var text = item.TextContent ?? await Task.Run(() => _storage.GetById(item.Id)?.TextContent, cancellationToken);
                     if (!string.IsNullOrEmpty(text))
                     {
-                        await SetClipboardWithoutRecaptureAsync(
-                            () => System.Windows.Clipboard.SetText(text),
-                            cancellationToken);
+                        await ClipboardWriter.WriteTaggedAsync(data => data.SetText(text), cancellationToken);
                         restored = true;
                     }
                     break;
-
                 case ClipboardItemType.Image:
                     if (!string.IsNullOrEmpty(item.ImagePath))
                     {
                         var bitmap = await Task.Run(() => LoadImage(item.ImagePath), cancellationToken);
-                        await SetClipboardWithoutRecaptureAsync(
-                            () => System.Windows.Clipboard.SetImage(bitmap),
-                            cancellationToken);
+                        await ClipboardWriter.WriteTaggedAsync(data => data.SetImage(bitmap), cancellationToken);
                         restored = true;
                     }
                     break;
@@ -139,11 +137,7 @@ public class ClipboardManager : IDisposable
                 case ClipboardItemType.File:
                     if (item.FilePaths is { Length: > 0 } paths)
                     {
-                        var fileDropList = new System.Collections.Specialized.StringCollection();
-                        fileDropList.AddRange(paths);
-                        await SetClipboardWithoutRecaptureAsync(
-                            () => System.Windows.Clipboard.SetFileDropList(fileDropList),
-                            cancellationToken);
+                        await ClipboardWriter.SetFileDropListAsync(paths, cancellationToken);
                         restored = true;
                     }
                     break;
@@ -165,29 +159,11 @@ public class ClipboardManager : IDisposable
         }
     }
 
-    private Task SetClipboardWithoutRecaptureAsync(Action setClipboard, CancellationToken cancellationToken)
-    {
-        return ClipboardWriter.RunAsync(() =>
-        {
-            _monitor.BeginUpdateSuppression();
-            try
-            {
-                setClipboard();
-                _monitor.CompleteUpdateSuppression();
-            }
-            catch
-            {
-                _monitor.CancelUpdateSuppression();
-                throw;
-            }
-        }, cancellationToken);
-    }
-
     private async Task ProcessCapturesAsync()
     {
         try
         {
-            await foreach (var capture in _captures.Reader.ReadAllAsync(_lifetime.Token))
+            await foreach (var capture in _captures.ReadAllAsync(_lifetime.Token))
             {
                 try
                 {
@@ -437,7 +413,7 @@ public class ClipboardManager : IDisposable
 
         _cleanupTimer?.Dispose();
         _monitor.Dispose();
-        _captures.Writer.TryComplete();
+        _captures.Complete();
         try
         {
             // 等队列里已取到的内容保存完，但不无限期阻塞退出。

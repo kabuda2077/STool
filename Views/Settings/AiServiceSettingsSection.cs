@@ -14,12 +14,12 @@ namespace STool.Views.Settings;
 /// <summary>AI 平台预设：接口地址与推荐模型。</summary>
 internal sealed record AiPlatformPreset(string Url, string DefaultModel)
 {
-    public static readonly AiPlatformPreset OpenAi = new("https://api.openai.com/v1/chat/completions", "gpt-4o-mini");
+    public static readonly AiPlatformPreset OpenAi = new("https://api.openai.com/v1/chat/completions", "gpt-6-luna");
 
     // 使用 -latest 别名，Google 发布新一代 Flash 模型后无需修改预设。
     public static readonly AiPlatformPreset GoogleAiStudio = new("https://generativelanguage.googleapis.com/v1beta/openai/chat/completions", "gemini-flash-latest");
 
-    public static readonly AiPlatformPreset DeepSeek = new("https://api.deepseek.com/chat/completions", "deepseek-chat");
+    public static readonly AiPlatformPreset DeepSeek = new("https://api.deepseek.com/chat/completions", "deepseek-flash");
 
     public static readonly IReadOnlyList<AiPlatformPreset> All = new[] { OpenAi, GoogleAiStudio, DeepSeek };
 }
@@ -28,7 +28,7 @@ internal sealed record AiPlatformPreset(string Url, string DefaultModel)
 internal sealed record AiPlatformOption(string Label, object Tag, AiPlatformPreset? Preset);
 
 /// <summary>
-/// OCR 与翻译设置页共用的 AI 服务字段组：平台预设、接口地址预览、API Key、模型、获取模型与测试。
+/// 服务账号页的 AI 账号字段组：平台预设、接口地址预览、API Key、模型、获取模型与测试。
 /// </summary>
 internal sealed class AiServiceSettingsSection
 {
@@ -38,6 +38,10 @@ internal sealed class AiServiceSettingsSection
     private EncryptedSetting _apiUrlSetting = new(null);
     private EncryptedSetting _apiKeySetting = new(null);
     private bool _loading;
+    private readonly FrameworkElement _platformRow;
+    private readonly FrameworkElement _apiUrlRow;
+    private readonly FrameworkElement _apiKeyRow;
+    private Func<(string ApiUrl, string ApiKey)>? _sharedCredentials;
 
     public AiServiceSettingsSection(
         StackPanel content,
@@ -51,15 +55,18 @@ internal sealed class AiServiceSettingsSection
         foreach (var platform in platforms)
             Platform.Items.Add(new ComboBoxItem { Content = platform.Label, Tag = platform.Tag });
         Platform.SelectionChanged += Platform_SelectionChanged;
-        content.Children.Add(SettingsLayout.CreateInlineField("平台", Platform));
+        _platformRow = SettingsLayout.CreateInlineField("平台", Platform);
+        content.Children.Add(_platformRow);
 
         ApiUrl = SettingsLayout.CreateTextBox();
         _apiUrlHint = SettingsLayout.CreateHint(string.Empty, inline: false);
         ApiUrl.TextChanged += (_, _) => UpdateApiUrlPreview();
-        content.Children.Add(SettingsLayout.CreateInlineFieldWithHint("API URL", ApiUrl, _apiUrlHint));
+        _apiUrlRow = SettingsLayout.CreateInlineFieldWithHint("API URL", ApiUrl, _apiUrlHint);
+        content.Children.Add(_apiUrlRow);
 
         ApiKey = SettingsLayout.CreatePasswordField();
-        content.Children.Add(SettingsLayout.CreateInlineField("API Key", ApiKey));
+        _apiKeyRow = SettingsLayout.CreateInlineField("API Key", ApiKey);
+        content.Children.Add(_apiKeyRow);
 
         Model = SettingsLayout.CreateEditableComboBox();
         content.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", Model, "可获取列表，也可手动输入。", isLast: true));
@@ -70,6 +77,22 @@ internal sealed class AiServiceSettingsSection
         testButton.Click += Test_Click;
         content.Children.Add(SettingsLayout.CreateActionRow(fetchModels, testButton));
     }
+
+    /// <summary>
+    /// 与另一个账号共用平台、地址和密钥时隐藏这三行；获取模型与测试改用 <paramref name="sharedCredentials"/> 提供的凭据。
+    /// 传 null 恢复为独立账号。
+    /// </summary>
+    public void UseSharedCredentials(Func<(string ApiUrl, string ApiKey)>? sharedCredentials)
+    {
+        _sharedCredentials = sharedCredentials;
+        var visibility = sharedCredentials == null ? Visibility.Visible : Visibility.Collapsed;
+        _platformRow.Visibility = visibility;
+        _apiUrlRow.Visibility = visibility;
+        _apiKeyRow.Visibility = visibility;
+    }
+
+    private (string ApiUrl, string ApiKey) CurrentCredentials() =>
+        _sharedCredentials?.Invoke() ?? (ApiUrl.Text, ApiKey.Password);
 
     public ComboBox Platform { get; }
     public TextBox ApiUrl { get; }
@@ -168,7 +191,8 @@ internal sealed class AiServiceSettingsSection
         {
             try
             {
-                var models = await OpenAiChatClient.FetchModelsAsync(ApiUrl.Text, ApiKey.Password);
+                var (apiUrl, apiKey) = CurrentCredentials();
+                var models = await OpenAiChatClient.FetchModelsAsync(apiUrl, apiKey);
                 var currentModel = ModelName;
 
                 Model.Items.Clear();
@@ -197,7 +221,8 @@ internal sealed class AiServiceSettingsSection
         {
             try
             {
-                var (success, message) = await _test(ApiUrl.Text, ApiKey.Password, ModelName);
+                var (apiUrl, apiKey) = CurrentCredentials();
+                var (success, message) = await _test(apiUrl, apiKey, ModelName);
                 ToastNotification.Show(
                     success ? "测试成功" : "测试失败",
                     message,

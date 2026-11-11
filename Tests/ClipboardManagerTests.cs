@@ -74,6 +74,47 @@ public class ClipboardManagerTests
         Assert.Equal(1, attempts);
     }
 
+    [Fact]
+    public async Task ClipboardService_RunsOperationsSeriallyOnOneThread()
+    {
+        using var service = new ClipboardService();
+        var active = 0;
+        var maxActive = 0;
+        var threads = new System.Collections.Concurrent.ConcurrentDictionary<int, byte>();
+
+        var tasks = Enumerable.Range(0, 8).Select(_ => service.RunAsync(async () =>
+        {
+            threads.TryAdd(Environment.CurrentManagedThreadId, 0);
+            var current = Interlocked.Increment(ref active);
+            InterlockedMax(ref maxActive, current);
+            await Task.Delay(15);
+            Interlocked.Decrement(ref active);
+        })).ToArray();
+
+        await Task.WhenAll(tasks);
+
+        Assert.Equal(1, maxActive);
+        Assert.Single(threads);
+    }
+
+    [Fact]
+    public async Task ClipboardService_PropagatesOperationFailure()
+    {
+        using var service = new ClipboardService();
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            service.RunAsync(() => throw new InvalidOperationException("failed")));
+    }
+
+    private static void InterlockedMax(ref int target, int value)
+    {
+        int current;
+        while ((current = Volatile.Read(ref target)) < value &&
+               Interlocked.CompareExchange(ref target, value, current) != current)
+        {
+        }
+    }
+
     [Theory]
     [InlineData(true, false, null, true)]
     [InlineData(false, true, null, true)]

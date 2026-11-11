@@ -56,7 +56,6 @@ public partial class CaptureOverlay : Window
     private HwndSource? _hwndSource;
     private System.Threading.CancellationTokenSource? _translationCts;
     private System.Threading.CancellationTokenSource? _ocrCts;
-    private EventHandler? _firstRenderingHandler;
 
     [DllImport("user32.dll")] private static extern short GetAsyncKeyState(int vKey);
     [DllImport("user32.dll")] private static extern bool SetCursorPos(int x, int y);
@@ -72,6 +71,16 @@ public partial class CaptureOverlay : Window
 
     private const uint SWP_NOZORDER = 0x0004;
     private const uint SWP_NOACTIVATE = 0x0010;
+    private const uint SWP_FRAMECHANGED = 0x0020;
+
+    private const int GWL_EXSTYLE = -20;
+    private const int WS_EX_TOOLWINDOW = 0x00000080;
+
+    [DllImport("user32.dll", EntryPoint = "GetWindowLongPtrW", SetLastError = true)]
+    private static extern IntPtr GetWindowLongPtr(IntPtr hWnd, int nIndex);
+
+    [DllImport("user32.dll", EntryPoint = "SetWindowLongPtrW", SetLastError = true)]
+    private static extern IntPtr SetWindowLongPtr(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
 
     public CaptureOverlay(CaptureOverlayServices services, Stopwatch? startupTimer)
         : this(services, startupTimer, prewarm: false)
@@ -104,11 +113,6 @@ public partial class CaptureOverlay : Window
         Closed += (_, _) =>
         {
             Mouse.OverrideCursor = null;
-            if (_firstRenderingHandler != null)
-            {
-                CompositionTarget.Rendering -= _firstRenderingHandler;
-                _firstRenderingHandler = null;
-            }
         };
 
         // 覆盖整个虚拟屏幕(DIP)
@@ -126,13 +130,6 @@ public partial class CaptureOverlay : Window
         if (_startupTimer != null)
         {
             ContentRendered += OnContentRendered;
-            _firstRenderingHandler = (_, _) =>
-            {
-                CompositionTarget.Rendering -= _firstRenderingHandler;
-                _firstRenderingHandler = null;
-                LogStartupStep("CompositionTarget.Rendering first frame");
-            };
-            CompositionTarget.Rendering += _firstRenderingHandler;
         }
 
         Loaded += OnLoaded;
@@ -194,6 +191,7 @@ public partial class CaptureOverlay : Window
 
         StartCaptureDiagnostics();
         _selfHwnd = new WindowInteropHelper(this).Handle;
+        ApplyToolWindowStyle(_selfHwnd);
         _hwndSource = HwndSource.FromHwnd(_selfHwnd);
         _hwndSource?.AddHook(WndProc);
         _suppressStartupAltRelease = (GetAsyncKeyState(0x12) & 0x8000) != 0;
@@ -204,12 +202,30 @@ public partial class CaptureOverlay : Window
             _virtualScreenBounds.Top,
             _virtualScreenBounds.Width,
             _virtualScreenBounds.Height,
-            SWP_NOZORDER | SWP_NOACTIVATE))
+            SWP_NOZORDER | SWP_NOACTIVATE | SWP_FRAMECHANGED))
         {
             Log.Warning("[Capture] Failed to size overlay to the physical virtual desktop error={Error}", Marshal.GetLastWin32Error());
         }
         LogStartupStep("SourceInitialized");
         EnsureInteractionReady("SourceInitialized");
+    }
+
+    /// <summary>
+    /// 把全屏取景窗标记为工具窗口。否则 Windows 会把它当作独立全屏应用,
+    /// 首帧呈现时可能触发全屏优化与焦点交接,造成数秒级的输入和渲染停顿。
+    /// </summary>
+    private void ApplyToolWindowStyle(IntPtr hwnd)
+    {
+        var currentStyle = GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64();
+        if ((currentStyle & WS_EX_TOOLWINDOW) != 0)
+            return;
+
+        if (SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(currentStyle | WS_EX_TOOLWINDOW)) == IntPtr.Zero)
+        {
+            var error = Marshal.GetLastWin32Error();
+            if (error != 0)
+                Log.Warning("[Capture] Failed to apply tool window style error={Error}", error);
+        }
     }
 
     private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
@@ -240,17 +256,23 @@ public partial class CaptureOverlay : Window
 
         if (_suppressStartupAltRelease &&
             (msg == WM_KEYUP || msg == WM_SYSKEYUP) &&
-            wParam.ToInt32() == VK_MENU)
+            wParam.ToInt64() == VK_MENU)
         {
             _suppressStartupAltRelease = false;
             handled = true;
             return IntPtr.Zero;
         }
 
+        // 原位翻译显示时，按住 Ctrl 临时查看原图。
+        const int VK_CONTROL = 0x11;
+        if (wParam.ToInt32() == VK_CONTROL && (msg == WM_KEYDOWN || msg == WM_KEYUP))
+            SetTranslationPeek(msg == WM_KEYDOWN);
+
         if (msg != WM_KEYDOWN && msg != WM_SYSKEYDOWN)
             return IntPtr.Zero;
 
-        var key = wParam.ToInt32();
+        // WPARAM 在 64 位进程中为 64 位值，保留完整值以免窄化转换溢出。
+        var key = wParam.ToInt64();
         if (_annotation?.IsEditingText == true)
         {
             // 文字输入中:Esc 结束输入,其余按键交给输入框处理。
@@ -292,7 +314,7 @@ public partial class CaptureOverlay : Window
                 handled = true;
                 break;
             case >= VK_LEFT and <= VK_DOWN:
-                handled = NudgeWithKeyboard(key - VK_LEFT, ctrl, shift);
+                handled = NudgeWithKeyboard((int)(key - VK_LEFT), ctrl, shift);
                 break;
         }
 
@@ -377,15 +399,10 @@ public partial class CaptureOverlay : Window
 
         ContentRendered -= OnContentRendered;
         Loaded -= OnLoaded;
-        if (_firstRenderingHandler != null)
-        {
-            CompositionTarget.Rendering -= _firstRenderingHandler;
-            _firstRenderingHandler = null;
-        }
 
         _annotation?.Clear();
         _annotation = null;
-        translationBlockCanvas.Children.Clear();
+        ClearBlockTranslation();
         translationOverlayText.Text = string.Empty;
         screenshotImage.Source = null;
         magnifierView.Fill = null;

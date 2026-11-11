@@ -11,9 +11,7 @@ namespace STool.Core;
 internal sealed record AiApiHttpResult(
     string Endpoint,
     HttpStatusCode StatusCode,
-    string? ReasonPhrase,
     string Body,
-    long HeadersElapsedMilliseconds,
     long TotalElapsedMilliseconds)
 {
     public bool IsSuccessStatusCode => (int)StatusCode is >= 200 and <= 299;
@@ -48,14 +46,11 @@ internal static class AiApiRequestSender
                 request,
                 HttpCompletionOption.ResponseHeadersRead,
                 requestToken).ConfigureAwait(false);
-            var headersElapsed = stopwatch.ElapsedMilliseconds;
             var body = await response.Content.ReadAsStringAsync(requestToken).ConfigureAwait(false);
             lastResult = new AiApiHttpResult(
                 endpoint,
                 response.StatusCode,
-                response.ReasonPhrase,
                 body,
-                headersElapsed,
                 stopwatch.ElapsedMilliseconds);
 
             if (lastResult.IsSuccessStatusCode ||

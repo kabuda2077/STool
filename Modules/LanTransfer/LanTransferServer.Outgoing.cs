@@ -35,7 +35,7 @@ internal sealed partial class LanTransferServer
             _ => available[0].Name
         };
         var sourcePaths = available.Select(entry => entry.FullPath).ToArray();
-        var total = available.Aggregate(0L, (sum, entry) => AddSaturating(sum, entry.Size));
+        var total = available.Aggregate(0L, (sum, entry) => LanMath.AddSaturating(sum, entry.Size));
         var fileCount = available.Sum(entry => entry.FileCount);
         var location = GetCommonLocation(sourcePaths);
         var session = _sessions.CreateOutgoing(
@@ -382,8 +382,8 @@ internal sealed partial class LanTransferServer
 
         public bool IsReady => Payloads.All(payload => payload.IsReady);
         public bool IsDownloadComplete => Payloads.All(payload => payload.Completed);
-        public long DownloadSize => Payloads.Aggregate(0L, (sum, payload) => AddSaturating(sum, payload.DownloadSize));
-        public long TransferredBytes => Payloads.Aggregate(0L, (sum, payload) => AddSaturating(sum, payload.CoveredBytes));
+        public long DownloadSize => Payloads.Aggregate(0L, (sum, payload) => LanMath.AddSaturating(sum, payload.DownloadSize));
+        public long TransferredBytes => Payloads.Aggregate(0L, (sum, payload) => LanMath.AddSaturating(sum, payload.CoveredBytes));
 
         public bool TryGetPayload(string payloadId, out OutgoingPayload? payload)
         {
@@ -396,8 +396,8 @@ internal sealed partial class LanTransferServer
             Payloads.Aggregate(
                 (Processed: 0L, Total: 0L),
                 (progress, payload) => (
-                    AddSaturating(progress.Processed, payload.PreparationProcessed),
-                    AddSaturating(progress.Total, payload.PreparationTotal)));
+                    LanMath.AddSaturating(progress.Processed, payload.PreparationProcessed),
+                    LanMath.AddSaturating(progress.Total, payload.PreparationTotal)));
 
         public IReadOnlyList<TransferDownloadDto> CreateDownloadDtos() =>
             Payloads.Select(payload => payload.CreateDownloadDto(Id, Payloads.Count == 1)).ToArray();
@@ -437,7 +437,7 @@ internal sealed partial class LanTransferServer
             NeedsArchive = needsArchive;
             _downloadPath = downloadPath;
             _downloadSize = Math.Max(0, downloadSize);
-            _preparationTotal = entries.Aggregate(0L, (sum, entry) => AddSaturating(sum, entry.Size));
+            _preparationTotal = entries.Aggregate(0L, (sum, entry) => LanMath.AddSaturating(sum, entry.Size));
             _preparationProcessed = needsArchive ? 0 : _preparationTotal;
             _ready = !needsArchive;
         }

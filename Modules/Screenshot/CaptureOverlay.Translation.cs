@@ -1,258 +1,134 @@
 using System;
-using System.Collections.Generic;
 using System.Globalization;
-using System.Linq;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 using Serilog;
-using STool.Modules.Ocr;
-using STool.Modules.Translation;
-using Brush = System.Windows.Media.Brush;
 
 namespace STool.Modules.Screenshot;
 
 /// <summary>
-/// CaptureOverlay 原位翻译：调用版面分析与翻译服务，把译文渲染回截图原位置。
+/// CaptureOverlay 原位翻译：流水线在 <see cref="ScreenshotTranslationPipeline"/>，
+/// 擦除与样式分析在 <see cref="ScreenshotTranslationRenderer"/>，这里只负责把结果画到选区上。
 /// </summary>
 public partial class CaptureOverlay
 {
+    /// <summary>放不下时最多缩到原字号的比例。</summary>
+    private const double MinFontScale = 0.7;
     private const double MinTranslationFontSize = 9;
 
-    private async Task<bool> TryShowBlockTranslationAsync(
-        OcrResult ocrResult,
-        TranslationManager translationManager,
-        System.Drawing.Bitmap crop,
-        CancellationToken cancellationToken)
+    private TranslationRenderPlan? _translationPlan;
+
+    /// <summary>把原位翻译结果渲染到选区：底图换成擦除原文后的图，译文按原样式排版。</summary>
+    private void ShowTranslationParagraphs(ScreenshotTranslationResult result, TranslationRenderPlan plan)
     {
-        try
-        {
-            var rawLines = ScreenshotTextLayout.BuildLines(ocrResult, crop.Width, crop.Height);
-            Log.Information(
-                "[ScreenshotTranslate] OCR blocks={BlockCount} mergedLines={LineCount} provider={Provider}",
-                ocrResult.TextBlocks.Count,
-                rawLines.Count,
-                ocrResult.Provider);
-
-            if (rawLines.Count < 2)
-                return false;
-
-            if (translationManager.GetConfiguredScreenshotMode() == STool.Models.ScreenshotTranslationMode.Smart)
-            {
-                if (await TryShowSmartTranslationAsync(rawLines, translationManager, crop, cancellationToken))
-                    return true;
-
-                // 智能模式不可用或失败,提示用户而不是静默回退
-                Log.Warning("[ScreenshotTranslate] Smart mode unavailable or failed");
-                Core.ToastNotification.Show("智能翻译不可用", "AI 未配置或调用失败,请检查设置", Core.ToastNotification.ToastType.Warning);
-                return false;
-            }
-
-            return await TryShowFastTranslationAsync(rawLines, translationManager, crop, cancellationToken);
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "[ScreenshotTranslate] Block translation overlay failed; falling back");
-            return false;
-        }
-    }
-
-    private async Task<bool> TryShowSmartTranslationAsync(
-        IReadOnlyList<TranslationLine> rawLines,
-        TranslationManager translationManager,
-        System.Drawing.Bitmap crop,
-        CancellationToken cancellationToken)
-    {
-        var selector = translationManager.TryCreateContentSelector();
-        if (selector == null)
-        {
-            Log.Information("[ScreenshotTranslate] Smart mode unavailable; falling back to whole-block translation");
-            return false;
-        }
-
-        var targetLanguage = TranslationManager.ResolveTargetLanguage(
-            string.Join("\n", rawLines.Select(line => line.Text)),
-            translationManager.GetConfiguredTranslationMode());
-
-        var contentLines = rawLines
-            .Select((line, index) => new ScreenContentLine(
-                index,
-                line.Text,
-                line.Box.X,
-                line.Box.Y,
-                line.Box.Width,
-                line.Box.Height))
-            .ToArray();
-
-        var translated = await selector.SelectAndTranslateAsync(contentLines, targetLanguage, cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        if (translated == null || translated.Count == 0)
-        {
-            Log.Information("[ScreenshotTranslate] Smart selection empty/failed; falling back to whole-block translation");
-            return false;
-        }
-
-        var paragraphs = new List<TranslationParagraph>();
-        var translations = new List<string>();
-        foreach (var item in translated)
-        {
-            if (item.Index < 0 || item.Index >= rawLines.Count)
-                continue;
-
-            var line = rawLines[item.Index];
-            paragraphs.Add(new TranslationParagraph(line.Text, line.Box, line.Box.Height));
-            translations.Add(item.Translation);
-        }
-
-        if (paragraphs.Count == 0)
-            return false;
-
-        Log.Information(
-            "[ScreenshotTranslate] Smart translated lines={Selected}/{Total}",
-            paragraphs.Count,
-            rawLines.Count);
-
-        ShowTranslationParagraphs(paragraphs, translations, crop);
-        return true;
-    }
-
-    private async Task<bool> TryShowFastTranslationAsync(
-        IReadOnlyList<TranslationLine> rawLines,
-        TranslationManager translationManager,
-        System.Drawing.Bitmap crop,
-        CancellationToken cancellationToken)
-    {
-        var targetLanguage = TranslationManager.ResolveTargetLanguage(
-            string.Join("\n", rawLines.Select(line => line.Text)),
-            translationManager.GetConfiguredTranslationMode());
-        var selectedLines = rawLines
-            .Where(line => ScreenshotTextLayout.IsLikelyTranslatableContent(line, crop.Width, crop.Height, targetLanguage))
-            .ToList();
-
-        if (selectedLines.Count == 0)
-        {
-            Log.Information("[ScreenshotTranslate] Fast selection empty; falling back to whole-block");
-            return false;
-        }
-
-        if (selectedLines.Count < rawLines.Count)
-        {
-            Log.Debug(
-                "[ScreenshotTranslate] Fast mode filtered lines={Count}",
-                rawLines.Count - selectedLines.Count);
-        }
-
-        var paragraphs = ScreenshotTextLayout.GroupParagraphs(selectedLines);
-        if (paragraphs.Count == 0)
-            return false;
-
-        Log.Information(
-            "[ScreenshotTranslate] Fast selected lines={Selected}/{Total} paragraphs={Paragraphs}",
-            selectedLines.Count,
-            rawLines.Count,
-            paragraphs.Count);
-
-        var translated = await translationManager.TranslateBlocksAsync(
-            paragraphs.Select(p => p.Text).ToArray(),
-            targetLanguage: targetLanguage,
-            cancellationToken: cancellationToken);
-        cancellationToken.ThrowIfCancellationRequested();
-        if (!translated.Success || translated.TranslatedBlocks.Count != paragraphs.Count)
-        {
-            Log.Information(
-                "[ScreenshotTranslate] Fast paragraph translation fallback reason={Reason}",
-                translated.ErrorMessage ?? "count mismatch");
-            return false;
-        }
-
-        ShowTranslationParagraphs(paragraphs, translated.TranslatedBlocks, crop);
-        Log.Information("[ScreenshotTranslate] Fast block translation overlay shown paragraphs={Count}", paragraphs.Count);
-        return true;
-    }
-
-    private void ShowTranslationParagraphs(
-        IReadOnlyList<TranslationParagraph> paragraphs,
-        IReadOnlyList<string> translations,
-        System.Drawing.Bitmap crop)
-    {
-        translationBlockCanvas.Children.Clear();
+        ClearBlockTranslation();
         translationOverlay.Visibility = Visibility.Collapsed;
         translationOverlayText.Text = string.Empty;
-        var typeface = new Typeface(System.Windows.SystemFonts.MessageFontFamily, FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+        _translationPlan = plan;
+
         var pixelsPerDip = VisualTreeHelper.GetDpi(this).PixelsPerDip;
+        var fontFamily = TranslationFontFamily(result.TargetLanguage);
 
-        for (var i = 0; i < paragraphs.Count; i++)
+        var backgroundImage = new System.Windows.Controls.Image
         {
-            var paragraph = paragraphs[i];
-            var rect = ExpandRect(PhysicalLineToDipRect(paragraph.Box), 2, 1.5, _selection.Width, _selection.Height);
-            if (rect.Width < 6 || rect.Height < 6)
-                continue;
+            Source = BitmapInterop.ToBitmapSource(plan.Background),
+            Width = _selection.Width,
+            Height = _selection.Height,
+            Stretch = Stretch.Fill
+        };
+        RenderOptions.SetBitmapScalingMode(backgroundImage, BitmapScalingMode.NearestNeighbor);
+        translationBlockCanvas.Children.Add(backgroundImage);
 
-            var (sampled, uniform) = ScreenshotTextLayout.SampleBackground(crop, paragraph.Box, paragraph.MedianLineHeight);
-            var background = System.Windows.Media.Color.FromRgb(sampled.R, sampled.G, sampled.B);
-            var foreground = ContrastBrush(background);
+        var truncated = 0;
+        for (var i = 0; i < plan.Blocks.Count && i < result.Translations.Count; i++)
+        {
+            var style = plan.Blocks[i];
+            var translation = result.Translations[i];
+            var weight = style.Bold ? FontWeights.Bold : FontWeights.Normal;
+            var typeface = new Typeface(fontFamily, FontStyles.Normal, weight, FontStretches.Normal);
+            var lineRatio = Math.Clamp(style.LinePitchPx / Math.Max(1, style.FontPx), 1.15, 1.8);
+            var baseSize = Math.Max(MinTranslationFontSize, style.FontPx / BitmapScaleY);
 
-            // 背景非单色(渐变/图片)时,纯色矩形会很违和 —— 回退到半透明蒙版,降低突兀感。
-            if (!uniform)
-                background = System.Windows.Media.Color.FromArgb(232, background.R, background.G, background.B);
-
-            const double paddingX = 3.0;
-            const double paddingY = 2.0;
-            var contentWidth = Math.Max(1, rect.Width - paddingX * 2);
-            var contentHeight = Math.Max(1, rect.Height - paddingY * 2);
-
-            // 整段统一字号:以段内行高中位数为基准,再按译文是否塞得下整体缩放一次。
-            var translation = translations[i];
-            var baseSize = Clamp(paragraph.MedianLineHeight / BitmapScaleY * 0.82, MinTranslationFontSize, 26);
-            var fontSize = ScreenshotTextLayout.FitFontSize(
-                baseSize,
-                MinTranslationFontSize,
-                size => MeasureTextHeight(translation, typeface, size, contentWidth, pixelsPerDip) <= contentHeight);
+            // 依次尝试：原区域原字号 → 扩展区域原字号 → 扩展区域缩小字号（下限原字号的 70%）。
+            var box = PhysicalLineToDipRect(style.Box);
+            var maxBox = PhysicalLineToDipRect(style.MaxBox);
+            var fontSize = baseSize;
+            var area = box;
+            if (!Fits(translation, typeface, baseSize, lineRatio, box, pixelsPerDip))
+            {
+                if (Fits(translation, typeface, baseSize, lineRatio, maxBox, pixelsPerDip))
+                {
+                    // 扩展区域放得下时，高度只取实际需要的部分。
+                    var needed = MeasureTextHeight(translation, typeface, baseSize, lineRatio, maxBox.Width, pixelsPerDip);
+                    area = new Rect(maxBox.X, maxBox.Y, maxBox.Width, Math.Max(box.Height, Math.Min(maxBox.Height, needed)));
+                }
+                else
+                {
+                    area = maxBox;
+                    var minSize = Math.Max(MinTranslationFontSize, baseSize * MinFontScale);
+                    fontSize = ScreenshotTextLayout.FitFontSize(
+                        baseSize,
+                        minSize,
+                        size => Fits(translation, typeface, size, lineRatio, maxBox, pixelsPerDip));
+                    if (!Fits(translation, typeface, fontSize, lineRatio, maxBox, pixelsPerDip))
+                        truncated++;
+                }
+            }
 
             var text = new TextBlock
             {
                 Text = translation,
                 TextWrapping = TextWrapping.Wrap,
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                FontFamily = System.Windows.SystemFonts.MessageFontFamily,
+                FontFamily = fontFamily,
+                FontWeight = weight,
                 FontSize = fontSize,
-                LineHeight = Math.Ceiling(fontSize * 1.25),
-                Foreground = foreground,
-                MaxHeight = contentHeight,
-                MaxWidth = contentWidth,
+                LineHeight = Math.Ceiling(fontSize * lineRatio),
+                LineStackingStrategy = LineStackingStrategy.BlockLineHeight,
+                Foreground = new SolidColorBrush(System.Windows.Media.Color.FromRgb(style.TextColor.R, style.TextColor.G, style.TextColor.B)),
+                TextAlignment = style.Alignment switch
+                {
+                    TranslationTextAlignment.Center => TextAlignment.Center,
+                    TranslationTextAlignment.Right => TextAlignment.Right,
+                    _ => TextAlignment.Left
+                },
+                Width = area.Width,
+                MaxHeight = area.Height,
                 ClipToBounds = true
             };
 
-            var block = new Border
-            {
-                Background = new SolidColorBrush(background),
-                CornerRadius = new CornerRadius(Math.Min(3, rect.Height / 8)),
-                Padding = new Thickness(paddingX, paddingY, paddingX, paddingY),
-                Width = rect.Width,
-                Height = rect.Height,
-                ClipToBounds = true,
-                Child = text
-            };
-
-            Canvas.SetLeft(block, rect.X);
-            Canvas.SetTop(block, rect.Y);
-            translationBlockCanvas.Children.Add(block);
+            // 译文比原文矮时（如单行），在原文区域内垂直居中。
+            var measured = Math.Min(area.Height, MeasureTextHeight(translation, typeface, fontSize, lineRatio, area.Width, pixelsPerDip));
+            var top = measured < box.Height ? box.Y + (box.Height - measured) / 2 : area.Y;
+            Canvas.SetLeft(text, area.X);
+            Canvas.SetTop(text, top);
+            translationBlockCanvas.Children.Add(text);
         }
 
-        if (translationBlockCanvas.Children.Count == 0)
-            throw new InvalidOperationException("没有可渲染的翻译块");
+        if (truncated > 0)
+            Log.Information("[ScreenshotTranslate] truncated blocks={Count}", truncated);
 
         translationBlockCanvas.Visibility = Visibility.Visible;
         UpdateVisuals();
     }
 
-    private static double MeasureTextHeight(string text, Typeface typeface, double size, double width, double pixelsPerDip)
+    private System.Windows.Media.FontFamily TranslationFontFamily(string targetLanguage)
+    {
+        var key = targetLanguage switch
+        {
+            "zh" or "zh-CHS" or "zh-Hans" or "zh-TW" => "ScreenshotTranslationFontZh",
+            "ja" => "ScreenshotTranslationFontJa",
+            "ko" => "ScreenshotTranslationFontKo",
+            _ => "ScreenshotTranslationFontLatin"
+        };
+        return (System.Windows.Media.FontFamily)FindResource(key);
+    }
+
+    private static bool Fits(string text, Typeface typeface, double size, double lineRatio, Rect area, double pixelsPerDip) =>
+        MeasureTextHeight(text, typeface, size, lineRatio, area.Width, pixelsPerDip) <= area.Height + 0.5;
+
+    private static double MeasureTextHeight(string text, Typeface typeface, double size, double lineRatio, double width, double pixelsPerDip)
     {
         var formatted = new FormattedText(
             text,
@@ -264,9 +140,25 @@ public partial class CaptureOverlay
             pixelsPerDip)
         {
             MaxTextWidth = Math.Max(1, width),
-            LineHeight = Math.Ceiling(size * 1.25)
+            LineHeight = Math.Ceiling(size * lineRatio)
         };
         return formatted.Height;
+    }
+
+    /// <summary>按住 Ctrl 临时显示原图，松开恢复译文。</summary>
+    private void SetTranslationPeek(bool showOriginal)
+    {
+        if (translationBlockCanvas.Visibility != Visibility.Visible)
+            return;
+        translationBlockCanvas.Opacity = showOriginal ? 0 : 1;
+    }
+
+    private void ClearBlockTranslation()
+    {
+        translationBlockCanvas.Children.Clear();
+        translationBlockCanvas.Opacity = 1;
+        _translationPlan?.Dispose();
+        _translationPlan = null;
     }
 
     private Rect PhysicalLineToDipRect(System.Drawing.Rectangle box)
@@ -278,27 +170,10 @@ public partial class CaptureOverlay
             box.Height / BitmapScaleY);
     }
 
-    private Brush ContrastBrush(System.Windows.Media.Color background)
-    {
-        var luminance = (0.299 * background.R + 0.587 * background.G + 0.114 * background.B) / 255.0;
-        return luminance > 0.55
-            ? ResourceBrush("ScreenshotTranslationDarkTextBrush")
-            : ResourceBrush("OnPrimaryBrush");
-    }
-
-    private static Rect ExpandRect(Rect rect, double x, double y, double maxWidth, double maxHeight)
-    {
-        var left = Clamp(rect.Left - x, 0, maxWidth);
-        var top = Clamp(rect.Top - y, 0, maxHeight);
-        var right = Clamp(rect.Right + x, 0, maxWidth);
-        var bottom = Clamp(rect.Bottom + y, 0, maxHeight);
-        return new Rect(left, top, Math.Max(1, right - left), Math.Max(1, bottom - top));
-    }
-
     private void ShowTranslationOverlay(string text)
     {
         translationBlockCanvas.Visibility = Visibility.Collapsed;
-        translationBlockCanvas.Children.Clear();
+        ClearBlockTranslation();
         translationLoadingIndicator.Visibility = Visibility.Collapsed;
         translationOverlayScroll.Visibility = Visibility.Visible;
         translationOverlayText.Text = text;
@@ -309,7 +184,7 @@ public partial class CaptureOverlay
     private void ShowTranslationLoading()
     {
         translationBlockCanvas.Visibility = Visibility.Collapsed;
-        translationBlockCanvas.Children.Clear();
+        ClearBlockTranslation();
         translationOverlayText.Text = string.Empty;
         translationOverlayScroll.Visibility = Visibility.Collapsed;
         translationLoadingIndicator.Visibility = Visibility.Visible;
@@ -320,7 +195,7 @@ public partial class CaptureOverlay
     private void HideTranslationOverlay()
     {
         translationBlockCanvas.Visibility = Visibility.Collapsed;
-        translationBlockCanvas.Children.Clear();
+        ClearBlockTranslation();
         translationOverlay.Visibility = Visibility.Collapsed;
         translationLoadingIndicator.Visibility = Visibility.Collapsed;
         translationOverlayScroll.Visibility = Visibility.Visible;

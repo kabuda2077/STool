@@ -37,6 +37,16 @@ public partial class SettingsWindow : Window
         SelectNavigationButton(btnClipboardSettings);
     }
 
+    private void BtnAccountsSettings_Click(object sender, RoutedEventArgs e) => ShowAccountsSettings();
+
+    /// <summary>OCR/翻译页提示"未配置账号"时跳转到服务账号页。</summary>
+    private void ShowAccountsSettings()
+    {
+        Title = "服务账号";
+        ShowPanel(new AccountsSettingsPanel(_configManager));
+        SelectNavigationButton(btnAccountsSettings);
+    }
+
     private void BtnOcrSettings_Click(object sender, RoutedEventArgs e)
     {
         ShowOcrSettings();
@@ -82,12 +92,9 @@ public partial class SettingsWindow : Window
     {
         // 清除之前的选中状态
         if (_currentSelectedButton != null)
-        {
-            _currentSelectedButton.Tag = null;
-        }
+            NavigationSelection.SetIsSelected(_currentSelectedButton, false);
 
-        // 设置当前按钮为选中
-        button.Tag = "Selected";
+        NavigationSelection.SetIsSelected(button, true);
         _currentSelectedButton = button;
     }
 
@@ -100,13 +107,13 @@ public partial class SettingsWindow : Window
     private void ShowOcrSettings()
     {
         Title = "OCR 设置";
-        ShowPanel(new OcrSettingsPanel(_configManager));
+        ShowPanel(new OcrSettingsPanel(_configManager, ShowAccountsSettings));
     }
 
     private void ShowTranslationSettings()
     {
         Title = "翻译设置";
-        ShowPanel(new TranslationSettingsPanel(_configManager));
+        ShowPanel(new TranslationSettingsPanel(_configManager, ShowAccountsSettings));
     }
 
     private void ShowPanel(UIElement panel)

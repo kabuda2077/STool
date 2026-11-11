@@ -24,6 +24,9 @@ internal readonly record struct ParsedHotkey(uint Modifiers, uint VirtualKey, st
 public class HotkeyManager : IDisposable
 {
     private const int WM_HOTKEY = 0x0312;
+
+    /// <summary>按住组合键时不重复触发（Windows 7+）。</summary>
+    internal const uint MOD_NOREPEAT = 0x4000;
     private HwndSource? _hwndSource;
     private readonly Dictionary<int, Action> _hotkeyActions = new();
     private int _currentId = 1;
@@ -61,7 +64,7 @@ public class HotkeyManager : IDisposable
         }
 
         var id = _currentId++;
-        if (RegisterHotKey(_hwndSource.Handle, id, parsed.Modifiers, parsed.VirtualKey))
+        if (RegisterHotKey(_hwndSource.Handle, id, parsed.Modifiers | MOD_NOREPEAT, parsed.VirtualKey))
         {
             _hotkeyActions[id] = action;
             return new HotkeyRegistrationResult(featureName, parsed.NormalizedText, true);
@@ -182,7 +185,18 @@ public class HotkeyManager : IDisposable
             var id = wParam.ToInt32();
             if (_hotkeyActions.TryGetValue(id, out var action))
             {
-                action();
+                // 不在热键消息里直接创建窗口：先让消息处理返回，再以输入优先级执行，
+                // 避免窗口创建期间的模态/激活交互阻塞热键消息本身。
+                var receivedAt = System.Diagnostics.Stopwatch.GetTimestamp();
+                System.Windows.Threading.Dispatcher.CurrentDispatcher.BeginInvoke(
+                    System.Windows.Threading.DispatcherPriority.Input,
+                    new Action(() =>
+                    {
+                        var queuedMs = System.Diagnostics.Stopwatch.GetElapsedTime(receivedAt).TotalMilliseconds;
+                        if (queuedMs > 100)
+                            Serilog.Log.Warning("Hotkey id={Id} waited {QueuedMs:F0}ms for the UI thread", id, queuedMs);
+                        action();
+                    }));
                 handled = true;
             }
         }

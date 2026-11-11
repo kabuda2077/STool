@@ -151,20 +151,6 @@
             <Setter Property="Margin" Value="0,6,6,0"/>
         </Style>
 
-        <Style x:Key="ClipboardSearchSurface" TargetType="Border" BasedOn="{StaticResource ToolPanelToolbarSurface}">
-            <Setter Property="Height" Value="36"/>
-            <Setter Property="Padding" Value="12,0"/>
-            <Setter Property="HorizontalAlignment" Value="Right"/>
-            <Setter Property="MinWidth" Value="218"/>
-            <Setter Property="MaxWidth" Value="300"/>
-            <Setter Property="Width" Value="Auto"/>
-            <Style.Triggers>
-                <Trigger Property="IsKeyboardFocusWithin" Value="True">
-                    <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
         <Style x:Key="ClipboardListScrollBar" TargetType="ScrollBar">
             <Setter Property="Width" Value="10"/>
             <Setter Property="MinWidth" Value="10"/>
@@ -210,13 +196,13 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="10,52,10,10">
+    <Grid Style="{StaticResource ToolPanelContentLayout}">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <Grid Grid.Row="0" Margin="0,0,0,8">
+        <Grid Grid.Row="0" Style="{StaticResource ToolPanelHeaderRow}">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto"/>
                 <ColumnDefinition Width="*"/>
@@ -254,7 +240,7 @@
             </Border>
 
             <Border Grid.Column="1"
-                    Style="{StaticResource ClipboardSearchSurface}">
+                    Style="{StaticResource ToolPanelHeaderField}">
                 <Grid>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>

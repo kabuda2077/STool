@@ -136,7 +136,6 @@ public partial class TranslationPanel : Window
     {
         var hasText = !string.IsNullOrEmpty(txtSource.Text);
         srcWatermark.Visibility = hasText ? Visibility.Collapsed : Visibility.Visible;
-        sourceActions.Visibility = hasText ? Visibility.Visible : Visibility.Collapsed;
         if (_busy)
             CancelCurrentTranslation();
 
@@ -167,7 +166,7 @@ public partial class TranslationPanel : Window
         {
             _busy = true;
             SetResultStatus("正在翻译…");
-            translationActionIcon.Data = (System.Windows.Media.Geometry)FindResource("IconX");
+            btnTranslateSource.Content = "取消";
             btnTranslateSource.ToolTip = "取消翻译";
             txtTarget.Text = string.Empty;
             loadingIndicator.Visibility = Visibility.Visible;
@@ -230,7 +229,7 @@ public partial class TranslationPanel : Window
     private void ResetTranslationUi()
     {
         _busy = false;
-        translationActionIcon.Data = (System.Windows.Media.Geometry)FindResource("IconLanguages");
+        btnTranslateSource.Content = "翻译";
         btnTranslateSource.ToolTip = "翻译 (Ctrl+Enter)";
         btnTranslateSource.IsEnabled = !string.IsNullOrWhiteSpace(txtSource.Text);
         actionBar.IsEnabled = _hasValidResult;

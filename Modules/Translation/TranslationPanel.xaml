@@ -18,37 +18,6 @@
 
         <Style x:Key="TranslationTextBox" TargetType="TextBox" BasedOn="{StaticResource ToolPanelTextBox}"/>
 
-        <Style x:Key="SourceClearButton" TargetType="Button">
-            <Setter Property="AutomationProperties.Name" Value="{Binding ToolTip, RelativeSource={RelativeSource Self}}"/>
-            <Setter Property="Width" Value="32"/>
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FocusVisualStyle" Value="{StaticResource ModernFocusVisual}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="b"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="{StaticResource CornerRadiusMedium}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="b" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="b" Property="Opacity" Value="0.82"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
         <ControlTemplate x:Key="TranslationLanguageComboToggleTemplate" TargetType="ToggleButton">
             <Border x:Name="Root"
                     Background="{TemplateBinding Background}"
@@ -173,54 +142,25 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="10,52,10,10">
+    <Grid Style="{StaticResource ToolPanelContentLayout}">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="1*" MinHeight="120"/>
             <RowDefinition Height="1.08*" MinHeight="160"/>
         </Grid.RowDefinitions>
 
-        <!-- 上半部:输入 + 工具栏 -->
-        <Border Grid.Row="0"
-                Style="{StaticResource TranslationPane}">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="*"/>
-                    <RowDefinition Height="Auto"/>
-                </Grid.RowDefinitions>
-
-                <Grid Grid.Row="0">
-                <TextBox x:Name="txtSource"
-                         Style="{StaticResource TranslationTextBox}"
-                         TextWrapping="Wrap"
-                         AcceptsReturn="True"
-                         VerticalScrollBarVisibility="Auto"
-                         AutomationProperties.Name="翻译原文"
-                         TextChanged="TxtSource_TextChanged"/>
-                <TextBlock x:Name="srcWatermark"
-                           Text="输入或粘贴要翻译的内容"
-                           FontSize="{StaticResource FontSizeBody}"
-                           Foreground="{StaticResource TextSecondaryBrush}"
-                           Opacity="0.86"
-                           IsHitTestVisible="False"
-                           VerticalAlignment="Top"
-                           Margin="0,0,0,0"/>
-                </Grid>
-
-                <!-- 翻译参数属于输入条件，收进输入面板底部。 -->
-                <Grid Grid.Row="1" Margin="0,10,0,0">
+        <!-- 与剪贴板历史共用标题下的筛选栏布局。 -->
+        <Grid Grid.Row="0" Style="{StaticResource ToolPanelHeaderRow}">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
-                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
 
                     <!-- 提供商切换 -->
-                    <Border Grid.Column="3"
+                    <Border Grid.Column="0"
                             x:Name="providerContainer"
                             Style="{StaticResource SegmentedContainer}"
-                            Background="{StaticResource SurfaceAltBrush}"
-                            Effect="{x:Null}">
+                            HorizontalAlignment="Left">
                         <Grid x:Name="providerSegmentGrid" Height="32" ClipToBounds="True">
                             <Border x:Name="providerSlider"
                                     Style="{StaticResource SegmentedSlider}"
@@ -235,25 +175,27 @@
 
                             <Grid>
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" MinWidth="82"/>
-                                    <ColumnDefinition Width="Auto" MinWidth="82"/>
-                                    <ColumnDefinition Width="Auto" MinWidth="82"/>
+                                    <ColumnDefinition Width="Auto" MinWidth="58"/>
+                                    <ColumnDefinition Width="Auto" MinWidth="58"/>
+                                    <ColumnDefinition Width="Auto" MinWidth="58"/>
                                 </Grid.ColumnDefinitions>
-                                <Button x:Name="btnProviderGoogle" Grid.Column="0" Style="{StaticResource SegmentedButton}" MinWidth="82" Click="Provider_Click" Tag="on" Content="谷歌翻译"/>
-                                <Button x:Name="btnProviderTencent" Grid.Column="1" Style="{StaticResource SegmentedButton}" MinWidth="82" Click="Provider_Click" Content="腾讯翻译"/>
-                                <Button x:Name="btnProviderAi" Grid.Column="2" Style="{StaticResource SegmentedButton}" MinWidth="82" Click="Provider_Click" Content="AI 翻译"/>
+                                <Button x:Name="btnProviderGoogle" Grid.Column="0" Style="{StaticResource SegmentedButton}" MinWidth="58" Click="Provider_Click" Tag="on" Content="谷歌"/>
+                                <Button x:Name="btnProviderTencent" Grid.Column="1" Style="{StaticResource SegmentedButton}" MinWidth="58" Click="Provider_Click" Content="腾讯"/>
+                                <Button x:Name="btnProviderAi" Grid.Column="2" Style="{StaticResource SegmentedButton}" MinWidth="58" Click="Provider_Click" Content="AI"/>
                             </Grid>
                         </Grid>
                     </Border>
 
                     <!-- 翻译策略 -->
-                    <Border Grid.Column="0"
-                            Style="{StaticResource SegmentedContainer}"
-                            Background="{StaticResource SurfaceAltBrush}"
-                            Effect="{x:Null}">
+                    <Border Grid.Column="1"
+                            Style="{StaticResource ToolPanelHeaderField}"
+                            MinWidth="0"
+                            Padding="2"
+                            Margin="12,0,0,0">
                         <ComboBox x:Name="cmbMode"
                                   Style="{StaticResource TranslationLanguageComboBox}"
                                   Width="106"
+                                  HorizontalAlignment="Stretch"
                                   Height="32"
                                   AutomationProperties.Name="切换翻译语言"
                                   SelectedIndex="0"
@@ -326,50 +268,35 @@
                         </ComboBox>
                     </Border>
 
-                    <StackPanel x:Name="sourceActions"
-                                Grid.Column="1"
-                                Orientation="Horizontal"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Center"
-                                Margin="8,0,0,0"
-                                Visibility="Collapsed">
-                        <Button x:Name="btnTranslateSource"
-                                Style="{StaticResource SourceClearButton}"
-                                ToolTip="翻译 (Ctrl+Enter)"
-                                Click="BtnTranslateSource_Click">
-                            <Viewbox Style="{StaticResource ToolIconSmall}">
-                                <Canvas Width="24" Height="24">
-                                    <Path x:Name="translationActionIcon" Data="{StaticResource IconLanguages}"
-                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                          StrokeThickness="2"
-                                          StrokeStartLineCap="Round"
-                                          StrokeEndLineCap="Round"
-                                          StrokeLineJoin="Round"/>
-                                </Canvas>
-                            </Viewbox>
-                        </Button>
-                        <Button x:Name="btnClearSource"
-                                Style="{StaticResource SourceClearButton}"
-                                Margin="4,0,0,0"
-                                ToolTip="清空"
-                                Click="BtnClearSource_Click">
-                            <Viewbox Style="{StaticResource ToolIconSmall}">
-                                <Canvas Width="24" Height="24">
-                                    <Path Data="{StaticResource IconX}"
-                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                          StrokeThickness="2"
-                                          StrokeStartLineCap="Round"
-                                          StrokeEndLineCap="Round"/>
-                                </Canvas>
-                            </Viewbox>
-                        </Button>
-                    </StackPanel>
+        </Grid>
+
+        <Border Grid.Row="1" Style="{StaticResource TranslationPane}" Margin="0,4,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="*"/>
+                    <RowDefinition Height="Auto"/>
+                </Grid.RowDefinitions>
+                <Grid>
+                    <TextBox x:Name="txtSource" Style="{StaticResource TranslationTextBox}"
+                             TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
+                             AutomationProperties.Name="翻译原文"
+                             AutomationProperties.HelpText="Enter 翻译，Shift+Enter 换行"
+                             TextChanged="TxtSource_TextChanged"/>
+                    <TextBlock x:Name="srcWatermark" Style="{StaticResource InputPlaceholderText}"
+                               Text="输入或粘贴要翻译的内容&#10;Enter 翻译 · Shift+Enter 换行"/>
                 </Grid>
+                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
+                    <Button x:Name="btnClearSource" Style="{StaticResource ToolPanelSecondaryButton}"
+                            Content="清空" IsEnabled="False" Click="BtnClearSource_Click"/>
+                    <Button x:Name="btnTranslateSource" Style="{StaticResource ToolPanelPrimaryButton}"
+                            Content="翻译" IsEnabled="False" Margin="8,0,0,0"
+                            ToolTip="翻译 (Ctrl+Enter)" Click="BtnTranslateSource_Click"/>
+                </StackPanel>
             </Grid>
         </Border>
 
         <!-- 下半部:翻译结果 -->
-        <Border Grid.Row="1"
+        <Border Grid.Row="2"
                 Style="{StaticResource TranslationPane}"
                 Margin="0,10,0,0">
             <Grid>
@@ -397,13 +324,7 @@
                          VerticalScrollBarVisibility="Auto"
                          TextChanged="TxtTarget_TextChanged"/>
                 <TextBlock x:Name="tgtWatermark" Grid.Row="1"
-                            Text="翻译结果"
-                            FontSize="{StaticResource FontSizeBody}"
-                            Foreground="{StaticResource TextSecondaryBrush}"
-                            Opacity="0.86"
-                            IsHitTestVisible="False"
-                            VerticalAlignment="Top"
-                            Margin="0"/>
+                           Style="{StaticResource InputPlaceholderText}" Text="翻译结果"/>
 
                 <!-- Loading indicator -->
                 <Border x:Name="loadingIndicator" Grid.Row="1"
@@ -417,7 +338,7 @@
                         Style="{StaticResource SegmentedContainer}"
                         Background="{StaticResource SurfaceAltBrush}"
                         Effect="{x:Null}"
-                        Width="{Binding ActualWidth, ElementName=providerContainer}"
+                        MinWidth="250"
                         HorizontalAlignment="Right"
                         VerticalAlignment="Bottom">
                     <Grid>
@@ -456,7 +377,7 @@
                                 Grid.Column="4"
                                 Style="{StaticResource FloatingAction}"
                                 Padding="6,0"
-                                Content="粘贴到原窗口"
+                                Content="复制并输入"
                                 Click="BtnCopyInput_Click"/>
                     </Grid>
                 </Border>

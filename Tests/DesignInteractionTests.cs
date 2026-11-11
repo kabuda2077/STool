@@ -48,7 +48,7 @@ public class DesignInteractionTests
                     var actions = (FrameworkElement)window.FindName("actionBar");
                     var statusPanel = (FrameworkElement)window.FindName("resultStatusPanel");
                     Assert.Equal(Visibility.Collapsed, statusPanel.Visibility);
-                    Assert.Equal("谷歌翻译", ((Button)window.FindName("btnProviderGoogle")).Content);
+                    Assert.Equal("谷歌", ((Button)window.FindName("btnProviderGoogle")).Content);
                     var translate = (Button)window.FindName("btnTranslateSource");
                     source.Text = "Hello";
                     service.Response = new TranslationResult { Success = false, ErrorMessage = "连接超时" };

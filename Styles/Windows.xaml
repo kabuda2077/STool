@@ -183,6 +183,30 @@
         <Setter Property="Effect" Value="{StaticResource PaneShadow}"/>
     </Style>
 
+    <!-- 工具窗口共用标题到筛选栏、筛选栏到内容的间距。 -->
+    <Style x:Key="ToolPanelContentLayout" TargetType="Grid">
+        <Setter Property="Margin" Value="10,52,10,10"/>
+    </Style>
+    <Style x:Key="ToolPanelHeaderRow" TargetType="Grid">
+        <Setter Property="Margin" Value="0,0,0,8"/>
+        <Setter Property="Height" Value="36"/>
+    </Style>
+
+    <!-- 剪贴板搜索与翻译语言选择共用的标题下右侧控件。 -->
+    <Style x:Key="ToolPanelHeaderField" TargetType="Border" BasedOn="{StaticResource ToolPanelToolbarSurface}">
+        <Setter Property="Height" Value="36"/>
+        <Setter Property="Padding" Value="12,0"/>
+        <Setter Property="HorizontalAlignment" Value="Right"/>
+        <Setter Property="MinWidth" Value="218"/>
+        <Setter Property="MaxWidth" Value="300"/>
+        <Setter Property="Width" Value="Auto"/>
+        <Style.Triggers>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+            </Trigger>
+        </Style.Triggers>
+    </Style>
+
     <Style x:Key="ToolPanelTextBox" TargetType="TextBox">
         <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
         <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
@@ -365,6 +389,16 @@
         <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
         <Setter Property="Opacity" Value="0.78"/>
         <Setter Property="TextWrapping" Value="Wrap"/>
+    </Style>
+
+    <!-- 空输入区占位提示：与内容同字号，颜色较轻，输入后由页面隐藏。 -->
+    <Style x:Key="InputPlaceholderText" TargetType="TextBlock" BasedOn="{StaticResource HintText}">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeContent}"/>
+        <Setter Property="Opacity" Value="0.72"/>
+        <Setter Property="LineHeight" Value="22"/>
+        <Setter Property="LineStackingStrategy" Value="BlockLineHeight"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+        <Setter Property="VerticalAlignment" Value="Top"/>
     </Style>
 
     <Style x:Key="ListRowStyle" TargetType="Border">

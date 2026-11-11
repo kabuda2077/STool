@@ -136,6 +136,7 @@ public partial class TranslationPanel : Window
     {
         var hasText = !string.IsNullOrEmpty(txtSource.Text);
         srcWatermark.Visibility = hasText ? Visibility.Collapsed : Visibility.Visible;
+        sourceActions.Visibility = hasText ? Visibility.Visible : Visibility.Collapsed;
         if (_busy)
             CancelCurrentTranslation();
 
@@ -147,8 +148,7 @@ public partial class TranslationPanel : Window
 
     private void TxtTarget_TextChanged(object sender, TextChangedEventArgs e)
     {
-        var hasText = !string.IsNullOrEmpty(txtTarget.Text);
-        tgtWatermark.Visibility = hasText ? Visibility.Collapsed : Visibility.Visible;
+        UpdateResultWatermark();
     }
 
     private async Task TranslateAsync()
@@ -167,7 +167,7 @@ public partial class TranslationPanel : Window
         {
             _busy = true;
             SetResultStatus("正在翻译…");
-            btnTranslateSource.Content = "取消";
+            translationActionIcon.Data = (System.Windows.Media.Geometry)FindResource("IconX");
             btnTranslateSource.ToolTip = "取消翻译";
             txtTarget.Text = string.Empty;
             loadingIndicator.Visibility = Visibility.Visible;
@@ -184,7 +184,7 @@ public partial class TranslationPanel : Window
                 if (result.Success && !string.IsNullOrWhiteSpace(result.TranslatedText))
                 {
                     txtTarget.Text = result.TranslatedText;
-                    SetResultStatus("译文", valid: true);
+                    SetResultStatus(string.Empty, valid: true);
                 }
                 else
                     SetResultStatus($"翻译失败：{result.ErrorMessage ?? "未返回译文"}", canRetry: true, error: true);
@@ -230,22 +230,31 @@ public partial class TranslationPanel : Window
     private void ResetTranslationUi()
     {
         _busy = false;
-        btnTranslateSource.Content = "翻译";
+        translationActionIcon.Data = (System.Windows.Media.Geometry)FindResource("IconLanguages");
         btnTranslateSource.ToolTip = "翻译 (Ctrl+Enter)";
         btnTranslateSource.IsEnabled = !string.IsNullOrWhiteSpace(txtSource.Text);
         actionBar.IsEnabled = _hasValidResult;
+        resultStatusPanel.Visibility = !string.IsNullOrEmpty(resultStatus.Text) ? Visibility.Visible : Visibility.Collapsed;
         loadingIndicator.Visibility = Visibility.Collapsed;
-        tgtWatermark.Visibility = string.IsNullOrEmpty(txtTarget.Text) ? Visibility.Visible : Visibility.Collapsed;
+        UpdateResultWatermark();
     }
 
     private void SetResultStatus(string message, bool valid = false, bool canRetry = false, bool error = false)
     {
         _hasValidResult = valid;
         resultStatus.Text = message;
+        resultStatusPanel.Visibility = !string.IsNullOrEmpty(message) && !_busy ? Visibility.Visible : Visibility.Collapsed;
         resultStatus.Foreground = (System.Windows.Media.Brush)FindResource(error ? "ErrorBrush" : "TextSecondaryBrush");
         actionBar.IsEnabled = valid && !_busy;
         btnRetry.Visibility = canRetry ? Visibility.Visible : Visibility.Collapsed;
         btnAccounts.Visibility = error && !_translationManager.IsProviderAvailable(_provider) ? Visibility.Visible : Visibility.Collapsed;
+        UpdateResultWatermark();
+    }
+
+    private void UpdateResultWatermark()
+    {
+        tgtWatermark.Visibility = !_busy && string.IsNullOrEmpty(txtTarget.Text) && resultStatusPanel.Visibility != Visibility.Visible
+            ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private void BtnAccounts_Click(object sender, RoutedEventArgs e) => _openAccounts();
@@ -276,7 +285,7 @@ public partial class TranslationPanel : Window
     private async void BtnCopyOnly_Click(object sender, RoutedEventArgs e)
     {
         if (await CopyTextAsync())
-            resultStatus.Text = "译文已复制";
+            ToastNotification.Show("已复制");
     }
 
     private void BtnTranslateSource_Click(object sender, RoutedEventArgs e)
@@ -294,7 +303,7 @@ public partial class TranslationPanel : Window
     {
         txtSource.Clear();
         txtTarget.Clear();
-        SetResultStatus("译文");
+        SetResultStatus(string.Empty);
         txtSource.Focus();
     }
 

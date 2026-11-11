@@ -9,7 +9,7 @@
         Width="720"
         Height="620"
         MinWidth="560"
-        MinHeight="520"
+        MinHeight="440"
         WindowStartupLocation="CenterScreen"
         AllowDrop="True"
         DragOver="Window_DragOver"
@@ -100,7 +100,6 @@
                 </Grid>
 
                 <Grid x:Name="connectionDetailsPanel" Grid.Row="1">
-                    <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="16"/>
@@ -130,8 +129,6 @@
                                  Style="{StaticResource SunkenTextBox}"
                                  Height="36"
                                  IsReadOnly="True"
-                                 AutomationProperties.Name="接收目录"
-                                 ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"
                                  VerticalContentAlignment="Center"/>
                         <Button x:Name="browseReceiveDirectoryButton"
                                 Grid.Column="2"
@@ -162,7 +159,6 @@
                                        FontWeight="{StaticResource FontWeightNormal}"
                                        Foreground="{StaticResource PrimaryBrush}"
                                        TextTrimming="CharacterEllipsis"
-                                       ToolTip="{Binding Text, RelativeSource={RelativeSource Self}}"
                                        VerticalAlignment="Center"/>
                         </Border>
                         <Button x:Name="copyAddressButton"
@@ -216,15 +212,20 @@
                                 </Viewbox>
                             </Button>
                         </StackPanel>
+                        <Button x:Name="revokeDevicesButton"
+                                Grid.Column="2"
+                                Style="{StaticResource ToolPanelSecondaryButton}"
+                                Content="移除设备"
+                                ToolTip="清除所有已记住设备，当前连接将需要重新验证"
+                                MinWidth="80"
+                                Margin="8,0,0,0"
+                                HorizontalAlignment="Right"
+                                Click="RevokeDevices_Click"/>
                         </Grid>
                     </Grid>
 
-                    <Button x:Name="revokeDevicesButton" Grid.Row="1" Grid.ColumnSpan="2"
-                            Style="{StaticResource ToolPanelSecondaryButton}" Content="清除已记住设备"
-                            ToolTip="所有已记住设备将需要重新验证" HorizontalAlignment="Left" Margin="64,8,0,0"
-                            Click="RevokeDevices_Click"/>
-                    <StackPanel Grid.Column="2" Grid.RowSpan="2" VerticalAlignment="Center">
                     <Image x:Name="qrImage"
+                           Grid.Column="2"
                            Width="118"
                            Height="118"
                            Stretch="Uniform"
@@ -232,9 +233,8 @@
                            VerticalAlignment="Center"
                            RenderOptions.BitmapScalingMode="NearestNeighbor"
                            AutomationProperties.Name="手机连接二维码"
+                           ToolTip="手机扫码连接，请连接同一 Wi-Fi"
                            SnapsToDevicePixels="True"/>
-                    <TextBlock Text="手机扫码连接&#10;请连接同一 Wi-Fi" Style="{StaticResource HintText}" TextAlignment="Center" Margin="0,8,0,0"/>
-                    </StackPanel>
                 </Grid>
 
                 <Grid x:Name="permissionSetupPanel"
@@ -344,7 +344,7 @@
                                 Content="添加文件"
                                 Click="AddFiles_Click"/>
                         <Button x:Name="addFolderButton"
-                                Style="{StaticResource ToolPanelSecondaryButton}"
+                                Style="{StaticResource ToolPanelPrimaryButton}"
                                 Content="添加文件夹"
                                 Margin="7,0,0,0"
                                 Click="AddFolder_Click"/>

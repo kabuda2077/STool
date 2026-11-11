@@ -239,8 +239,9 @@
     <Style x:Key="SegmentedSlider" TargetType="Border">
         <Setter Property="Height" Value="32"/>
         <Setter Property="HorizontalAlignment" Value="Left"/>
-        <Setter Property="Background" Value="{StaticResource PrimarySoftPressedBrush}"/>
+        <Setter Property="Background" Value="{StaticResource PrimaryBrush}"/>
         <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusMedium}"/>
+        <Setter Property="Effect" Value="{StaticResource MenuShadow}"/>
         <Setter Property="RenderTransformOrigin" Value="0,0.5"/>
         <Setter Property="CacheMode">
             <Setter.Value>
@@ -271,7 +272,7 @@
                             <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
                         </Trigger>
                         <Trigger Property="Tag" Value="on">
-                            <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
+                            <Setter Property="Foreground" Value="{StaticResource OnPrimaryBrush}"/>
                             <Setter Property="FontWeight" Value="{StaticResource FontWeightStrong}"/>
                         </Trigger>
                         <Trigger Property="IsEnabled" Value="False">

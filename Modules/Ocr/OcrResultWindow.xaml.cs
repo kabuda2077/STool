@@ -33,7 +33,7 @@ public partial class OcrResultWindow : Window
         try
         {
             await ClipboardWriter.SetTextAsync(txtResult.Text);
-            editHint.Text = "已复制到剪贴板 · 可继续编辑";
+            ToastNotification.Show("已复制");
         }
         catch (Exception ex)
         {

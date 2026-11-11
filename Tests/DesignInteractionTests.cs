@@ -45,7 +45,10 @@ public class DesignInteractionTests
                     phase = "failure result";
                     var source = (TextBox)window.FindName("txtSource");
                     var target = (TextBox)window.FindName("txtTarget");
-                    var actions = (StackPanel)window.FindName("actionBar");
+                    var actions = (FrameworkElement)window.FindName("actionBar");
+                    var statusPanel = (FrameworkElement)window.FindName("resultStatusPanel");
+                    Assert.Equal(Visibility.Collapsed, statusPanel.Visibility);
+                    Assert.Equal("谷歌翻译", ((Button)window.FindName("btnProviderGoogle")).Content);
                     var translate = (Button)window.FindName("btnTranslateSource");
                     source.Text = "Hello";
                     service.Response = new TranslationResult { Success = false, ErrorMessage = "连接超时" };
@@ -54,12 +57,14 @@ public class DesignInteractionTests
                     Assert.False(actions.IsEnabled);
                     Assert.False(await Copy(window));
                     Assert.Contains("连接超时", ((TextBlock)window.FindName("resultStatus")).Text);
+                    Assert.Equal(Visibility.Visible, statusPanel.Visibility);
 
                     phase = "successful result and edits";
                     service.Response = new TranslationResult { Success = true, TranslatedText = "你好" };
                     await Translate(window);
                     Assert.True(actions.IsEnabled);
                     Assert.Equal("你好", target.Text);
+                    Assert.Equal(Visibility.Collapsed, statusPanel.Visibility);
                     source.Text = "New source";
                     Assert.False(actions.IsEnabled);
                     Assert.False(await Copy(window));
@@ -68,14 +73,15 @@ public class DesignInteractionTests
                     phase = "cancellation";
                     service.Pending = new TaskCompletionSource<TranslationResult>();
                     var pending = Translate(window);
-                    Assert.Equal("取消", translate.Content);
+                    Assert.Equal("取消翻译", translate.ToolTip);
+                    Assert.Equal(Visibility.Collapsed, statusPanel.Visibility);
                     source.Text = "Edited while translating";
                     service.Pending.SetResult(new TranslationResult { Success = true, TranslatedText = "不应显示" });
                     await pending;
                     Assert.Equal(string.Empty, target.Text);
                     Assert.False(actions.IsEnabled);
                     Assert.False(await Copy(window));
-                    Assert.Equal("翻译", translate.Content);
+                    Assert.Equal("翻译 (Ctrl+Enter)", translate.ToolTip);
                 }
                 catch (Exception ex) { failure = ex; }
                 finally

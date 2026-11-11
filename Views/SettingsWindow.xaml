@@ -67,7 +67,7 @@
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                     <TextBlock x:Name="pageTitle" FontSize="{StaticResource FontSizeTitle}"
                                FontWeight="{StaticResource FontWeightStrong}" AutomationProperties.HeadingLevel="Level1"/>
-                    <TextBlock x:Name="saveStatus" Grid.Column="1" Text="更改自动保存" Style="{StaticResource HintText}"
+                    <TextBlock x:Name="saveStatus" Grid.Column="1" Style="{StaticResource HintText}"
                                VerticalAlignment="Center" Margin="12,0,0,0" AutomationProperties.LiveSetting="Polite"/>
                 </Grid>
 

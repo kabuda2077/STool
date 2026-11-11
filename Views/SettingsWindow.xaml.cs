@@ -125,7 +125,7 @@ public partial class SettingsWindow : Window
     {
         pageTitle.Text = Title;
         Title = $"STool 设置 · {pageTitle.Text}";
-        saveStatus.Text = "更改自动保存";
+        saveStatus.Text = string.Empty;
         contentPanel.Children.Clear();
         contentPanel.Children.Add(panel);
         UpdateContentPanelWidth();

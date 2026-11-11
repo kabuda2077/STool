@@ -17,6 +17,11 @@ public partial class SettingsWindow : Window
         InitializeComponent();
         _configManager = configManager;
         _shell = shell;
+        AddHandler(SettingsFeedback.ChangedEvent, new RoutedPropertyChangedEventHandler<string>((_, e) =>
+        {
+            saveStatus.Text = e.NewValue;
+            e.Handled = true;
+        }));
         ApplyLayoutMetrics();
 
         // 默认显示通用设置
@@ -40,7 +45,7 @@ public partial class SettingsWindow : Window
     private void BtnAccountsSettings_Click(object sender, RoutedEventArgs e) => ShowAccountsSettings();
 
     /// <summary>OCR/翻译页提示"未配置账号"时跳转到服务账号页。</summary>
-    private void ShowAccountsSettings()
+    public void ShowAccountsSettings()
     {
         Title = "服务账号";
         ShowPanel(new AccountsSettingsPanel(_configManager));
@@ -118,6 +123,9 @@ public partial class SettingsWindow : Window
 
     private void ShowPanel(UIElement panel)
     {
+        pageTitle.Text = Title;
+        Title = $"STool 设置 · {pageTitle.Text}";
+        saveStatus.Text = "更改自动保存";
         contentPanel.Children.Clear();
         contentPanel.Children.Add(panel);
         UpdateContentPanelWidth();

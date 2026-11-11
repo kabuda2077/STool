@@ -10,7 +10,22 @@ public partial class OcrResultWindow : Window
     {
         InitializeComponent();
         txtResult.Text = text;
-        txtProvider.Text = $"提供商: {provider}";
+        txtProvider.Text = provider switch
+        {
+            "Windows Local" => "Windows 本地识别",
+            "Tencent Cloud" => "腾讯云识别",
+            "AI Vision" => "AI 图片识别",
+            _ => provider
+        };
+        PreviewKeyDown += (_, e) =>
+        {
+            if (e.Key == System.Windows.Input.Key.Escape) { Close(); e.Handled = true; }
+            else if (e.Key == System.Windows.Input.Key.Enter && System.Windows.Input.Keyboard.Modifiers == System.Windows.Input.ModifierKeys.Control)
+            {
+                BtnCopy_Click(btnCopy, new RoutedEventArgs());
+                e.Handled = true;
+            }
+        };
     }
 
     private async void BtnCopy_Click(object sender, RoutedEventArgs e)
@@ -18,8 +33,7 @@ public partial class OcrResultWindow : Window
         try
         {
             await ClipboardWriter.SetTextAsync(txtResult.Text);
-            ToastNotification.Show("已复制到剪贴板", type: ToastNotification.ToastType.Success);
-            Close();
+            editHint.Text = "已复制到剪贴板 · 可继续编辑";
         }
         catch (Exception ex)
         {

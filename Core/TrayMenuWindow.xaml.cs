@@ -32,7 +32,25 @@ public partial class TrayMenuWindow : Window
         PreviewKeyDown += (_, e) =>
         {
             if (e.Key == Key.Escape)
+            {
                 CloseMenu();
+                e.Handled = true;
+            }
+            else if (e.Key is Key.Down or Key.Up or Key.Home or Key.End)
+            {
+                var items = menuPanel.Children.OfType<Button>().Where(item => item.IsEnabled).ToArray();
+                if (items.Length == 0) return;
+                var current = Array.FindIndex(items, item => item.IsKeyboardFocusWithin);
+                var next = e.Key switch
+                {
+                    Key.Home => 0,
+                    Key.End => items.Length - 1,
+                    Key.Down => (current + 1) % items.Length,
+                    _ => (current - 1 + items.Length) % items.Length
+                };
+                items[next].Focus();
+                e.Handled = true;
+            }
         };
     }
 
@@ -83,6 +101,8 @@ public partial class TrayMenuWindow : Window
             grid.Children.Add(shortcutText);
         }
 
+        System.Windows.Automation.AutomationProperties.SetName(button, label);
+        System.Windows.Automation.AutomationProperties.SetAcceleratorKey(button, shortcut);
         button.Content = grid;
         button.Click += (_, _) =>
         {
@@ -98,6 +118,7 @@ public partial class TrayMenuWindow : Window
         {
             PositionNearCursor();
             Activate();
+            menuPanel.Children.OfType<Button>().FirstOrDefault(item => item.IsEnabled)?.Focus();
             // 菜单已显示并激活,现在才允许失焦自动关闭。
             Deactivated += (_, _) => CloseMenu();
         };

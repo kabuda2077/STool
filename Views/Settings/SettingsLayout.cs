@@ -79,6 +79,7 @@ internal static class SettingsLayout
         Grid.SetColumn(lbl, 0);
         grid.Children.Add(lbl);
 
+        System.Windows.Automation.AutomationProperties.SetLabeledBy(input, lbl);
         input.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(input, 1);
         grid.Children.Add(input);
@@ -120,6 +121,7 @@ internal static class SettingsLayout
         Grid.SetColumn(lbl, 0);
         grid.Children.Add(lbl);
 
+        System.Windows.Automation.AutomationProperties.SetLabeledBy(input, lbl);
         input.VerticalAlignment = VerticalAlignment.Top;
         input.Margin = new Thickness(0, 12, 0, 0);
         Grid.SetRow(input, 0);
@@ -256,7 +258,6 @@ internal static class SettingsLayout
             Style = (Style)Application.Current.FindResource("HintText"),
             FontSize = HintFontSize,
             Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush"),
-            Opacity = 0.78,
             Margin = new Thickness(0, 2, 0, 0),
             TextWrapping = TextWrapping.Wrap
         });
@@ -420,7 +421,6 @@ internal static class SettingsLayout
             Margin = inline ? InlineHintMargin : HintMargin,
             FontSize = HintFontSize,
             Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush"),
-            Opacity = 0.78,
             FontWeight = FontWeights.Normal,
             TextWrapping = TextWrapping.Wrap
         };

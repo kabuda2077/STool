@@ -60,6 +60,10 @@
                                    LineHeight="20"
                                    Foreground="{StaticResource TextPrimaryBrush}"/>
                     </ScrollViewer>
+                    <TextBlock x:Name="translationStageText" Text="正在识别文字…"
+                               Style="{StaticResource HintText}" TextAlignment="Center" VerticalAlignment="Center"
+                               Margin="0,64,0,0" AutomationProperties.LiveSetting="Polite"
+                               Visibility="{Binding Visibility, ElementName=translationLoadingIndicator}"/>
                     <Border x:Name="translationLoadingIndicator"
                             Style="{StaticResource LoadingSpinner}"
                             HorizontalAlignment="Center"
@@ -254,7 +258,7 @@
                                       StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
                             </Canvas></Viewbox>
                         </Button>
-                        <Button x:Name="btnConfirm" Style="{StaticResource IconButton}" Click="BtnConfirm_Click" Margin="2,0,0,0" ToolTip="完成 (Enter)" Foreground="{StaticResource SuccessBrush}">
+                        <Button x:Name="btnConfirm" Style="{StaticResource IconButton}" Click="BtnConfirm_Click" Margin="2,0,0,0" ToolTip="复制截图并关闭 (Enter)" Foreground="{StaticResource SuccessBrush}">
                             <Viewbox Style="{StaticResource ToolIconLarge}"><Canvas Width="24" Height="24">
                                 <Path Data="{StaticResource IconCheck}"
                                       Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}" StrokeThickness="2.2"

@@ -84,7 +84,12 @@ docs/                         用户文档、手工回归清单、便携包 READ
 - 阴影只有三档：`PaneShadow`（最轻）、`StandardShadow`（普通浮起）、`MenuShadow`（菜单、浮层、钉图）。不要新建局部 `DropShadowEffect`。
 - 字体：`Styles/Typography.xaml` 中的 `FontSizeTitle/Subtitle/Body/Caption/Content/Hint` 与 `FontWeightNormal/Strong`。
 - 组件：按钮 `ModernButton / PrimaryButton / SecondaryButton / IconButton / GhostButton / DangerIconButton`；输入 `ModernTextBox / SunkenTextBox / SunkenPasswordBox / SunkenComboBox`；导航 `NavigationButton`；窗口 `ModernWindow`（内容区预留顶部约 44px）；卡片 `SurfaceCard`；折叠 `SettingsExpander`。
-- 悬浮态默认 `PrimarySoftBrush`，主操作 `PrimaryBrush`，危险/关闭 `ErrorBrush`。设置页共用 `SettingsLayout` 的工厂方法。
+- 悬浮态默认 `PrimarySoftBrush`，主操作 `PrimaryBrush`，危险/关闭 `ErrorBrush`。分类选中使用浅蓝色，避免与主操作争夺注意。设置页共用 `SettingsLayout` 的工厂方法。
+- 控件正文 13 DIP、阅读编辑内容 14 DIP、辅助文字 12 DIP；辅助文字使用 `TextSecondaryBrush`，不再叠加透明度。容器圆角使用 `CornerRadiusSmall/Medium/Large`。
+- 设置保存反馈通过 `SettingsFeedback` 冒泡到窗口内的状态区；账号测试结果留在账号分组，字段变化后失效。错误可以同时用 Toast 提醒。
+- 手机网页的 CSS 变量对应桌面颜色资源。新增交互应维护键盘焦点与可访问名称；轮询只更新变化内容，避免重建聚焦中的控件。
+- 浏览器交互检查：使用已安装的 Playwright 和 Chrome，设置 `STOOL_PLAYWRIGHT_MODULE` 为 Playwright 包路径后运行 `node --test scripts/Test-LanTransferWeb.cjs`。可设置 `STOOL_UI_ARTIFACTS` 输出截图。该脚本拦截所有请求并使用示例数据，不启动实际传输服务。
+- 本轮设计变更与验证边界见 [design-review.md](design-review.md)。
 
 ## 数据位置
 

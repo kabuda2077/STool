@@ -96,17 +96,9 @@
             </Style.Triggers>
         </Style>
 
-        <!-- 来源应用徽章:中性色块药丸 -->
-        <Style x:Key="SourceBadge" TargetType="Border">
-            <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
-            <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusSmall}"/>
-            <Setter Property="Padding" Value="7,2"/>
-            <Setter Property="HorizontalAlignment" Value="Right"/>
-        </Style>
-
         <Style x:Key="FavoriteButton" TargetType="Button">
-            <Setter Property="Width" Value="22"/>
-            <Setter Property="Height" Value="22"/>
+            <Setter Property="Width" Value="32"/>
+            <Setter Property="Height" Value="32"/>
             <Setter Property="Padding" Value="0"/>
             <Setter Property="Margin" Value="0,6,0,0"/>
             <Setter Property="Cursor" Value="Hand"/>
@@ -214,6 +206,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
+            <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
         <Grid Grid.Row="0" Margin="0,0,0,8">
@@ -317,6 +310,9 @@
                 </Grid>
             </Border>
         </Grid>
+
+        <TextBlock Grid.Row="2" Text="Enter 粘贴 · Ctrl+Enter 复制 · 双击粘贴 · 右键更多操作"
+                   Style="{StaticResource HintText}" Margin="4,8,48,0"/>
 
         <!-- 列表 + 悬浮清空按钮 -->
         <Grid Grid.Row="1">
@@ -453,27 +449,27 @@
                             </Border.ContextMenu>
                             <Grid>
                                 <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto"/>
                                     <ColumnDefinition Width="*"/>
                                     <ColumnDefinition Width="Auto"/>
                                 </Grid.ColumnDefinitions>
 
-                                <!-- 内容 + 时间 -->
-                                <StackPanel Margin="0,2,12,0"
-                                            VerticalAlignment="Center">
-                                    <Border Width="{Binding ThumbnailBoxWidth}"
-                                            Height="{Binding ThumbnailBoxHeight}"
+                                    <Border Width="88" Height="72" Margin="0,0,12,0"
                                             Background="{StaticResource SurfaceAltBrush}"
-                                            CornerRadius="6"
+                                            CornerRadius="{StaticResource CornerRadiusSmall}"
                                             ClipToBounds="True"
                                             HorizontalAlignment="Left"
                                             Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}"
                                             MouseLeftButtonDown="ThumbPreview_MouseLeftButtonDown"
                                             ToolTip="预览图片">
                                         <Image Source="{Binding ImageSource}"
-                                               Stretch="UniformToFill"
+                                               Stretch="Uniform"
                                                RenderOptions.BitmapScalingMode="HighQuality"
                                                Loaded="ThumbImage_Loaded"/>
                                     </Border>
+                                <StackPanel Grid.Column="1" Margin="0,0,12,0" VerticalAlignment="Center">
+                                    <TextBlock Text="图片" FontSize="{StaticResource FontSizeBody}"
+                                               Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}"/>
                                     <TextBlock Text="{Binding DisplayText}"
                                                TextWrapping="Wrap"
                                                Foreground="{StaticResource TextPrimaryBrush}"
@@ -482,19 +478,14 @@
                                                MaxHeight="62"
                                                TextTrimming="CharacterEllipsis"
                                                Visibility="{Binding IsText, Converter={StaticResource BoolToVis}}"/>
-                                    <TextBlock Text="{Binding RelativeTime}"
-                                               FontSize="{StaticResource FontSizeHint}"
-                                               Foreground="{StaticResource TextSecondaryBrush}"
-                                               Margin="0,8,0,0"
-                                               ToolTip="{Binding FullTimestamp}"/>
-                                </StackPanel>
-
-                                <!-- 来源 + 收藏/尺寸 -->
-                                <StackPanel Grid.Column="1"
-                                            VerticalAlignment="Center"
-                                            HorizontalAlignment="Right">
+                                    <WrapPanel Margin="0,6,0,0">
+                                        <TextBlock Text="{Binding RelativeTime}" Style="{StaticResource HintText}"
+                                                   ToolTip="{Binding FullTimestamp}" Margin="0,0,12,0"/>
+                                        <TextBlock Text="{Binding SourceApp}" Style="{StaticResource HintText}"
+                                                   Visibility="{Binding HasSource, Converter={StaticResource BoolToVis}}"/>
+                                    </WrapPanel>
                                     <StackPanel Orientation="Horizontal"
-                                                HorizontalAlignment="Right"
+                                                HorizontalAlignment="Left"
                                                 Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}">
                                         <Border Style="{StaticResource ImageLargeBadge}"
                                                 Visibility="{Binding IsLargeImage, Converter={StaticResource BoolToVis}}">
@@ -510,17 +501,11 @@
                                                        Foreground="{StaticResource TextSecondaryBrush}"/>
                                         </Border>
                                     </StackPanel>
-                                    <Border Style="{StaticResource SourceBadge}"
-                                            VerticalAlignment="Center"
-                                            Margin="0,6,0,0"
-                                            Visibility="{Binding HasSource, Converter={StaticResource BoolToVis}}">
-                                        <TextBlock Text="{Binding SourceApp}"
-                                                   FontSize="{StaticResource FontSizeHint}"
-                                                   Foreground="{StaticResource TextSecondaryBrush}"/>
-                                    </Border>
-                                    <Button Style="{StaticResource FavoriteButton}"
+                                </StackPanel>
+                                    <Button Grid.Column="2" Style="{StaticResource FavoriteButton}"
                                             Tag="{Binding FavoriteState}"
                                             ToolTip="{Binding FavoriteTooltip}"
+                                            AutomationProperties.Name="{Binding FavoriteTooltip}"
                                             Click="FavoriteButton_Click"
                                             HorizontalAlignment="Right">
                                         <TextBlock Text="{Binding FavoriteGlyph}"
@@ -529,7 +514,6 @@
                                                    VerticalAlignment="Center"
                                                    HorizontalAlignment="Center"/>
                                     </Button>
-                                </StackPanel>
                             </Grid>
                         </Border>
                     </DataTemplate>
@@ -543,7 +527,7 @@
                     Margin="0,0,4,4"
                     Width="40" Height="40"
                     Cursor="Hand"
-                    ToolTip="清空全部"
+                    ToolTip="清空全部" AutomationProperties.Name="清空剪贴板历史"
                     Click="BtnClearAll_Click">
                 <Button.Template>
                     <ControlTemplate TargetType="Button">

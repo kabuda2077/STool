@@ -86,6 +86,25 @@ Run this checklist on Windows 10/11 after a release build. Record the OS version
 - [ ] Close a capture during OCR; verify no result window appears afterwards.
 - [ ] Perform several unrelated settings saves with an unreadable secret; verify the warning state and original ciphertext remain unchanged.
 
+## Design and accessibility regression
+
+- [ ] At each tool window's minimum size, verify the primary action, search, language selector and result actions remain visible. Repeat on displays at 100%, 150% and 200% scale, including moving between monitors.
+- [ ] Translate successfully, then edit the source: verify the old result is marked stale and all copy/paste actions are disabled. Translate again to restore them.
+- [ ] Simulate a failed translation: verify the error is outside the result text, retry is available, and neither copy nor paste can export the error. With an unconfigured provider, verify the service-account link opens the account settings page.
+- [ ] Cancel a slow translation and start another; verify the earlier completion never replaces the new result. The visible action must return from Cancel to Translate.
+- [ ] Change settings repeatedly: verify inline pending/saved feedback, with no repeated success Toasts. Test failure messages stay visible and do not claim a successful save.
+- [ ] Test an AI model or Tencent translation account; verify its inline result is invalidated after changing credentials/model. A late test response must not validate different credentials.
+- [ ] In clipboard history, verify compact image previews, metadata, favorite controls, keyboard selection and the bottom shortcut hint at minimum width.
+- [ ] Edit OCR text, copy it and verify the window remains available for further correction. Ctrl+Enter copies; Esc closes.
+- [ ] During screenshot translation, verify recognition/translation/layout stage feedback and cancellation. The selected annotation tool has both a tint and an outline.
+- [ ] Open the tray menu using the keyboard: first item receives focus, Up/Down and Home/End navigate, Enter activates and Esc closes. Verify icon buttons have useful screen-reader names.
+- [ ] Connect a phone: verify connection details collapse once, can be expanded manually, and reappear on disconnect. Clearing remembered devices explains that all sessions will need verification again.
+- [ ] In the phone page, use only Tab, Shift+Tab, arrows and Enter to select files, switch tabs and accept/reject a transfer. Escape rejects the offer, and focus returns to the prior control.
+- [ ] Leave focus on Pause/Resume during polling; verify it remains usable. Repeat in the folder browser with a selected file. Long filenames must not push actions offscreen at 320px width.
+- [ ] With reduced motion enabled, verify the phone loading spinner is static while its status text remains visible. Test with VoiceOver/TalkBack or Narrator on the actual target browser.
+
+Automated coverage: `DesignInteractionTests` exercises translation output validity; `scripts/Test-LanTransferWeb.cjs` exercises browser keyboard, dialog, polling and viewport behavior. These checks do not replace physical multi-monitor DPI or mobile screen-reader testing.
+
 ## Build verification
 
 - [ ] Restore and build `STool.sln` in Debug and Release; record the actual warning and error counts.

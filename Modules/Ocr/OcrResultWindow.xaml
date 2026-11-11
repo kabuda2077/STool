@@ -19,21 +19,24 @@
 
     <Grid Margin="10,52,10,10">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>
             <RowDefinition Height="Auto"/>
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0"
+        <TextBlock x:Name="editHint" Text="可直接编辑识别文字，修正后复制 · Ctrl+Enter 复制"
+                   Style="{StaticResource HintText}" Margin="4,0,4,8" AutomationProperties.LiveSetting="Polite"/>
+        <Border Grid.Row="1"
                 Style="{StaticResource OcrResultPane}">
             <TextBox x:Name="txtResult"
                      Style="{StaticResource OcrResultTextBox}"
                      TextWrapping="Wrap"
                      AcceptsReturn="True"
-                     IsReadOnly="False"
+                     IsReadOnly="False" AutomationProperties.Name="识别文字，可编辑"
                      VerticalScrollBarVisibility="Auto"/>
         </Border>
 
-        <Grid Grid.Row="1" Margin="0,8,0,0">
+        <Grid Grid.Row="2" Margin="0,8,0,0">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*"/>
                 <ColumnDefinition Width="Auto"/>
@@ -47,11 +50,10 @@
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center">
                 <TextBlock x:Name="txtProvider"
-                           Text="提供商: Windows Local"
+                           Text="Windows 本地识别"
                            FontSize="{StaticResource FontSizeHint}"
                            Foreground="{StaticResource TextSecondaryBrush}"
-                           VerticalAlignment="Center"
-                           Opacity="0.86"/>
+                           VerticalAlignment="Center"/>
             </Border>
 
             <Button x:Name="btnClose"

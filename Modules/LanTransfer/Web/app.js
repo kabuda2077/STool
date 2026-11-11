@@ -107,6 +107,7 @@ async function sendPresence() {
 }
 
 function showAuth(message = "") {
+  hideOffer();
   $("loadingView").hidden = true;
   $("workspace").hidden = true;
   $("authView").hidden = false;
@@ -114,6 +115,7 @@ function showAuth(message = "") {
   $("statusDot").classList.remove("online");
   $("authError").textContent = message;
   clearTimeout(state.transferPollTimer);
+  $("codeInput").focus();
 }
 
 async function exchange(payload) {
@@ -123,6 +125,7 @@ async function exchange(payload) {
     headers: { "Content-Type": "application/json" }
   });
   showWorkspace();
+  document.querySelector('.tab[aria-selected="true"]').focus();
 }
 
 async function initialize() {
@@ -155,11 +158,23 @@ document.querySelectorAll(".tab").forEach(button => button.addEventListener("cli
     const selected = tab === button;
     tab.classList.toggle("active", selected);
     tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
   });
   const send = button.dataset.tab === "send";
   $("sendView").hidden = !send;
   $("receiveView").hidden = send;
 }));
+
+document.querySelector(".tabs").addEventListener("keydown", event => {
+  const tabs = Array.from(document.querySelectorAll(".tab"));
+  const index = tabs.indexOf(document.activeElement);
+  if (index < 0 || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1
+    : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+  tabs[next].focus();
+  tabs[next].click();
+});
 
 const transferStateText = {
   preparing: "准备中",
@@ -197,23 +212,57 @@ async function loadTransfers() {
 
 function renderActiveTransfers(transfers) {
   const container = $("activeTransferList");
-  container.replaceChildren();
+  const existing = new Map(Array.from(container.children, row => [row.dataset.id, row]));
   $("activeTransfers").hidden = transfers.length === 0;
-  transfers.forEach(transfer => container.append(createTransferTask(transfer)));
+  $("receiveEmpty").hidden = Boolean(state.folder) || transfers.some(transfer => transfer.direction === "toPhone");
+  transfers.forEach(transfer => {
+    const id = String(transfer.id);
+    const next = createTransferTask(transfer);
+    const row = existing.get(id);
+    if (!row) { container.append(next); return; }
+    existing.delete(id);
+    for (const selector of [".transfer-task-name", ".transfer-task-state", ".transfer-task-detail"]) {
+      const target = row.querySelector(selector);
+      const value = next.querySelector(selector);
+      if (target.textContent !== value.textContent) target.textContent = value.textContent;
+      target.title = value.title;
+    }
+    const progress = row.querySelector(".transfer-task-progress");
+    progress.firstElementChild.style.width = next.querySelector(".transfer-task-progress span").style.width;
+    progress.setAttribute("aria-valuenow", next.querySelector(".transfer-task-progress").getAttribute("aria-valuenow"));
+    const actions = row.querySelector(".transfer-task-actions");
+    const nextActions = next.querySelector(".transfer-task-actions");
+    if (actions.textContent !== nextActions.textContent) {
+      const hadFocus = actions.contains(document.activeElement);
+      actions.replaceChildren(...nextActions.children);
+      if (hadFocus) actions.querySelector("button")?.focus();
+    } else {
+      Array.from(actions.children).forEach((button, index) => {
+        button.onclick = nextActions.children[index].onclick;
+      });
+    }
+  });
+  for (const row of existing.values()) {
+    const hadFocus = row.contains(document.activeElement);
+    row.remove();
+    if (hadFocus) document.querySelector('.tab[aria-selected="true"]').focus();
+  }
 }
 
 function createTransferTask(transfer) {
   const row = document.createElement("div");
   row.className = "transfer-task";
+  row.dataset.id = String(transfer.id);
   const head = document.createElement("div");
   head.className = "transfer-task-head";
   const name = document.createElement("div");
   name.className = "transfer-task-name";
   name.textContent = transfer.name;
+  name.title = transfer.name;
   const status = document.createElement("span");
   status.className = "transfer-task-state";
   status.textContent = transfer.state === "transferring"
-    ? transfer.direction === "toPhone" ? "发送中" : "接收中"
+    ? transfer.direction === "toPhone" ? "正在从电脑接收" : "正在发送到电脑"
     : transferStateText[transfer.state] || transfer.state;
   const actions = document.createElement("div");
   actions.className = "transfer-task-actions";
@@ -241,6 +290,11 @@ function createTransferTask(transfer) {
     ? Math.min(100, transfer.transferredBytes / transfer.totalBytes * 100)
     : 0;
   progress.style.width = `${percent}%`;
+  progressTrack.setAttribute("role", "progressbar");
+  progressTrack.setAttribute("aria-label", `${transfer.name} 传输进度`);
+  progressTrack.setAttribute("aria-valuemin", "0");
+  progressTrack.setAttribute("aria-valuemax", "100");
+  progressTrack.setAttribute("aria-valuenow", String(Math.round(percent)));
   progressTrack.append(progress);
   const detail = document.createElement("div");
   detail.className = "transfer-task-detail";
@@ -262,21 +316,29 @@ function createTaskAction(label, handler, danger = false) {
   button.type = "button";
   button.className = `task-action${danger ? " danger" : ""}`;
   button.textContent = label;
-  button.addEventListener("click", handler);
+  button.onclick = handler;
   return button;
 }
 
 async function controlTransfer(id, action) {
   try {
+    $("workspaceError").hidden = true;
+    $("offerError").hidden = true;
     await api(`/api/transfers/${id}/${action}`, { method: "POST" });
     if ((action === "pause" || action === "cancel") && state.uploadBatchId === id)
       abortUploadRequests();
-    if (action === "cancel" && state.currentOfferId === id)
+    if ((action === "cancel" || action === "reject") && state.currentOfferId === id)
       hideOffer();
     await loadTransfers();
   } catch (error) {
-    showArchiveError(error.message);
+    showTransferError(error.message);
   }
+}
+
+function showTransferError(message) {
+  const target = $("offerDialog").open ? $("offerError") : $("workspaceError");
+  target.textContent = message;
+  target.hidden = false;
 }
 
 function renderOffer(offer) {
@@ -284,7 +346,7 @@ function renderOffer(offer) {
     if (state.currentOfferId) hideOffer();
     return;
   }
-  if (state.currentOfferId === offer.id && !$("offerDialog").hidden) return;
+  if (state.currentOfferId === offer.id && $("offerDialog").open) return;
   state.currentOfferId = offer.id;
   state.currentOffer = offer;
   $("offerDialog").querySelector(".offer-dialog").classList.toggle("separate", offer.separate);
@@ -301,11 +363,12 @@ function renderOffer(offer) {
   $("offerAccept").textContent = offer.separate
     ? `接收 ${offer.itemCount} 个项目`
     : offer.canBrowse ? "接收全部" : "接收";
-  $("offerDialog").hidden = false;
+  $("offerError").hidden = true;
+  if (!$("offerDialog").open) $("offerDialog").showModal();
 }
 
 function hideOffer() {
-  $("offerDialog").hidden = true;
+  $("offerDialog").close();
   state.currentOfferId = null;
   state.currentOffer = null;
 }
@@ -333,8 +396,28 @@ $("offerBrowse").addEventListener("click", async () => {
     await loadFolder(folder.folderId, "");
     scheduleTransferPoll(0);
   } catch (error) {
-    showArchiveError(error.message);
+    showTransferError(error.message);
   }
+});
+
+$("offerDialog").addEventListener("keydown", event => {
+  if (event.key !== "Tab") return;
+  const buttons = Array.from($("offerDialog").querySelectorAll("button:not(:disabled)"))
+    .filter(button => !button.hidden);
+  const first = buttons[0];
+  const last = buttons[buttons.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+});
+
+$("offerDialog").addEventListener("cancel", event => {
+  event.preventDefault();
+  $("offerReject").click();
 });
 
 $("offerReject").addEventListener("click", async () => {
@@ -584,8 +667,11 @@ async function waitUntilUploadCanContinue(batchId, row) {
 async function loadFolder(folderId, path) {
   try {
     const query = path ? `?path=${encodeURIComponent(path)}` : "";
-    state.folder = await api(`/api/folders/${folderId}${query}`);
-    renderFolder();
+    const folder = await api(`/api/folders/${folderId}${query}`);
+    if (JSON.stringify(folder) !== JSON.stringify(state.folder)) {
+      state.folder = folder;
+      renderFolder();
+    }
   } catch (error) {
     showArchiveError(error.message);
   }
@@ -596,7 +682,11 @@ function renderFolder() {
   if (!folder) return closeFolderBrowser();
 
   const container = $("downloadList");
+  const focused = document.activeElement;
+  const focusKey = container.contains(focused) ? focused.closest(".item")?.dataset.path : null;
+  const focusIndex = focusKey ? Array.from(focused.closest(".item").querySelectorAll("button, input, a")).indexOf(focused) : -1;
   container.replaceChildren();
+  $("receiveEmpty").hidden = true;
   container.hidden = false;
   $("folderToolbar").hidden = false;
   $("folderTitle").textContent = folder.name;
@@ -615,6 +705,7 @@ function renderFolder() {
   folder.items.forEach(item => {
     const row = document.createElement("div");
     row.className = "item";
+    row.dataset.path = item.relativePath;
     if (item.isFolder) {
       const main = createItemMain(item.name, `文件夹 · ${item.fileCount} 个文件 · ${formatBytes(item.size)}`, true);
       main.addEventListener("click", () => loadFolder(folder.folderId, item.relativePath));
@@ -642,6 +733,11 @@ function renderFolder() {
     }
     container.append(row);
   });
+  if (focusKey) {
+    const row = Array.from(container.children).find(item => item.dataset.path === focusKey);
+    const target = row?.querySelectorAll("button, input, a")[focusIndex];
+    (target || $("folderBack")).focus();
+  }
   updateSelectionBar();
 }
 
@@ -654,6 +750,7 @@ function closeFolderBrowser() {
   $("archiveStatus").hidden = true;
   $("downloadList").replaceChildren();
   $("downloadList").hidden = true;
+  $("receiveEmpty").hidden = false;
 }
 
 function createItemMain(nameText, metaText, interactive) {
@@ -666,6 +763,7 @@ function createItemMain(nameText, metaText, interactive) {
   const name = document.createElement("div");
   name.className = "item-name";
   name.textContent = nameText;
+  name.title = nameText;
   const meta = document.createElement("div");
   meta.className = "item-meta";
   meta.textContent = metaText;

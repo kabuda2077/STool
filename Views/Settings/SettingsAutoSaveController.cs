@@ -15,33 +15,21 @@ namespace STool.Views.Settings;
 internal sealed class SettingsAutoSaveController
 {
     private static readonly TimeSpan SaveDelay = TimeSpan.FromMilliseconds(500);
-    private static readonly TimeSpan ToastQuietPeriod = TimeSpan.FromMilliseconds(600);
 
     private readonly DispatcherTimer _timer;
-    private readonly DispatcherTimer _toastTimer;
+    private readonly FrameworkElement _owner;
     private readonly Func<bool> _save;
     private bool _dirty;
     private bool _saving;
 
     public SettingsAutoSaveController(FrameworkElement owner, Func<bool> save)
     {
+        _owner = owner;
         _save = save;
         _timer = new DispatcherTimer { Interval = SaveDelay };
         _timer.Tick += (_, _) => SaveNow();
 
-        // 连续修改（逐字符输入密钥）时把“已保存”合并为一次，避免提示反复打断。
-        _toastTimer = new DispatcherTimer { Interval = ToastQuietPeriod };
-        _toastTimer.Tick += (_, _) =>
-        {
-            _toastTimer.Stop();
-            ToastNotification.ShowSettingsSaved();
-        };
-
-        owner.Unloaded += (_, _) =>
-        {
-            _toastTimer.Stop();
-            SaveNow();
-        };
+        owner.Unloaded += (_, _) => SaveNow();
     }
 
     public void TrackImmediate(Selector selector)
@@ -87,6 +75,7 @@ internal sealed class SettingsAutoSaveController
     private void Schedule()
     {
         _dirty = true;
+        SettingsFeedback.Report(_owner, "等待保存…");
         _timer.Stop();
         _timer.Start();
     }
@@ -102,16 +91,13 @@ internal sealed class SettingsAutoSaveController
         _saving = true;
         try
         {
-            var saved = _save();
+            _save();
             _dirty = false;
-            if (saved)
-            {
-                _toastTimer.Stop();
-                _toastTimer.Start();
-            }
+            SettingsFeedback.Report(_owner);
         }
         catch (Exception ex)
         {
+            SettingsFeedback.Report(_owner, "保存失败，请重试");
             ToastNotification.Show("自动保存失败", ex.Message, ToastNotification.ToastType.Error);
         }
         finally

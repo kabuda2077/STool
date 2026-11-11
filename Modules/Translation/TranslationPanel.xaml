@@ -5,443 +5,97 @@
         Style="{StaticResource ModernWindow}"
         core:ModernWindowChrome.ShowTopmostButton="True"
         core:ModernWindowChrome.TitleBarExtraTopPadding="True"
-        Title="翻译"
-        Width="720"
-        Height="560"
-        MinWidth="560"
-        MinHeight="440"
-        WindowStartupLocation="CenterScreen"
-        PreviewKeyDown="Window_PreviewKeyDown">
-
-    <Window.Resources>
-        <Style x:Key="TranslationPane" TargetType="Border" BasedOn="{StaticResource ToolPanelPane}"/>
-
-        <Style x:Key="TranslationTextBox" TargetType="TextBox" BasedOn="{StaticResource ToolPanelTextBox}"/>
-
-        <Style x:Key="SourceClearButton" TargetType="Button">
-            <Setter Property="Width" Value="32"/>
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FocusVisualStyle" Value="{StaticResource ModernFocusVisual}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="b"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="{StaticResource CornerRadiusMedium}">
-                            <ContentPresenter HorizontalAlignment="Center"
-                                              VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="b" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="b" Property="Opacity" Value="0.82"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-        <ControlTemplate x:Key="TranslationLanguageComboToggleTemplate" TargetType="ToggleButton">
-            <Border x:Name="Root"
-                    Background="{TemplateBinding Background}"
-                    BorderThickness="0"
-                    CornerRadius="{StaticResource CornerRadiusMedium}"/>
-            <ControlTemplate.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter TargetName="Root" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
-                </Trigger>
-                <Trigger Property="IsChecked" Value="True">
-                    <Setter TargetName="Root" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
-                </Trigger>
-            </ControlTemplate.Triggers>
-        </ControlTemplate>
-
-        <Style x:Key="TranslationLanguageComboBoxItem" TargetType="ComboBoxItem" BasedOn="{StaticResource {x:Type ComboBoxItem}}">
-            <Setter Property="MinHeight" Value="32"/>
-            <Setter Property="Padding" Value="8,6"/>
-            <Setter Property="Margin" Value="2"/>
-            <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
-            <Setter Property="FontWeight" Value="{StaticResource FontWeightNormal}"/>
-        </Style>
-
-        <Style x:Key="TranslationLanguageComboBox" TargetType="ComboBox">
-            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="Padding" Value="7,6"/>
-            <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="ToolTip" Value="切换翻译语言"/>
-            <Setter Property="SnapsToDevicePixels" Value="True"/>
-            <Setter Property="FocusVisualStyle" Value="{StaticResource ModernFocusVisual}"/>
-            <Setter Property="ItemContainerStyle" Value="{StaticResource TranslationLanguageComboBoxItem}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="ComboBox">
-                        <Grid>
-                            <ToggleButton x:Name="ToggleButton"
-                                          Template="{StaticResource TranslationLanguageComboToggleTemplate}"
-                                          Background="{TemplateBinding Background}"
-                                          Focusable="False"
-                                          IsChecked="{Binding IsDropDownOpen, Mode=TwoWay, RelativeSource={RelativeSource TemplatedParent}}"
-                                          ClickMode="Press"/>
-
-                            <ContentPresenter x:Name="ContentSite"
-                                              IsHitTestVisible="False"
-                                              Content="{TemplateBinding SelectionBoxItem}"
-                                              ContentTemplate="{TemplateBinding SelectionBoxItemTemplate}"
-                                              ContentStringFormat="{TemplateBinding SelectionBoxItemStringFormat}"
-                                              Margin="0"
-                                              VerticalAlignment="Center"
-                                              HorizontalAlignment="Center"/>
-
-                            <Popup x:Name="PART_Popup"
-                                   AllowsTransparency="True"
-                                   Focusable="False"
-                                   IsOpen="{TemplateBinding IsDropDownOpen}"
-                                   Placement="Bottom"
-                                   HorizontalOffset="-8"
-                                   PopupAnimation="Fade">
-                                <Border Background="{StaticResource SurfaceBrush}"
-                                        CornerRadius="8"
-                                        MinWidth="{TemplateBinding ActualWidth}"
-                                        Padding="2"
-                                        Margin="8,6,8,10">
-                                    <Border.Effect>
-                                        <StaticResource ResourceKey="MenuShadow"/>
-                                    </Border.Effect>
-                                    <ScrollViewer MaxHeight="240"
-                                                  VerticalScrollBarVisibility="Auto">
-                                        <ItemsPresenter/>
-                                    </ScrollViewer>
-                                </Border>
-                            </Popup>
-                        </Grid>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-            <Style.Triggers>
-                <Trigger Property="IsMouseOver" Value="True">
-                    <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
-                </Trigger>
-                <Trigger Property="IsDropDownOpen" Value="True">
-                    <Setter Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
-                </Trigger>
-            </Style.Triggers>
-        </Style>
-
-        <!-- 结果区浮动操作按钮:贴近工具面板按钮尺寸,仅保留轻量 hover 色块。 -->
-        <Style x:Key="FloatingAction" TargetType="Button">
-            <Setter Property="Height" Value="32"/>
-            <Setter Property="Padding" Value="12,0"/>
-            <Setter Property="Cursor" Value="Hand"/>
-            <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
-            <Setter Property="Background" Value="{StaticResource TransparentBrush}"/>
-            <Setter Property="Foreground" Value="{StaticResource TextPrimaryBrush}"/>
-            <Setter Property="BorderThickness" Value="0"/>
-            <Setter Property="FocusVisualStyle" Value="{StaticResource ModernFocusVisual}"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="b"
-                                Background="{TemplateBinding Background}"
-                                CornerRadius="{StaticResource CornerRadiusMedium}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                           <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="b" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="b" Property="Background" Value="{StaticResource PrimarySoftBrush}"/>
-                                <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
-    </Window.Resources>
-
-    <Grid Margin="10,52,10,10">
+        Title="翻译" Width="720" Height="560" MinWidth="560" MinHeight="480"
+        PreviewKeyDown="Window_PreviewKeyDown" WindowStartupLocation="CenterScreen">
+    <Grid Margin="12,52,12,12">
         <Grid.RowDefinitions>
-            <RowDefinition Height="1*" MinHeight="120"/>
-            <RowDefinition Height="1.08*" MinHeight="160"/>
+            <RowDefinition Height="*" MinHeight="160"/>
+            <RowDefinition Height="1.08*" MinHeight="180"/>
         </Grid.RowDefinitions>
-
-        <!-- 上半部:输入 + 工具栏 -->
-        <Border Grid.Row="0"
-                Style="{StaticResource TranslationPane}">
+        <Border Style="{StaticResource ToolPanelPane}">
             <Grid>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="*"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                 </Grid.RowDefinitions>
-
-                <Grid Grid.Row="0">
-                <TextBox x:Name="txtSource"
-                         Style="{StaticResource TranslationTextBox}"
-                         TextWrapping="Wrap"
-                         AcceptsReturn="True"
-                         VerticalScrollBarVisibility="Auto"
-                         TextChanged="TxtSource_TextChanged"/>
-                <TextBlock x:Name="srcWatermark"
-                           Text="请输入要翻译的内容，可右键点击文本框粘贴"
-                           FontSize="{StaticResource FontSizeBody}"
-                           Foreground="{StaticResource TextSecondaryBrush}"
-                           Opacity="0.86"
-                           IsHitTestVisible="False"
-                           VerticalAlignment="Top"
-                           Margin="0,0,0,0"/>
+                <Grid>
+                    <TextBox x:Name="txtSource" Style="{StaticResource ToolPanelTextBox}"
+                             TextWrapping="Wrap" AcceptsReturn="True" VerticalScrollBarVisibility="Auto"
+                             AutomationProperties.Name="翻译原文" TextChanged="TxtSource_TextChanged"/>
+                    <TextBlock x:Name="srcWatermark" Text="输入或粘贴要翻译的内容"
+                               Style="{StaticResource HintText}" IsHitTestVisible="False" VerticalAlignment="Top"/>
                 </Grid>
-
-                <!-- 翻译参数属于输入条件，收进输入面板底部。 -->
-                <Grid Grid.Row="1" Margin="0,10,0,0">
+                <Grid Grid.Row="1" Margin="0,12,0,0">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto"/>
-                        <ColumnDefinition Width="Auto"/>
                         <ColumnDefinition Width="*"/>
                         <ColumnDefinition Width="Auto"/>
+                        <ColumnDefinition Width="Auto"/>
                     </Grid.ColumnDefinitions>
-
-                    <!-- 提供商切换 -->
-                    <Border Grid.Column="3"
-                            x:Name="providerContainer"
-                            Style="{StaticResource SegmentedContainer}"
-                            Background="{StaticResource SurfaceAltBrush}"
-                            Effect="{x:Null}">
+                    <ComboBox x:Name="cmbMode" Style="{StaticResource SunkenComboBox}"
+                              Width="170" HorizontalAlignment="Left" AutomationProperties.Name="翻译方向"
+                              SelectionChanged="CmbMode_SelectionChanged">
+                        <ComboBoxItem Tag="zh-en" Content="中文 ↔ 英文"/>
+                        <ComboBoxItem Tag="auto-zh" Content="自动 → 中文"/>
+                        <ComboBoxItem Tag="auto-en" Content="自动 → 英文"/>
+                        <ComboBoxItem Tag="auto-ja" Content="自动 → 日文"/>
+                        <ComboBoxItem Tag="auto-ko" Content="自动 → 韩文"/>
+                    </ComboBox>
+                    <Button x:Name="btnClearSource" Grid.Column="1" Style="{StaticResource ToolPanelSecondaryButton}"
+                            Content="清空" Margin="8,0" IsEnabled="False" Click="BtnClearSource_Click"/>
+                    <Button x:Name="btnTranslateSource" Grid.Column="2" Style="{StaticResource ToolPanelPrimaryButton}"
+                            Content="翻译" MinWidth="84" IsEnabled="False" ToolTip="翻译 (Ctrl+Enter)"
+                            Click="BtnTranslateSource_Click"/>
+                </Grid>
+                <Grid Grid.Row="2" Margin="0,8,0,0">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <Border Style="{StaticResource SegmentedContainer}" HorizontalAlignment="Left">
                         <Grid x:Name="providerSegmentGrid" Height="32" ClipToBounds="True">
-                            <Border x:Name="providerSlider"
-                                    Style="{StaticResource SegmentedSlider}"
-                                    Width="{Binding ActualWidth, ElementName=btnProviderGoogle}">
+                            <Border x:Name="providerSlider" Style="{StaticResource SegmentedSlider}">
                                 <Border.RenderTransform>
-                                    <TransformGroup>
-                                        <ScaleTransform x:Name="providerSliderScale" ScaleX="1"/>
-                                        <TranslateTransform x:Name="providerSliderTransform"/>
-                                    </TransformGroup>
+                                    <TransformGroup><ScaleTransform x:Name="providerSliderScale"/><TranslateTransform x:Name="providerSliderTransform"/></TransformGroup>
                                 </Border.RenderTransform>
                             </Border>
-
-                            <Grid>
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="Auto" MinWidth="82"/>
-                                    <ColumnDefinition Width="Auto" MinWidth="82"/>
-                                    <ColumnDefinition Width="Auto" MinWidth="82"/>
-                                </Grid.ColumnDefinitions>
-                                <Button x:Name="btnProviderGoogle" Grid.Column="0" Style="{StaticResource SegmentedButton}" MinWidth="82" Click="Provider_Click" Tag="on" Content="谷歌翻译"/>
-                                <Button x:Name="btnProviderTencent" Grid.Column="1" Style="{StaticResource SegmentedButton}" MinWidth="82" Click="Provider_Click" Content="腾讯翻译"/>
-                                <Button x:Name="btnProviderAi" Grid.Column="2" Style="{StaticResource SegmentedButton}" MinWidth="82" Click="Provider_Click" Content="AI 翻译"/>
-                            </Grid>
+                            <StackPanel Orientation="Horizontal">
+                                <Button x:Name="btnProviderGoogle" Style="{StaticResource SegmentedButton}" Content="谷歌" MinWidth="64" Click="Provider_Click"/>
+                                <Button x:Name="btnProviderTencent" Style="{StaticResource SegmentedButton}" Content="腾讯" MinWidth="64" Click="Provider_Click"/>
+                                <Button x:Name="btnProviderAi" Style="{StaticResource SegmentedButton}" Content="AI" MinWidth="64" Click="Provider_Click"/>
+                            </StackPanel>
                         </Grid>
                     </Border>
-
-                    <!-- 翻译策略 -->
-                    <Border Grid.Column="0"
-                            Style="{StaticResource SegmentedContainer}"
-                            Background="{StaticResource SurfaceAltBrush}"
-                            Effect="{x:Null}">
-                        <ComboBox x:Name="cmbMode"
-                                  Style="{StaticResource TranslationLanguageComboBox}"
-                                  Width="106"
-                                  Height="32"
-                                  AutomationProperties.Name="切换翻译语言"
-                                  SelectedIndex="0"
-                                  SelectionChanged="CmbMode_SelectionChanged">
-                            <ComboBoxItem Tag="zh-en" AutomationProperties.Name="中文和英文互译">
-                                <StackPanel Orientation="Horizontal" TextElement.Foreground="{StaticResource TextPrimaryBrush}">
-                                    <TextBlock Text="中文" VerticalAlignment="Center"/>
-                                    <Viewbox Style="{StaticResource ToolIconSmall}" Width="12" Height="12" Margin="7,0" Opacity="0.78">
-                                        <Canvas Width="24" Height="24">
-                                            <Path Data="{StaticResource IconArrowLeftRight}"
-                                                  Stroke="{StaticResource TextSecondaryBrush}"
-                                                  StrokeThickness="1.5"
-                                                  StrokeStartLineCap="Round"
-                                                  StrokeEndLineCap="Round"
-                                                  StrokeLineJoin="Round"
-                                                  Fill="{StaticResource TransparentBrush}"/>
-                                        </Canvas>
-                                    </Viewbox>
-                                    <TextBlock Text="英文" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </ComboBoxItem>
-                            <ComboBoxItem Tag="auto-zh" AutomationProperties.Name="自动识别，译为中文">
-                                <StackPanel Orientation="Horizontal" TextElement.Foreground="{StaticResource TextPrimaryBrush}">
-                                    <TextBlock Text="自动" VerticalAlignment="Center"/>
-                                    <Viewbox Style="{StaticResource ToolIconSmall}" Width="12" Height="12" Margin="7,0" Opacity="0.78">
-                                        <Canvas Width="24" Height="24">
-                                            <Path Data="{StaticResource IconArrowRight}" Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="1.5"
-                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="{StaticResource TransparentBrush}"/>
-                                        </Canvas>
-                                    </Viewbox>
-                                    <TextBlock Text="中文" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </ComboBoxItem>
-                            <ComboBoxItem Tag="auto-en" AutomationProperties.Name="自动识别，译为英文">
-                                <StackPanel Orientation="Horizontal" TextElement.Foreground="{StaticResource TextPrimaryBrush}">
-                                    <TextBlock Text="自动" VerticalAlignment="Center"/>
-                                    <Viewbox Style="{StaticResource ToolIconSmall}" Width="12" Height="12" Margin="7,0" Opacity="0.78">
-                                        <Canvas Width="24" Height="24">
-                                            <Path Data="{StaticResource IconArrowRight}" Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="1.5"
-                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="{StaticResource TransparentBrush}"/>
-                                        </Canvas>
-                                    </Viewbox>
-                                    <TextBlock Text="英文" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </ComboBoxItem>
-                            <ComboBoxItem Tag="auto-ja" AutomationProperties.Name="自动识别，译为日文">
-                                <StackPanel Orientation="Horizontal" TextElement.Foreground="{StaticResource TextPrimaryBrush}">
-                                    <TextBlock Text="自动" VerticalAlignment="Center"/>
-                                    <Viewbox Style="{StaticResource ToolIconSmall}" Width="12" Height="12" Margin="7,0" Opacity="0.78">
-                                        <Canvas Width="24" Height="24">
-                                            <Path Data="{StaticResource IconArrowRight}" Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="1.5"
-                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="{StaticResource TransparentBrush}"/>
-                                        </Canvas>
-                                    </Viewbox>
-                                    <TextBlock Text="日文" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </ComboBoxItem>
-                            <ComboBoxItem Tag="auto-ko" AutomationProperties.Name="自动识别，译为韩文">
-                                <StackPanel Orientation="Horizontal" TextElement.Foreground="{StaticResource TextPrimaryBrush}">
-                                    <TextBlock Text="自动" VerticalAlignment="Center"/>
-                                    <Viewbox Style="{StaticResource ToolIconSmall}" Width="12" Height="12" Margin="7,0" Opacity="0.78">
-                                        <Canvas Width="24" Height="24">
-                                            <Path Data="{StaticResource IconArrowRight}" Stroke="{StaticResource TextSecondaryBrush}" StrokeThickness="1.5"
-                                                  StrokeStartLineCap="Round" StrokeEndLineCap="Round" StrokeLineJoin="Round" Fill="{StaticResource TransparentBrush}"/>
-                                        </Canvas>
-                                    </Viewbox>
-                                    <TextBlock Text="韩文" VerticalAlignment="Center"/>
-                                </StackPanel>
-                            </ComboBoxItem>
-                        </ComboBox>
-                    </Border>
-
-                    <StackPanel x:Name="sourceActions"
-                                Grid.Column="1"
-                                Orientation="Horizontal"
-                                HorizontalAlignment="Left"
-                                VerticalAlignment="Center"
-                                Margin="8,0,0,0"
-                                Visibility="Collapsed">
-                        <Button x:Name="btnTranslateSource"
-                                Style="{StaticResource SourceClearButton}"
-                                ToolTip="翻译"
-                                Click="BtnTranslateSource_Click">
-                            <Viewbox Style="{StaticResource ToolIconSmall}">
-                                <Canvas Width="24" Height="24">
-                                    <Path Data="{StaticResource IconLanguages}"
-                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                          StrokeThickness="2"
-                                          StrokeStartLineCap="Round"
-                                          StrokeEndLineCap="Round"
-                                          StrokeLineJoin="Round"/>
-                                </Canvas>
-                            </Viewbox>
-                        </Button>
-                        <Button x:Name="btnClearSource"
-                                Style="{StaticResource SourceClearButton}"
-                                Margin="4,0,0,0"
-                                ToolTip="清空"
-                                Click="BtnClearSource_Click">
-                            <Viewbox Style="{StaticResource ToolIconSmall}">
-                                <Canvas Width="24" Height="24">
-                                    <Path Data="{StaticResource IconX}"
-                                          Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
-                                          StrokeThickness="2"
-                                          StrokeStartLineCap="Round"
-                                          StrokeEndLineCap="Round"/>
-                                </Canvas>
-                            </Viewbox>
-                        </Button>
-                    </StackPanel>
+                    <TextBlock Grid.Column="1" Text="Ctrl+Enter 翻译 · Shift+Enter 换行" Style="{StaticResource HintText}" VerticalAlignment="Center"/>
                 </Grid>
             </Grid>
         </Border>
-
-        <!-- 下半部:翻译结果 -->
-        <Border Grid.Row="1"
-                Style="{StaticResource TranslationPane}"
-                Margin="0,10,0,0">
+        <Border Grid.Row="1" Style="{StaticResource ToolPanelPane}" Margin="0,12,0,0">
             <Grid>
-                <TextBox x:Name="txtTarget"
-                         Style="{StaticResource TranslationTextBox}"
-                         TextWrapping="Wrap"
-                         AcceptsReturn="True"
-                         IsReadOnly="True"
-                         VerticalScrollBarVisibility="Auto"
-                         TextChanged="TxtTarget_TextChanged"/>
-                <TextBlock x:Name="tgtWatermark"
-                            Text="翻译结果"
-                            FontSize="{StaticResource FontSizeBody}"
-                            Foreground="{StaticResource TextSecondaryBrush}"
-                            Opacity="0.86"
-                            IsHitTestVisible="False"
-                            VerticalAlignment="Top"
-                            Margin="0"/>
-
-                <!-- Loading indicator -->
-                <Border x:Name="loadingIndicator"
-                        Style="{StaticResource LoadingSpinner}"
-                        HorizontalAlignment="Center"
-                        VerticalAlignment="Center"
-                        Visibility="Collapsed"/>
-
-                <!-- 结果操作与输入参数使用同一扁平控件语言。 -->
-                <Border x:Name="actionBar"
-                        Style="{StaticResource SegmentedContainer}"
-                        Background="{StaticResource SurfaceAltBrush}"
-                        Effect="{x:Null}"
-                        Width="{Binding ActualWidth, ElementName=providerContainer}"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Bottom">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                            <ColumnDefinition Width="Auto"/>
-                            <ColumnDefinition Width="*"/>
-                        </Grid.ColumnDefinitions>
-                        <Button x:Name="btnCopyOnly"
-                                Grid.Column="0"
-                                Style="{StaticResource FloatingAction}"
-                                Padding="6,0"
-                                Content="复制"
-                                Click="BtnCopyOnly_Click"/>
-                        <Rectangle Grid.Column="1"
-                                   Style="{StaticResource ToolbarSeparator}"
-                                   Width="0.5"
-                                   Height="18"
-                                   Margin="0"
-                                   IsHitTestVisible="False"/>
-                        <Button x:Name="btnCopyHide"
-                                Grid.Column="2"
-                                Style="{StaticResource FloatingAction}"
-                                Padding="6,0"
-                                Content="复制并隐藏"
-                                Click="BtnCopyHide_Click"/>
-                        <Rectangle Grid.Column="3"
-                                   Style="{StaticResource ToolbarSeparator}"
-                                   Width="0.5"
-                                   Height="18"
-                                   Margin="0"
-                                   IsHitTestVisible="False"/>
-                        <Button x:Name="btnCopyInput"
-                                Grid.Column="4"
-                                Style="{StaticResource FloatingAction}"
-                                Padding="6,0"
-                                Content="复制并输入"
-                                Click="BtnCopyInput_Click"/>
-                    </Grid>
-                </Border>
+                <Grid.RowDefinitions><RowDefinition Height="Auto"/><RowDefinition Height="*"/><RowDefinition Height="Auto"/></Grid.RowDefinitions>
+                <DockPanel Margin="0,0,0,8">
+                    <Button x:Name="btnAccounts" DockPanel.Dock="Right" Style="{StaticResource ToolPanelSecondaryButton}"
+                            Content="服务账号" Visibility="Collapsed" Click="BtnAccounts_Click" Margin="8,0,0,0"/>
+                    <Button x:Name="btnRetry" DockPanel.Dock="Right" Style="{StaticResource ToolPanelSecondaryButton}"
+                            Content="重新翻译" Visibility="Collapsed" Click="BtnTranslateSource_Click" Margin="8,0,0,0"/>
+                    <ScrollViewer MaxHeight="80" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                        <TextBlock x:Name="resultStatus" Text="译文" Style="{StaticResource HintText}" TextWrapping="Wrap"
+                                   AutomationProperties.LiveSetting="Polite" VerticalAlignment="Center"/>
+                    </ScrollViewer>
+                </DockPanel>
+                <Grid Grid.Row="1">
+                    <TextBox x:Name="txtTarget" Style="{StaticResource ToolPanelTextBox}" TextWrapping="Wrap"
+                             AcceptsReturn="True" IsReadOnly="True" VerticalScrollBarVisibility="Auto"
+                             AutomationProperties.Name="译文" TextChanged="TxtTarget_TextChanged"/>
+                    <TextBlock x:Name="tgtWatermark" Text="译文将显示在这里" Style="{StaticResource HintText}"
+                               IsHitTestVisible="False" VerticalAlignment="Top"/>
+                    <Border x:Name="loadingIndicator" Style="{StaticResource LoadingSpinner}"
+                            HorizontalAlignment="Center" VerticalAlignment="Center" Visibility="Collapsed"/>
+                </Grid>
+                <StackPanel x:Name="actionBar" Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0" IsEnabled="False">
+                    <Button x:Name="btnCopyHide" Style="{StaticResource ToolPanelSecondaryButton}" Content="复制并关闭"
+                            ToolTip="复制并关闭 (Ctrl+Shift+C)" Click="BtnCopyHide_Click"/>
+                    <Button x:Name="btnCopyInput" Style="{StaticResource ToolPanelSecondaryButton}" Content="粘贴到原窗口"
+                            Margin="8,0" Click="BtnCopyInput_Click"/>
+                    <Button x:Name="btnCopyOnly" Style="{StaticResource ToolPanelSecondaryButton}" Content="复制" MinWidth="72" Click="BtnCopyOnly_Click"/>
+                </StackPanel>
             </Grid>
         </Border>
     </Grid>

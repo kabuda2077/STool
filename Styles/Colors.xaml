@@ -21,8 +21,8 @@
     <Color x:Key="SettingsSidebarFocusColor">#2554C7</Color>
     <Color x:Key="BorderColor">#E7E7EA</Color>
     <Color x:Key="TextPrimaryColor">#18181B</Color>
-    <Color x:Key="TextSecondaryColor">#6B7280</Color>
-    <Color x:Key="SuccessColor">#2DC472</Color>
+    <Color x:Key="TextSecondaryColor">#586171</Color>
+    <Color x:Key="SuccessColor">#16834A</Color>
     <Color x:Key="WarningColor">#D97706</Color>
     <Color x:Key="ErrorColor">#DC2626</Color>
     <Color x:Key="ErrorHoverColor">#EF4444</Color>

@@ -83,8 +83,11 @@ public partial class CaptureOverlay
                       || (b == btnPen && _currentTool == AnnotationTool.Pen)
                       || (b == btnText && _currentTool == AnnotationTool.Text)
                       || (b == btnMosaic && _currentTool == AnnotationTool.Mosaic);
-            b.Background = active ? ResourceBrush("PrimarySoftBrush") : ResourceBrush("TransparentBrush");
+            b.Background = active ? ResourceBrush("PrimarySoftPressedBrush") : ResourceBrush("TransparentBrush");
             b.Foreground = active ? ResourceBrush("PrimaryBrush") : ResourceBrush("TextPrimaryBrush");
+            b.BorderBrush = active ? ResourceBrush("PrimaryBrush") : ResourceBrush("TransparentBrush");
+            b.BorderThickness = new Thickness(1);
+            System.Windows.Automation.AutomationProperties.SetItemStatus(b, active ? "已选中" : "未选中");
         }
     }
 
@@ -281,7 +284,17 @@ public partial class CaptureOverlay
             var timer = System.Diagnostics.Stopwatch.StartNew();
             var pipeline = new ScreenshotTranslationPipeline(
                 new ScreenshotTranslationServices(_services.Ocr, _services.Translation));
-            var result = await pipeline.RunAsync(bmp, cancellationToken);
+            var progress = new Progress<ScreenshotTranslationStage>(stage =>
+            {
+                if (_closing || !ReferenceEquals(_translationCts, currentTranslationCts) || cancellationToken.IsCancellationRequested) return;
+                translationStageText.Text = stage switch
+                {
+                    ScreenshotTranslationStage.Recognizing => "正在识别文字…",
+                    ScreenshotTranslationStage.SelectingAndTranslating => "正在挑选并翻译内容…",
+                    _ => "正在翻译…"
+                } + " 再次点击翻译可取消";
+            });
+            var result = await pipeline.RunAsync(bmp, cancellationToken, progress);
             cancellationToken.ThrowIfCancellationRequested();
 
             if (result.Notice != null)
@@ -290,6 +303,7 @@ public partial class CaptureOverlay
             switch (result.Outcome)
             {
                 case ScreenshotTranslationOutcome.InPlace:
+                    translationStageText.Text = "正在排版译文…";
                     // 擦除与样式分析是纯像素运算，放到后台线程。
                     plan = await Task.Run(
                         () => ScreenshotTranslationRenderer.Prepare(bmp, result.Paragraphs, result.AllLines),

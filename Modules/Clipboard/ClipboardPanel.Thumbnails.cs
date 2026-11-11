@@ -45,25 +45,6 @@ public partial class ClipboardPanel
             vm.SizeText = vm.ImageInfoText;
             vm.IsLargeImage = item.ImageBytes >= LargeImageBytes || Math.Max(item.ImageWidth, item.ImageHeight) >= 3000;
 
-            var thumbWidth = 150d;
-            var thumbHeight = 96d;
-            if (item.ImageWidth > 0 && item.ImageHeight > 0)
-            {
-                var ratio = (double)item.ImageWidth / item.ImageHeight;
-                if (ratio >= 1)
-                {
-                    thumbWidth = Math.Min(180, Math.Max(118, 96 * ratio));
-                    thumbHeight = 96;
-                }
-                else
-                {
-                    thumbWidth = 96;
-                    thumbHeight = Math.Min(130, Math.Max(92, 96 / ratio));
-                }
-            }
-
-            vm.ThumbnailBoxWidth = thumbWidth;
-            vm.ThumbnailBoxHeight = thumbHeight;
         }
         else if (item.Type == ClipboardItemType.File)
         {
@@ -415,8 +396,6 @@ public class ClipboardItemViewModel : INotifyPropertyChanged
     public string SizeText { get; set; } = string.Empty;
     public string ImageInfoText { get; set; } = string.Empty;
     public bool IsLargeImage { get; set; }
-    public double ThumbnailBoxWidth { get; set; } = 150;
-    public double ThumbnailBoxHeight { get; set; } = 96;
 
     public bool IsFavorite => _isFavorite;
     public string FavoriteGlyph => _isFavorite ? "★" : "☆";

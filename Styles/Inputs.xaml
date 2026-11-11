@@ -140,7 +140,7 @@
                 <ControlTemplate TargetType="ComboBoxItem">
                     <Border x:Name="Root"
                             Background="{StaticResource TransparentBrush}"
-                            CornerRadius="6"
+                            CornerRadius="{StaticResource CornerRadiusMedium}"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter/>
                     </Border>
@@ -214,7 +214,7 @@
                             <Border Background="{StaticResource SurfaceBrush}"
                                     BorderBrush="{StaticResource BorderBrush}"
                                     BorderThickness="1"
-                                    CornerRadius="8"
+                                    CornerRadius="{StaticResource CornerRadiusMedium}"
                                     MinWidth="{TemplateBinding ActualWidth}"
                                     Padding="4"
                                     Margin="8,6,8,10">
@@ -352,7 +352,7 @@
                         <Border x:Name="Box"
                                 Width="16"
                                 Height="16"
-                                CornerRadius="4"
+                                CornerRadius="{StaticResource CornerRadiusSmall}"
                                 Background="{StaticResource SurfaceBrush}"
                                 BorderBrush="{StaticResource BorderBrush}"
                                 BorderThickness="1"
@@ -400,7 +400,7 @@
                     <Border x:Name="Track"
                             Width="38"
                             Height="22"
-                            CornerRadius="8"
+                            CornerRadius="{StaticResource CornerRadiusMedium}"
                             Background="{StaticResource BorderBrush}"
                             SnapsToDevicePixels="True">
                         <Border x:Name="Thumb"

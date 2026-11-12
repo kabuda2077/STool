@@ -3,7 +3,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Threading;
-using STool.Core;
 using ComboBox = System.Windows.Controls.ComboBox;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using TextBox = System.Windows.Controls.TextBox;
@@ -15,6 +14,15 @@ namespace STool.Views.Settings;
 internal sealed class SettingsAutoSaveController
 {
     private static readonly TimeSpan SaveDelay = TimeSpan.FromMilliseconds(500);
+    private static readonly DependencyProperty ControllerProperty = DependencyProperty.RegisterAttached(
+        "Controller", typeof(SettingsAutoSaveController), typeof(SettingsAutoSaveController));
+
+    public static SettingsAutoSaveController? GetController(DependencyObject owner) =>
+        (SettingsAutoSaveController?)owner.GetValue(ControllerProperty);
+
+    public bool HasPendingChanges => _dirty;
+    public bool HasSaveError { get; private set; }
+    public string? SaveError { get; private set; }
 
     private readonly DispatcherTimer _timer;
     private readonly FrameworkElement _owner;
@@ -26,6 +34,7 @@ internal sealed class SettingsAutoSaveController
     {
         _owner = owner;
         _save = save;
+        owner.SetValue(ControllerProperty, this);
         _timer = new DispatcherTimer { Interval = SaveDelay };
         _timer.Tick += (_, _) => SaveNow();
 
@@ -75,30 +84,38 @@ internal sealed class SettingsAutoSaveController
     private void Schedule()
     {
         _dirty = true;
+        HasSaveError = false;
+        SaveError = null;
         SettingsFeedback.Report(_owner, "等待保存…");
         _timer.Stop();
         _timer.Start();
     }
 
-    private void SaveNow()
+    public bool SaveNow()
     {
         _timer.Stop();
         if (!_dirty || _saving)
         {
-            return;
+            return !_dirty;
         }
 
         _saving = true;
         try
         {
+            // false means unchanged for existing panels; only an exception is a failed save.
             _save();
             _dirty = false;
+            HasSaveError = false;
+            SaveError = null;
             SettingsFeedback.Report(_owner);
+            return true;
         }
         catch (Exception ex)
         {
+            HasSaveError = true;
+            SaveError = ex.Message;
             SettingsFeedback.Report(_owner, "保存失败，请重试");
-            ToastNotification.Show("自动保存失败", ex.Message, ToastNotification.ToastType.Error);
+            return false;
         }
         finally
         {

@@ -67,8 +67,13 @@
                     <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
                     <TextBlock x:Name="pageTitle" FontSize="{StaticResource FontSizeTitle}"
                                FontWeight="{StaticResource FontWeightStrong}" AutomationProperties.HeadingLevel="Level1"/>
-                    <TextBlock x:Name="saveStatus" Grid.Column="1" Style="{StaticResource HintText}"
-                               VerticalAlignment="Center" Margin="12,0,0,0" AutomationProperties.LiveSetting="Polite"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="saveStatus" Style="{StaticResource HintText}"
+                                   VerticalAlignment="Center" Margin="12,0,0,0" AutomationProperties.LiveSetting="Polite"/>
+                        <Button x:Name="retrySave" Content="重试保存" Click="RetrySave_Click"
+                                Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
+                                Visibility="Collapsed"/>
+                    </StackPanel>
                 </Grid>
 
                 <ScrollViewer x:Name="contentScroll"

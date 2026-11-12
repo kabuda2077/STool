@@ -37,6 +37,9 @@ public partial class CaptureOverlay : Window
     private System.Windows.Point _dragStart;
     private Rect _selectionAtStart;
     private bool _closing;
+    private bool _savingSelection;
+    internal bool IsSavingSelection => _savingSelection;
+    private bool IsToolbarFocused => Keyboard.FocusedElement is DependencyObject focused && toolbar.IsAncestorOf(focused);
     private bool _handlesReady;
     private bool _interactionReady;
     private bool _suppressStartupAltRelease;
@@ -286,6 +289,9 @@ public partial class CaptureOverlay : Window
 
         var ctrl = (Keyboard.Modifiers & ModifierKeys.Control) == ModifierKeys.Control;
         var shift = (Keyboard.Modifiers & ModifierKeys.Shift) == ModifierKeys.Shift;
+        // 工具栏控件先处理 Enter、方向键与编辑输入；Esc 和 Ctrl+S 保持全局可用。
+        if (key != VK_ESCAPE && !(ctrl && key == VK_S) && IsToolbarFocused)
+            return IntPtr.Zero;
         switch (key)
         {
             case VK_ESCAPE:

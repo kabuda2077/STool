@@ -4,6 +4,7 @@
   --primary: #2554c7; --primary-pressed: #1e3f99; --primary-soft: #f0f5ff;
   --selected: #e1eaff; --border: #e7e7ea; --neutral: #eceef2;
   --success: #16834a; --error: #dc2626; --error-soft: #fef2f2;
+  --danger-foreground: #b91c1c; /* ErrorPressedColor：浅色表面上的危险操作文字。 */
   --radius: 8px; --space-xs: 4px; --space-sm: 8px; --space-md: 12px; --space-lg: 16px;
   font-family: system-ui, -apple-system, "Segoe UI", "Microsoft YaHei UI", sans-serif;
   color: var(--ink); background: var(--canvas); font-synthesis: none; line-height: 1.5;
@@ -52,13 +53,14 @@ button, .picker, .text-action { border-radius: var(--radius); cursor: pointer; t
 .transfer-task-state { grid-row: 2; color: var(--muted); font-size: 12px; }
 .transfer-task-actions { grid-column: 2; grid-row: 1 / 3; display: flex; gap: var(--space-xs); }
 .task-action { display: grid; place-items: center; min-width: 44px; min-height: 44px; border: 0; padding: 0 var(--space-sm); background: transparent; color: var(--primary); font-size: 13px; font-weight: 600; text-decoration: none; }
-.task-action.danger { color: var(--error); }
+.task-action.danger { color: var(--danger-foreground); }
 .transfer-task-progress { height: 4px; margin: var(--space-sm) 0; overflow: hidden; border-radius: var(--radius); background: var(--border); }
 .transfer-task-progress span { display: block; height: 100%; width: 0; background: var(--primary); transition: width .18s ease-out; }
 .transfer-task-detail { color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .picker-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); }
 .picker { position: relative; display: grid; place-items: center; min-height: 46px; background: var(--surface); border: 1px solid var(--border); color: var(--ink); font-weight: 600; }
 .picker input { position: absolute; width: 1px; height: 1px; padding: 0; clip-path: inset(50%); overflow: hidden; white-space: nowrap; }
+.picker:has(input:disabled) { cursor: default; background: var(--neutral); color: var(--muted); }
 .selection-summary { min-height: 48px; padding: 14px 2px; color: var(--muted); font-size: 13px; }
 #uploadButton { width: 100%; }
 .section-head { display: flex; align-items: center; justify-content: space-between; min-height: 44px; margin-bottom: 0; color: var(--muted); font-size: 13px; }
@@ -90,7 +92,7 @@ button, .picker, .text-action { border-radius: var(--radius); cursor: pointer; t
 .archive-progress span { display: block; width: 0; height: 100%; background: var(--primary); transition: width .18s ease-out; }
 .progress { position: absolute; left: 0; bottom: 0; height: 2px; width: 0; background: var(--primary); transition: width .15s linear; }
 .empty { padding: 48px 12px; background: var(--surface); color: var(--muted); text-align: center; font-size: 14px; }
-.error { min-height: 20px; margin: 0; color: var(--error); font-size: 13px; overflow-wrap: anywhere; }
+.error { min-height: 20px; margin: 0; color: var(--danger-foreground); font-size: 13px; overflow-wrap: anywhere; }
 #workspaceError { padding: var(--space-md); margin-bottom: var(--space-md); border-radius: var(--radius); background: var(--error-soft); }
 .offer-backdrop { border: 0; padding: 0; width: min(calc(100% - 32px), 360px); max-height: calc(100dvh - 32px); border-radius: var(--radius); color: var(--ink); background: var(--surface); }
 .offer-backdrop::backdrop { background: rgb(24 24 27 / .42); }
@@ -103,7 +105,7 @@ button, .picker, .text-action { border-radius: var(--radius); cursor: pointer; t
 .offer-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-md); }
 .offer-actions.single { grid-template-columns: 1fr; }
 .offer-accept { display: grid; place-items: center; text-decoration: none; }
-.offer-reject { width: 100%; min-height: 44px; margin-top: var(--space-md); border: 0; background: var(--error-soft); color: var(--error); font-size: 13px; font-weight: 600; }
+.offer-reject { width: 100%; min-height: 44px; margin-top: var(--space-md); border: 0; background: var(--error-soft); color: var(--danger-foreground); font-size: 13px; font-weight: 600; }
 @media (max-width: 420px) {
   .picker-row { grid-template-columns: 1fr; }
   .auth-view { margin-top: 32px; }

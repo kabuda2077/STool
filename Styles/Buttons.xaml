@@ -202,6 +202,14 @@
         </Setter>
     </Style>
 
+    <Style x:Key="SourceClearButton" TargetType="Button" BasedOn="{StaticResource IconButton}">
+        <Setter Property="Width" Value="32"/>
+        <Setter Property="Height" Value="32"/>
+        <Setter Property="Background" Value="{StaticResource SurfaceAltBrush}"/>
+        <Setter Property="Foreground" Value="{StaticResource TextSecondaryBrush}"/>
+        <Setter Property="BorderThickness" Value="0"/>
+    </Style>
+
     <Style x:Key="ToolbarSeparator" TargetType="Rectangle">
         <Setter Property="Width" Value="1"/>
         <Setter Property="Height" Value="20"/>
@@ -250,7 +258,7 @@
         </Setter>
     </Style>
 
-    <Style x:Key="SegmentedButton" TargetType="Button">
+    <Style x:Key="SegmentedButton" TargetType="RadioButton">
         <Setter Property="Cursor" Value="Hand"/>
         <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
         <Setter Property="Height" Value="32"/>
@@ -262,7 +270,7 @@
         <Setter Property="FocusVisualStyle" Value="{StaticResource ModernFocusVisual}"/>
         <Setter Property="Template">
             <Setter.Value>
-                <ControlTemplate TargetType="Button">
+                <ControlTemplate TargetType="RadioButton">
                     <Border Background="{StaticResource TransparentBrush}"
                             Padding="{TemplateBinding Padding}">
                         <ContentPresenter VerticalAlignment="Center" HorizontalAlignment="Center"/>
@@ -271,7 +279,7 @@
                         <Trigger Property="IsMouseOver" Value="True">
                             <Setter Property="Foreground" Value="{StaticResource PrimaryBrush}"/>
                         </Trigger>
-                        <Trigger Property="Tag" Value="on">
+                        <Trigger Property="IsChecked" Value="True">
                             <Setter Property="Foreground" Value="{StaticResource OnPrimaryBrush}"/>
                             <Setter Property="FontWeight" Value="{StaticResource FontWeightStrong}"/>
                         </Trigger>

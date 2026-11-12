@@ -59,14 +59,18 @@ public partial class TranslationPanel : Window
         }), DispatcherPriority.ApplicationIdle);
     }
 
-    private void Provider_Click(object sender, RoutedEventArgs e)
+    private void Provider_Checked(object sender, RoutedEventArgs e)
     {
-        _provider = sender switch
+        var provider = sender switch
         {
             var button when ReferenceEquals(button, btnProviderTencent) => TranslationProvider.Tencent,
             var button when ReferenceEquals(button, btnProviderAi) => TranslationProvider.OpenAI,
             _ => TranslationProvider.Google
         };
+        if (_provider == provider)
+            return;
+
+        _provider = provider;
         _translationManager.SaveConfiguredProvider(_provider);
         UpdateProviderButtons();
 
@@ -76,9 +80,9 @@ public partial class TranslationPanel : Window
 
     private void UpdateProviderButtons()
     {
-        btnProviderGoogle.Tag = _provider == TranslationProvider.Google ? "on" : null;
-        btnProviderTencent.Tag = _provider == TranslationProvider.Tencent ? "on" : null;
-        btnProviderAi.Tag = _provider == TranslationProvider.OpenAI ? "on" : null;
+        btnProviderGoogle.IsChecked = _provider == TranslationProvider.Google;
+        btnProviderTencent.IsChecked = _provider == TranslationProvider.Tencent;
+        btnProviderAi.IsChecked = _provider == TranslationProvider.OpenAI;
         UpdateProviderSlider();
     }
 

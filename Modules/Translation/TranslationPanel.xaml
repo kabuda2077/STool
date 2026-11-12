@@ -16,8 +16,6 @@
     <Window.Resources>
         <Style x:Key="TranslationPane" TargetType="Border" BasedOn="{StaticResource ToolPanelPane}"/>
 
-        <Style x:Key="TranslationTextBox" TargetType="TextBox" BasedOn="{StaticResource ToolPanelTextBox}"/>
-
         <ControlTemplate x:Key="TranslationLanguageComboToggleTemplate" TargetType="ToggleButton">
             <Border x:Name="Root"
                     Background="{TemplateBinding Background}"
@@ -179,9 +177,9 @@
                                     <ColumnDefinition Width="Auto" MinWidth="58"/>
                                     <ColumnDefinition Width="Auto" MinWidth="58"/>
                                 </Grid.ColumnDefinitions>
-                                <Button x:Name="btnProviderGoogle" Grid.Column="0" Style="{StaticResource SegmentedButton}" MinWidth="58" Click="Provider_Click" Tag="on" Content="谷歌"/>
-                                <Button x:Name="btnProviderTencent" Grid.Column="1" Style="{StaticResource SegmentedButton}" MinWidth="58" Click="Provider_Click" Content="腾讯"/>
-                                <Button x:Name="btnProviderAi" Grid.Column="2" Style="{StaticResource SegmentedButton}" MinWidth="58" Click="Provider_Click" Content="AI"/>
+                                <RadioButton x:Name="btnProviderGoogle" Grid.Column="0" Style="{StaticResource SegmentedButton}" GroupName="TranslationProvider" MinWidth="58" Checked="Provider_Checked" IsChecked="True" Content="谷歌"/>
+                                <RadioButton x:Name="btnProviderTencent" Grid.Column="1" Style="{StaticResource SegmentedButton}" GroupName="TranslationProvider" MinWidth="58" Checked="Provider_Checked" Content="腾讯"/>
+                                <RadioButton x:Name="btnProviderAi" Grid.Column="2" Style="{StaticResource SegmentedButton}" GroupName="TranslationProvider" MinWidth="58" Checked="Provider_Checked" Content="AI"/>
                             </Grid>
                         </Grid>
                     </Border>
@@ -201,7 +199,7 @@
                                   SelectedIndex="0"
                                   SelectionChanged="CmbMode_SelectionChanged">
                             <ComboBoxItem Tag="zh-en" AutomationProperties.Name="中文和英文互译">
-                                <StackPanel Orientation="Horizontal" TextElement.Foreground="{StaticResource TextPrimaryBrush}">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" TextElement.Foreground="{StaticResource TextPrimaryBrush}">
                                     <TextBlock Text="中文" VerticalAlignment="Center"/>
                                     <Viewbox Style="{StaticResource ToolIconSmall}" Width="12" Height="12" Margin="7,0" Opacity="0.78">
                                         <Canvas Width="24" Height="24">
@@ -218,7 +216,7 @@
                                 </StackPanel>
                             </ComboBoxItem>
                             <ComboBoxItem Tag="auto-zh" AutomationProperties.Name="自动识别，译为中文">
-                                <StackPanel Orientation="Horizontal" TextElement.Foreground="{StaticResource TextPrimaryBrush}">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" TextElement.Foreground="{StaticResource TextPrimaryBrush}">
                                     <TextBlock Text="自动" VerticalAlignment="Center"/>
                                     <Viewbox Style="{StaticResource ToolIconSmall}" Width="12" Height="12" Margin="7,0" Opacity="0.78">
                                         <Canvas Width="24" Height="24">
@@ -230,7 +228,7 @@
                                 </StackPanel>
                             </ComboBoxItem>
                             <ComboBoxItem Tag="auto-en" AutomationProperties.Name="自动识别，译为英文">
-                                <StackPanel Orientation="Horizontal" TextElement.Foreground="{StaticResource TextPrimaryBrush}">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" TextElement.Foreground="{StaticResource TextPrimaryBrush}">
                                     <TextBlock Text="自动" VerticalAlignment="Center"/>
                                     <Viewbox Style="{StaticResource ToolIconSmall}" Width="12" Height="12" Margin="7,0" Opacity="0.78">
                                         <Canvas Width="24" Height="24">
@@ -242,7 +240,7 @@
                                 </StackPanel>
                             </ComboBoxItem>
                             <ComboBoxItem Tag="auto-ja" AutomationProperties.Name="自动识别，译为日文">
-                                <StackPanel Orientation="Horizontal" TextElement.Foreground="{StaticResource TextPrimaryBrush}">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" TextElement.Foreground="{StaticResource TextPrimaryBrush}">
                                     <TextBlock Text="自动" VerticalAlignment="Center"/>
                                     <Viewbox Style="{StaticResource ToolIconSmall}" Width="12" Height="12" Margin="7,0" Opacity="0.78">
                                         <Canvas Width="24" Height="24">
@@ -254,7 +252,7 @@
                                 </StackPanel>
                             </ComboBoxItem>
                             <ComboBoxItem Tag="auto-ko" AutomationProperties.Name="自动识别，译为韩文">
-                                <StackPanel Orientation="Horizontal" TextElement.Foreground="{StaticResource TextPrimaryBrush}">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Center" TextElement.Foreground="{StaticResource TextPrimaryBrush}">
                                     <TextBlock Text="自动" VerticalAlignment="Center"/>
                                     <Viewbox Style="{StaticResource ToolIconSmall}" Width="12" Height="12" Margin="7,0" Opacity="0.78">
                                         <Canvas Width="24" Height="24">
@@ -283,11 +281,19 @@
                              AutomationProperties.HelpText="Enter 翻译，Shift+Enter 换行"
                              TextChanged="TxtSource_TextChanged"/>
                     <TextBlock x:Name="srcWatermark" Style="{StaticResource InputPlaceholderText}"
-                               Text="输入或粘贴要翻译的内容&#10;Enter 翻译 · Shift+Enter 换行"/>
+                               Text="输入或粘贴要翻译的内容"/>
                 </Grid>
                 <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,10,0,0">
-                    <Button x:Name="btnClearSource" Style="{StaticResource ToolPanelSecondaryButton}"
-                            Content="清空" IsEnabled="False" Click="BtnClearSource_Click"/>
+                    <Button x:Name="btnClearSource" Style="{StaticResource SourceClearButton}"
+                            ToolTip="清空" IsEnabled="False" Click="BtnClearSource_Click">
+                        <Viewbox Style="{StaticResource ToolIconSmall}">
+                            <Canvas Width="24" Height="24">
+                                <Path Data="{StaticResource IconX}"
+                                      Stroke="{Binding Foreground, RelativeSource={RelativeSource AncestorType=Button}}"
+                                      StrokeThickness="2" StrokeStartLineCap="Round" StrokeEndLineCap="Round"/>
+                            </Canvas>
+                        </Viewbox>
+                    </Button>
                     <Button x:Name="btnTranslateSource" Style="{StaticResource ToolPanelPrimaryButton}"
                             Content="翻译" IsEnabled="False" Margin="8,0,0,0"
                             ToolTip="翻译 (Ctrl+Enter)" Click="BtnTranslateSource_Click"/>

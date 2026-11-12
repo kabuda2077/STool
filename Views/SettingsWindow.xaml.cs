@@ -20,26 +20,24 @@ public partial class SettingsWindow : Window
         AddHandler(SettingsFeedback.ChangedEvent, new RoutedPropertyChangedEventHandler<string>((_, e) =>
         {
             saveStatus.Text = e.NewValue;
+            saveStatus.ToolTip = CurrentAutoSave?.SaveError;
+            retrySave.Visibility = CurrentAutoSave?.HasSaveError == true ? Visibility.Visible : Visibility.Collapsed;
             e.Handled = true;
         }));
         ApplyLayoutMetrics();
 
         // 默认显示通用设置
         ShowGeneralSettings();
-        SelectNavigationButton(btnGeneralSettings);
     }
 
     private void BtnGeneralSettings_Click(object sender, RoutedEventArgs e)
     {
         ShowGeneralSettings();
-        SelectNavigationButton(btnGeneralSettings);
     }
 
     private void BtnClipboardSettings_Click(object sender, RoutedEventArgs e)
     {
-        Title = "剪贴板设置";
-        ShowPanel(new ClipboardSettingsPanel(_configManager, _shell));
-        SelectNavigationButton(btnClipboardSettings);
+        ShowPanel("剪贴板设置", btnClipboardSettings, () => new ClipboardSettingsPanel(_configManager, _shell));
     }
 
     private void BtnAccountsSettings_Click(object sender, RoutedEventArgs e) => ShowAccountsSettings();
@@ -47,21 +45,17 @@ public partial class SettingsWindow : Window
     /// <summary>OCR/翻译页提示"未配置账号"时跳转到服务账号页。</summary>
     public void ShowAccountsSettings()
     {
-        Title = "服务账号";
-        ShowPanel(new AccountsSettingsPanel(_configManager));
-        SelectNavigationButton(btnAccountsSettings);
+        ShowPanel("服务账号", btnAccountsSettings, () => new AccountsSettingsPanel(_configManager));
     }
 
     private void BtnOcrSettings_Click(object sender, RoutedEventArgs e)
     {
         ShowOcrSettings();
-        SelectNavigationButton(btnOcrSettings);
     }
 
     private void BtnTranslationSettings_Click(object sender, RoutedEventArgs e)
     {
         ShowTranslationSettings();
-        SelectNavigationButton(btnTranslationSettings);
     }
 
     // 让鼠标停在输入框上(未点击)时滚轮也能滚动整页:
@@ -105,29 +99,46 @@ public partial class SettingsWindow : Window
 
     private void ShowGeneralSettings()
     {
-        Title = "通用设置";
-        ShowPanel(new GeneralSettingsPanel(_configManager, _shell));
+        ShowPanel("通用设置", btnGeneralSettings, () => new GeneralSettingsPanel(_configManager, _shell));
     }
 
     private void ShowOcrSettings()
     {
-        Title = "OCR 设置";
-        ShowPanel(new OcrSettingsPanel(_configManager, ShowAccountsSettings));
+        ShowPanel("OCR 设置", btnOcrSettings, () => new OcrSettingsPanel(_configManager, ShowAccountsSettings));
     }
 
     private void ShowTranslationSettings()
     {
-        Title = "翻译设置";
-        ShowPanel(new TranslationSettingsPanel(_configManager, ShowAccountsSettings));
+        ShowPanel("翻译设置", btnTranslationSettings, () => new TranslationSettingsPanel(_configManager, ShowAccountsSettings));
     }
 
-    private void ShowPanel(UIElement panel)
+    private SettingsAutoSaveController? CurrentAutoSave => contentPanel.Children.Count > 0
+        ? SettingsAutoSaveController.GetController(contentPanel.Children[0])
+        : null;
+
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
     {
-        pageTitle.Text = Title;
-        Title = $"STool 设置 · {pageTitle.Text}";
+        base.OnClosing(e);
+        if (CurrentAutoSave?.SaveNow() == false)
+            e.Cancel = true;
+    }
+
+    private void RetrySave_Click(object sender, RoutedEventArgs e) => CurrentAutoSave?.SaveNow();
+
+    private void ShowPanel(string title, System.Windows.Controls.Button navigationButton, Func<UIElement> createPanel)
+    {
+        if (CurrentAutoSave?.SaveNow() == false)
+            return;
+
+        var panel = createPanel();
+        pageTitle.Text = title;
+        Title = $"STool 设置 · {title}";
         saveStatus.Text = string.Empty;
+        saveStatus.ToolTip = null;
+        retrySave.Visibility = Visibility.Collapsed;
         contentPanel.Children.Clear();
         contentPanel.Children.Add(panel);
+        SelectNavigationButton(navigationButton);
         UpdateContentPanelWidth();
         UpdateOverlayScrollBar();
         contentScroll.ScrollToTop();

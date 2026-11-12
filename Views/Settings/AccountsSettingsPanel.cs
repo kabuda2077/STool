@@ -130,7 +130,7 @@ public class AccountsSettingsPanel : StackPanel
                 var (success, message) = await TencentTranslationService.TestAsync(secretId, secretKey);
                 if (secretId != _txtTencentSecretId.Text || secretKey != _pwdTencentSecretKey.Password) return;
                 _tencentTestStatus.Text = success ? "翻译服务测试通过 · OCR 权限需单独验证" : $"测试失败：{message}";
-                _tencentTestStatus.Foreground = (System.Windows.Media.Brush)FindResource(success ? "SuccessBrush" : "ErrorBrush");
+                _tencentTestStatus.Foreground = (System.Windows.Media.Brush)FindResource(success ? "SuccessTextBrush" : "ErrorBrush");
             }
             catch (Exception ex)
             {

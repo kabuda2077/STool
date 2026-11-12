@@ -23,6 +23,8 @@
     <Color x:Key="TextPrimaryColor">#18181B</Color>
     <Color x:Key="TextSecondaryColor">#6B7280</Color>
     <Color x:Key="SuccessColor">#2DC472</Color>
+    <!-- 成功状态正文使用更深的绿色；保留亮绿色用于状态点与截图选区。 -->
+    <Color x:Key="SuccessTextColor">#15803D</Color>
     <Color x:Key="WarningColor">#D97706</Color>
     <Color x:Key="ErrorColor">#DC2626</Color>
     <Color x:Key="ErrorHoverColor">#EF4444</Color>
@@ -51,6 +53,7 @@
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}"/>
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}"/>
     <SolidColorBrush x:Key="SuccessBrush" Color="{StaticResource SuccessColor}"/>
+    <SolidColorBrush x:Key="SuccessTextBrush" Color="{StaticResource SuccessTextColor}"/>
     <SolidColorBrush x:Key="WarningBrush" Color="{StaticResource WarningColor}"/>
     <SolidColorBrush x:Key="ErrorBrush" Color="{StaticResource ErrorColor}"/>
     <SolidColorBrush x:Key="ErrorHoverBrush" Color="{StaticResource ErrorHoverColor}"/>

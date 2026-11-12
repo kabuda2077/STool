@@ -18,10 +18,12 @@ public class SecurePasswordField : Grid
     private readonly TextBox _txt;
     private readonly Button _btn;
     private readonly Path _iconPath;
+    private readonly Func<string, object> _findResource;
 
     private string _realPassword = "";
     private bool _isRevealed = false;
     private bool _isSyncing = false;
+    private string _accessibleName = "密钥";
 
     // 使用定长 16 个圆点作为象征性遮罩，防止溢出裁切，同时更美观和安全
     private const string MaskPlaceholder = "••••••••••••••••";
@@ -38,16 +40,19 @@ public class SecurePasswordField : Grid
         }
     }
 
-    public SecurePasswordField()
+    public SecurePasswordField() : this(key => Application.Current.FindResource(key)) { }
+
+    internal SecurePasswordField(Func<string, object> findResource)
     {
+        _findResource = findResource;
         Height = SettingsLayout.InputHeight;
         HorizontalAlignment = HorizontalAlignment.Stretch;
 
         _pwd = new PasswordBox
         {
-            Style = (Style)Application.Current.FindResource("SunkenPasswordBox"),
+            Style = (Style)_findResource("SunkenPasswordBox"),
             Height = SettingsLayout.InputHeight,
-            FontSize = SettingsLayout.BodyFontSize,
+            FontSize = (double)_findResource("FontSizeBody"),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Left,
             Padding = new Thickness(5, 3, 38, 3)
@@ -55,9 +60,9 @@ public class SecurePasswordField : Grid
 
         _txt = new TextBox
         {
-            Style = (Style)Application.Current.FindResource("SunkenTextBox"),
+            Style = (Style)_findResource("SunkenTextBox"),
             Height = SettingsLayout.InputHeight,
-            FontSize = SettingsLayout.BodyFontSize,
+            FontSize = (double)_findResource("FontSizeBody"),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Left,
             TextAlignment = TextAlignment.Left,
@@ -67,19 +72,19 @@ public class SecurePasswordField : Grid
 
         _iconPath = new Path
         {
-            Data = (System.Windows.Media.Geometry)Application.Current.FindResource("IconEye"),
-            Stroke = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush"),
+            Data = (System.Windows.Media.Geometry)_findResource("IconEye"),
+            Stroke = (System.Windows.Media.Brush)_findResource("TextSecondaryBrush"),
             StrokeThickness = 2,
             StrokeStartLineCap = System.Windows.Media.PenLineCap.Round,
             StrokeEndLineCap = System.Windows.Media.PenLineCap.Round,
             StrokeLineJoin = System.Windows.Media.PenLineJoin.Round,
-            Fill = (System.Windows.Media.Brush)Application.Current.FindResource("TransparentBrush"),
+            Fill = (System.Windows.Media.Brush)_findResource("TransparentBrush"),
             Stretch = System.Windows.Media.Stretch.Uniform
         };
 
         _btn = new Button
         {
-            Style = (Style)Application.Current.FindResource("IconButton"),
+            Style = (Style)_findResource("IconButton"),
             Width = SettingsLayout.InputHeight,
             Height = SettingsLayout.InputHeight,
             Padding = new Thickness(0),
@@ -155,11 +160,27 @@ public class SecurePasswordField : Grid
         };
 
         _btn.Click += (s, e) => ToggleReveal();
+        UpdateRevealAccessibleName();
 
         Children.Add(_pwd);
         Children.Add(_txt);
         Children.Add(_btn);
     }
+
+    internal void SetAccessibleLabel(TextBlock label)
+    {
+        _accessibleName = label.Text;
+        foreach (var field in new FrameworkElement[] { this, _pwd, _txt })
+        {
+            System.Windows.Automation.AutomationProperties.SetLabeledBy(field, label);
+            System.Windows.Automation.AutomationProperties.SetName(field, _accessibleName);
+        }
+        UpdateRevealAccessibleName();
+    }
+
+    private void UpdateRevealAccessibleName() =>
+        System.Windows.Automation.AutomationProperties.SetName(_btn,
+            $"{(_isRevealed ? "隐藏" : "显示")} {_accessibleName}");
 
     internal readonly record struct MaskedEditResult(string Password, bool RestoreMask, bool ReplaceDisplay);
 
@@ -194,6 +215,7 @@ public class SecurePasswordField : Grid
     private void ToggleReveal()
     {
         _isRevealed = !_isRevealed;
+        UpdateRevealAccessibleName();
         _isSyncing = true;
         if (_isRevealed)
         {
@@ -201,7 +223,7 @@ public class SecurePasswordField : Grid
             _pwd.Visibility = Visibility.Collapsed;
             _txt.Visibility = Visibility.Visible;
             _btn.ToolTip = "隐藏密钥";
-            _iconPath.Data = (System.Windows.Media.Geometry)Application.Current.FindResource("IconEyeOff");
+            _iconPath.Data = (System.Windows.Media.Geometry)_findResource("IconEyeOff");
             _txt.Focus();
             _txt.CaretIndex = _txt.Text.Length;
         }
@@ -211,7 +233,7 @@ public class SecurePasswordField : Grid
             _txt.Visibility = Visibility.Collapsed;
             _pwd.Visibility = Visibility.Visible;
             _btn.ToolTip = "显示密钥";
-            _iconPath.Data = (System.Windows.Media.Geometry)Application.Current.FindResource("IconEye");
+            _iconPath.Data = (System.Windows.Media.Geometry)_findResource("IconEye");
             _pwd.Focus();
         }
         _isSyncing = false;

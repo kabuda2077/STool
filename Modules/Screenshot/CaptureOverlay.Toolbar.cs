@@ -158,44 +158,69 @@ public partial class CaptureOverlay
 
     private void BtnSave_Click(object sender, RoutedEventArgs e) => SaveSelection();
 
-    private void SaveSelection()
+    private async void SaveSelection()
     {
-        if (!_interactionReady || _closing)
+        if (!_interactionReady || _closing || _savingSelection)
             return;
 
-        using var bmp = RenderSelectionBitmap();
-        CloseOverlay();   // 先关取景窗,保存对话框显示在真实桌面上
-
-        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "STool");
+        _savingSelection = true;
+        var previousFocus = Keyboard.FocusedElement;
+        string? savedPath = null;
+        Exception? failure = null;
         try
         {
-            Directory.CreateDirectory(dir);
+            using var bmp = RenderSelectionBitmap();
+            // 保留选区和标注，只在系统文件对话框及写入期间隐藏取景窗。
+            Hide();
+            IsEnabled = false;
+            var pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            var dir = Path.Combine(pictures, "STool");
+            try
+            {
+                await System.Threading.Tasks.Task.Run(() => Directory.CreateDirectory(dir));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Log.Warning(ex, "Failed to prepare screenshot save directory {Directory}", dir);
+                dir = pictures;
+            }
+            var dlg = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "保存截图",
+                Filter = "PNG 图片 (*.png)|*.png",
+                DefaultExt = ".png",
+                FileName = $"Screenshot_{DateTime.Now:yyyyMMdd_HHmmss}.png",
+                InitialDirectory = dir
+            };
+
+            if (dlg.ShowDialog() != true || _closing)
+                return;
+
+            await System.Threading.Tasks.Task.Run(() => bmp.Save(dlg.FileName, System.Drawing.Imaging.ImageFormat.Png));
+            savedPath = dlg.FileName;
+            CloseOverlay();
         }
         catch (Exception ex)
         {
-            Log.Warning(ex, "Failed to prepare screenshot save directory {Directory}", dir);
+            failure = ex;
         }
-
-        var dlg = new Microsoft.Win32.SaveFileDialog
+        finally
         {
-            Title = "保存截图",
-            Filter = "PNG 图片 (*.png)|*.png",
-            DefaultExt = ".png",
-            FileName = $"Screenshot_{DateTime.Now:yyyyMMdd_HHmmss}.png",
-            InitialDirectory = Directory.Exists(dir) ? dir : string.Empty
-        };
-
-        if (dlg.ShowDialog() != true)
-            return;   // 用户取消
-
-        try
-        {
-            bmp.Save(dlg.FileName, System.Drawing.Imaging.ImageFormat.Png);
-            ToastNotification.Show("截图已保存", dlg.FileName, ToastNotification.ToastType.Success);
-        }
-        catch (Exception ex)
-        {
-            ToastNotification.Show("保存失败", ex.Message, ToastNotification.ToastType.Error);
+            _savingSelection = false;
+            if (!_closing)
+            {
+                IsEnabled = true;
+                Show();
+                Activate();
+                if (previousFocus is UIElement { IsVisible: true, IsEnabled: true } element)
+                    element.Focus();
+                else
+                    Focus();
+            }
+            if (failure != null)
+                ToastNotification.Show("保存失败", failure.Message, ToastNotification.ToastType.Error);
+            else if (savedPath != null)
+                ToastNotification.Show("截图已保存", savedPath, ToastNotification.ToastType.Success);
         }
     }
 
@@ -370,6 +395,8 @@ public partial class CaptureOverlay
             return;
 
         if (e.Key == Key.Escape) { CloseOverlay(); return; }
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.S) { SaveSelection(); return; }
+        if (IsToolbarFocused) return;
         if (e.Key == Key.Enter) { CopyAndClose(); return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Z) { _annotation?.Undo(); return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Y) { _annotation?.Redo(); return; }

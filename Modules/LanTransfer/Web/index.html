@@ -18,8 +18,10 @@
     </header>
 
     <section id="loadingView" class="loading-view" role="status" aria-live="polite">
-      <div class="loading-spinner" aria-hidden="true"></div>
-      <p>正在连接电脑...</p>
+      <div id="connectionSpinner" class="loading-spinner" aria-hidden="true"></div>
+      <p id="loadingMessage">正在连接电脑...</p>
+      <p id="connectionError" class="error" role="alert" hidden></p>
+      <button id="retryConnection" class="primary" type="button" hidden>重试连接</button>
     </section>
 
     <section id="authView" class="auth-view" hidden>

@@ -230,11 +230,11 @@
                             <ColumnDefinition Width="Auto" MinWidth="58"/>
                             <ColumnDefinition Width="Auto" MinWidth="58"/>
                         </Grid.ColumnDefinitions>
-                        <Button x:Name="tabAll" Grid.Column="0" Style="{StaticResource SegmentedButton}" MinWidth="58" Tag="on" Content="全部" Click="Tab_Click"/>
-                        <Button x:Name="tabText" Grid.Column="1" Style="{StaticResource SegmentedButton}" MinWidth="58" Content="文本" Click="Tab_Click"/>
-                        <Button x:Name="tabImage" Grid.Column="2" Style="{StaticResource SegmentedButton}" MinWidth="58" Content="图像" Click="Tab_Click"/>
-                        <Button x:Name="tabFile" Grid.Column="3" Style="{StaticResource SegmentedButton}" MinWidth="58" Content="文件" Click="Tab_Click"/>
-                        <Button x:Name="tabFavorite" Grid.Column="4" Style="{StaticResource SegmentedButton}" MinWidth="58" Content="收藏" Click="Tab_Click"/>
+                        <RadioButton x:Name="tabAll" Grid.Column="0" Style="{StaticResource SegmentedButton}" GroupName="ClipboardCategory" MinWidth="58" IsChecked="True" Content="全部" Checked="Tab_Checked"/>
+                        <RadioButton x:Name="tabText" Grid.Column="1" Style="{StaticResource SegmentedButton}" GroupName="ClipboardCategory" MinWidth="58" Content="文本" Checked="Tab_Checked"/>
+                        <RadioButton x:Name="tabImage" Grid.Column="2" Style="{StaticResource SegmentedButton}" GroupName="ClipboardCategory" MinWidth="58" Content="图像" Checked="Tab_Checked"/>
+                        <RadioButton x:Name="tabFile" Grid.Column="3" Style="{StaticResource SegmentedButton}" GroupName="ClipboardCategory" MinWidth="58" Content="文件" Checked="Tab_Checked"/>
+                        <RadioButton x:Name="tabFavorite" Grid.Column="4" Style="{StaticResource SegmentedButton}" GroupName="ClipboardCategory" MinWidth="58" Content="收藏" Checked="Tab_Checked"/>
                     </Grid>
                 </Grid>
             </Border>
@@ -358,6 +358,26 @@
                 <TextBlock x:Name="emptyDescription" Text="复制内容会自动保存到剪贴板历史中" Style="{StaticResource EmptyStateDescription}"/>
             </StackPanel>
 
+            <StackPanel x:Name="queryErrorState"
+                        Visibility="Collapsed"
+                        VerticalAlignment="Center"
+                        HorizontalAlignment="Center"
+                        MaxWidth="440">
+                <TextBlock Text="读取剪贴板历史失败" Style="{StaticResource EmptyStateTitle}"/>
+                <TextBlock x:Name="queryErrorMessage"
+                           Foreground="{StaticResource TextSecondaryBrush}"
+                           FontSize="{StaticResource FontSizeBody}"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           AutomationProperties.LiveSetting="Polite"/>
+                <Button x:Name="retryQueryButton"
+                        Content="重试"
+                        Style="{StaticResource SecondaryButton}"
+                        HorizontalAlignment="Center"
+                        Margin="0,12,0,0"
+                        Click="RetryQuery_Click"/>
+            </StackPanel>
+
             <!-- 列表:虚拟化 ListBox(Recycling + 像素滚动,行高不等);保留 8px 细滚动条 -->
             <ListBox x:Name="itemsList"
                      Background="{StaticResource TransparentBrush}"
@@ -433,6 +453,7 @@
                             <Border.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="{Binding FavoriteTooltip}" Click="MenuFavorite_Click"/>
+                                    <MenuItem Header="预览图片" InputGestureText="F3" Click="MenuPreview_Click" Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}"/>
                                     <MenuItem Header="另存为" Click="MenuSaveAs_Click" Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}"/>
                                     <MenuItem Header="删除" Click="MenuDelete_Click"/>
                                 </ContextMenu>
@@ -454,7 +475,7 @@
                                             HorizontalAlignment="Left"
                                             Visibility="{Binding IsImage, Converter={StaticResource BoolToVis}}"
                                             MouseLeftButtonDown="ThumbPreview_MouseLeftButtonDown"
-                                            ToolTip="预览图片">
+                                            ToolTip="预览图片 (F3)">
                                         <Image Source="{Binding ImageSource}"
                                                Stretch="UniformToFill"
                                                RenderOptions.BitmapScalingMode="HighQuality"
@@ -570,6 +591,8 @@
               Grid.RowSpan="2"
               Background="{StaticResource TransparentBrush}"
               Visibility="Collapsed"
+              Focusable="True"
+              KeyboardNavigation.TabNavigation="Cycle"
               MouseLeftButtonDown="ImagePreviewOverlay_MouseLeftButtonDown">
             <Border MaxWidth="680"
                     HorizontalAlignment="Center"
@@ -593,6 +616,21 @@
                                RenderOptions.BitmapScalingMode="HighQuality"/>
                     </Border>
 
+                    <Button x:Name="closeImagePreviewButton"
+                            Style="{StaticResource IconButton}"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Margin="4"
+                            ToolTip="关闭预览 (Esc)"
+                            Click="CloseImagePreview_Click">
+                        <Viewbox Style="{StaticResource ToolIconSmall}">
+                            <Path Data="{StaticResource IconX}"
+                                  Stroke="{StaticResource TextPrimaryBrush}"
+                                  StrokeThickness="2"
+                                  StrokeStartLineCap="Round"
+                                  StrokeEndLineCap="Round"/>
+                        </Viewbox>
+                    </Button>
                     <TextBlock x:Name="imagePreviewTitle"
                                Grid.Row="1"
                                Margin="0,8,0,0"

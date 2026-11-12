@@ -155,7 +155,7 @@ public partial class LanTransferWindow : Window
         statusDot.Fill = (System.Windows.Media.Brush)FindResource(online ? "SuccessBrush" : "TextSecondaryBrush");
     }
 
-    private void TransferTab_Click(object sender, RoutedEventArgs e)
+    private void TransferTab_Checked(object sender, RoutedEventArgs e)
     {
         var showHistory = ReferenceEquals(sender, historyTabButton);
         if (showHistory == _showingHistory)
@@ -167,8 +167,8 @@ public partial class LanTransferWindow : Window
 
     private void UpdateTransferTabUi(bool animate)
     {
-        shareTabButton.Tag = _showingHistory ? null : "on";
-        historyTabButton.Tag = _showingHistory ? "on" : null;
+        shareTabButton.IsChecked = !_showingHistory;
+        historyTabButton.IsChecked = _showingHistory;
         shareView.Visibility = _showingHistory ? Visibility.Collapsed : Visibility.Visible;
         historyView.Visibility = _showingHistory ? Visibility.Visible : Visibility.Collapsed;
         shareActions.Visibility = _showingHistory ? Visibility.Collapsed : Visibility.Visible;

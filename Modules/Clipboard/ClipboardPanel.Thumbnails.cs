@@ -315,6 +315,8 @@ public partial class ClipboardPanel
 
     // ---------- 图片预览 ----------
 
+    private IInputElement? _imagePreviewReturnFocus;
+
     private void ThumbPreview_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
         e.Handled = true;
@@ -342,7 +344,12 @@ public partial class ClipboardPanel
 
             imagePreview.Source = bmp;
             imagePreviewTitle.Text = vm.ImageInfoText;
+            if (imagePreviewOverlay.Visibility != Visibility.Visible)
+                _imagePreviewReturnFocus = Keyboard.FocusedElement is UIElement focused && IsAncestorOf(focused)
+                    ? focused
+                    : itemsList;
             imagePreviewOverlay.Visibility = Visibility.Visible;
+            closeImagePreviewButton.Focus();
             MemoryDiagnostics.LogCheckpoint(
                 "ClipboardPreviewOpened",
                 _thumbnailCache.Count,
@@ -353,6 +360,8 @@ public partial class ClipboardPanel
             ToastNotification.Show("预览失败", type: ToastNotification.ToastType.Error);
         }
     }
+
+    private void CloseImagePreview_Click(object sender, RoutedEventArgs e) => HideImagePreview();
 
     private void ImagePreviewOverlay_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
@@ -371,6 +380,11 @@ public partial class ClipboardPanel
         imagePreviewOverlay.Visibility = Visibility.Collapsed;
         if (wasVisible)
         {
+            if (_imagePreviewReturnFocus is UIElement { IsVisible: true, IsEnabled: true } previous)
+                previous.Focus();
+            else
+                itemsList.Focus();
+            _imagePreviewReturnFocus = null;
             MemoryDiagnostics.LogCheckpoint(
                 "ClipboardPreviewClosed",
                 _thumbnailCache.Count,

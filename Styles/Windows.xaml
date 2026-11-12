@@ -228,6 +228,10 @@
         </Setter>
     </Style>
 
+    <Style x:Key="TranslationTextBox" TargetType="TextBox" BasedOn="{StaticResource ToolPanelTextBox}">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+    </Style>
+
     <!-- Settings pages use quiet bordered sections for a flatter, more precise surface. -->
     <Style x:Key="SettingsFlatSection" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource SettingsSectionBrush}"/>
@@ -393,10 +397,10 @@
 
     <!-- 空输入区占位提示：与内容同字号，颜色较轻，输入后由页面隐藏。 -->
     <Style x:Key="InputPlaceholderText" TargetType="TextBlock" BasedOn="{StaticResource HintText}">
-        <Setter Property="FontSize" Value="{StaticResource FontSizeContent}"/>
-        <Setter Property="Opacity" Value="0.72"/>
-        <Setter Property="LineHeight" Value="22"/>
-        <Setter Property="LineStackingStrategy" Value="BlockLineHeight"/>
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+        <Setter Property="Opacity" Value="0.65"/>
+        <!-- WPF TextBox 的文本视图在水平方向自带 2 DIP 留白。 -->
+        <Setter Property="Margin" Value="2,0"/>
         <Setter Property="IsHitTestVisible" Value="False"/>
         <Setter Property="VerticalAlignment" Value="Top"/>
     </Style>

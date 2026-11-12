@@ -3,10 +3,14 @@ const state = {
   selectedRows: [],
   uploads: new Map(),
   folder: null,
+  folderLocation: null,
   folderRootName: "",
+  folderVersion: 0,
+  folderRequest: null,
   downloadSelection: new Map(),
   transferPollTimer: 0,
   uploadBatchId: null,
+  uploading: false,
   uploadRequests: new Map(),
   currentOfferId: null,
   currentOffer: null
@@ -14,6 +18,7 @@ const state = {
 const $ = id => document.getElementById(id);
 const headers = { "X-STool-Request": "1" };
 let sessionRefresh = null;
+let connectionToken;
 
 // 会话失效（电脑端重启服务、换了网络）时，用“记住此设备”的令牌换一个新会话。
 // 设备令牌的 Cookie 只发往 /api/session，其余请求只带会话 Cookie。
@@ -108,6 +113,7 @@ async function sendPresence() {
 
 function showAuth(message = "") {
   hideOffer();
+  closeFolderBrowser();
   $("loadingView").hidden = true;
   $("workspace").hidden = true;
   $("authView").hidden = false;
@@ -129,19 +135,48 @@ async function exchange(payload) {
 }
 
 async function initialize() {
-  const params = new URLSearchParams(location.hash.startsWith("#") ? location.hash.slice(1) : "");
-  const token = params.get("token");
-  if (token) history.replaceState(null, "", "/");
-
+  if (connectionToken === undefined) {
+    const params = new URLSearchParams(location.hash.startsWith("#") ? location.hash.slice(1) : "");
+    connectionToken = params.get("token");
+    if (connectionToken) history.replaceState(null, "", "/");
+  }
+  $("retryConnection").disabled = true;
+  $("connectionLabel").textContent = "正在连接电脑";
+  $("connectionError").hidden = true;
+  $("connectionSpinner").hidden = false;
+  $("loadingMessage").hidden = false;
   try {
-    await api("/api/session");
-    showWorkspace();
-  } catch {
-    if (!token) return showAuth();
-    try { await exchange({ token, remember: true }); }
-    catch (error) { showAuth(error.message); }
+    try {
+      await api("/api/session");
+      showWorkspace();
+    } catch (error) {
+      if (error.status !== 401) throw error;
+      if (!connectionToken) return showAuth();
+      try {
+        await exchange({ token: connectionToken, remember: true });
+      } catch (exchangeError) {
+        if (exchangeError.status >= 400 && exchangeError.status < 500) {
+          connectionToken = null;
+          return showAuth(exchangeError.message);
+        }
+        throw exchangeError;
+      }
+    }
+  } catch (error) {
+    $("connectionLabel").textContent = "连接失败";
+    $("connectionSpinner").hidden = true;
+    $("loadingMessage").hidden = true;
+    $("connectionError").textContent = error.status
+      ? `${error.message}，请重试。`
+      : "无法连接电脑，请确认手机和电脑处于同一 Wi-Fi 后重试。";
+    $("connectionError").hidden = false;
+    $("retryConnection").hidden = false;
+  } finally {
+    $("retryConnection").disabled = false;
   }
 }
+
+$("retryConnection").addEventListener("click", () => initialize());
 
 $("authForm").addEventListener("submit", async event => {
   event.preventDefault();
@@ -161,8 +196,14 @@ document.querySelectorAll(".tab").forEach(button => button.addEventListener("cli
     tab.tabIndex = selected ? 0 : -1;
   });
   const send = button.dataset.tab === "send";
+  const returningToReceive = !send && $("receiveView").hidden;
+  if (send) invalidateFolderRequest();
   $("sendView").hidden = !send;
   $("receiveView").hidden = send;
+  if (returningToReceive && state.folderLocation) {
+    const { folderId, path } = state.folderLocation;
+    loadFolder(folderId, path);
+  }
 }));
 
 document.querySelector(".tabs").addEventListener("keydown", event => {
@@ -428,6 +469,7 @@ $("offerReject").addEventListener("click", async () => {
 document.addEventListener("visibilitychange", () => scheduleTransferPoll(0));
 
 function selectFiles(fileList) {
+  if (state.uploading) return;
   state.selected = Array.from(fileList || []);
   $("uploadList").replaceChildren();
   state.selectedRows = state.selected.map(file => createUploadRow(file));
@@ -440,6 +482,9 @@ function selectFiles(fileList) {
 
 function updateUploadComposerVisibility() {
   $("uploadComposer").hidden = Boolean(state.uploadBatchId);
+  $("filePicker").disabled = state.uploading;
+  $("folderPicker").disabled = state.uploading;
+  $("uploadButton").disabled = state.uploading || state.selected.length === 0;
 }
 
 $("filePicker").addEventListener("change", event => selectFiles(event.target.files));
@@ -576,53 +621,52 @@ async function uploadFile(file, row, batchId) {
 }
 
 $("uploadButton").addEventListener("click", async () => {
+  if (state.uploading || !state.selected.length) return;
   const files = state.selected.slice();
-  if (!files.length) return;
-  $("uploadButton").disabled = true;
-  const batch = describeUploadBatch(files);
-  let batchId;
+  const queue = files.map((file, index) => ({ file, row: state.selectedRows[index] }));
+  state.uploading = true;
+  updateUploadComposerVisibility();
+  $("workspaceError").hidden = true;
+  let completed = false;
   try {
     const created = await api("/api/upload-batches", {
       method: "POST",
-      body: JSON.stringify(batch),
+      body: JSON.stringify(describeUploadBatch(files)),
       headers: { "Content-Type": "application/json" }
     });
-    batchId = created.id;
+    const batchId = created.id;
     state.uploadBatchId = batchId;
     updateUploadComposerVisibility();
     scheduleTransferPoll(0);
-  } catch (error) {
-    $("uploadButton").disabled = false;
-    showArchiveError(error.message);
-    return;
-  }
-  const queue = files.map((file, index) => ({
-    file,
-    row: state.selectedRows[index] || createUploadRow(file)
-  }));
-  let cursor = 0;
-  let uploadFailed = false;
-  const workers = Array.from({ length: Math.min(2, queue.length) }, async () => {
-    while (cursor < queue.length) {
-      const item = queue[cursor++];
-      try { await uploadFile(item.file, item.row, batchId); }
-      catch (error) {
-        uploadFailed = true;
-        item.row.status.textContent = "失败";
-        item.row.meta.textContent = error.message;
+    let cursor = 0;
+    let uploadFailed = false;
+    const workers = Array.from({ length: Math.min(2, queue.length) }, async () => {
+      while (cursor < queue.length) {
+        const item = queue[cursor++];
+        try { await uploadFile(item.file, item.row, batchId); }
+        catch (error) {
+          uploadFailed = true;
+          item.row.status.textContent = "失败";
+          item.row.meta.textContent = error.message;
+        }
       }
+    });
+    await Promise.all(workers);
+    completed = !uploadFailed;
+    if (uploadFailed) showTransferError("部分文件发送失败，请重试发送。");
+  } catch (error) {
+    showTransferError(`${error.message}，请重试发送。`);
+  } finally {
+    state.uploadBatchId = null;
+    state.uploadRequests.clear();
+    state.uploading = false;
+    if (completed) {
+      $("filePicker").value = "";
+      $("folderPicker").value = "";
+      selectFiles([]);
     }
-  });
-  await Promise.all(workers);
-  state.uploadBatchId = null;
-  state.uploadRequests.clear();
-  if (!uploadFailed) {
-    $("filePicker").value = "";
-    $("folderPicker").value = "";
-    selectFiles([]);
+    updateUploadComposerVisibility();
   }
-  updateUploadComposerVisibility();
-  $("uploadButton").disabled = state.selected.length === 0;
 });
 
 function describeUploadBatch(files) {
@@ -664,16 +708,32 @@ async function waitUntilUploadCanContinue(batchId, row) {
   }
 }
 
-async function loadFolder(folderId, path) {
+function invalidateFolderRequest() {
+  state.folderVersion++;
+  state.folderRequest = null;
+}
+
+async function loadFolder(folderId, path, poll = false) {
+  if ($("workspace").hidden || $("receiveView").hidden || (poll && state.folderRequest)) return;
+  state.folderLocation = { folderId, path };
+  const version = ++state.folderVersion;
+  state.folderRequest = version;
+  const isCurrent = () => version === state.folderVersion && !$("workspace").hidden && !$("receiveView").hidden;
   try {
     const query = path ? `?path=${encodeURIComponent(path)}` : "";
     const folder = await api(`/api/folders/${folderId}${query}`);
+    if (!isCurrent()) return;
     if (JSON.stringify(folder) !== JSON.stringify(state.folder)) {
       state.folder = folder;
       renderFolder();
     }
   } catch (error) {
-    showArchiveError(error.message);
+    if (isCurrent()) {
+      if (error.status === 401) showAuth();
+      else showArchiveError(error.message);
+    }
+  } finally {
+    if (state.folderRequest === version) state.folderRequest = null;
   }
 }
 
@@ -742,7 +802,9 @@ function renderFolder() {
 }
 
 function closeFolderBrowser() {
+  invalidateFolderRequest();
   state.folder = null;
+  state.folderLocation = null;
   state.folderRootName = "";
   state.downloadSelection.clear();
   $("folderToolbar").hidden = true;
@@ -779,7 +841,7 @@ function folderFileUrl(folderId, relativePath) {
   return `/api/folders/${folderId}/file?path=${encodeURIComponent(relativePath)}`;
 }
 
-function toggleDownloadSelection(folderId, item, selected) {
+function setDownloadSelection(folderId, item, selected) {
   const key = downloadKey(folderId, item.relativePath);
   if (selected) {
     state.downloadSelection.set(key, {
@@ -789,6 +851,10 @@ function toggleDownloadSelection(folderId, item, selected) {
   } else {
     state.downloadSelection.delete(key);
   }
+}
+
+function toggleDownloadSelection(folderId, item, selected) {
+  setDownloadSelection(folderId, item, selected);
   updateSelectionBar();
 }
 
@@ -824,8 +890,11 @@ $("selectAll").addEventListener("click", () => {
   const files = state.folder.items.filter(item => !item.isFolder);
   const allSelected = files.length > 0 && files.every(item =>
     state.downloadSelection.has(downloadKey(state.folder.folderId, item.relativePath)));
-  files.forEach(item => toggleDownloadSelection(state.folder.folderId, item, !allSelected));
-  renderFolder();
+  files.forEach(item => setDownloadSelection(state.folder.folderId, item, !allSelected));
+  $("downloadList").querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+    checkbox.checked = !allSelected;
+  });
+  updateSelectionBar();
 });
 
 $("downloadSelected").addEventListener("click", () => {
@@ -869,7 +938,7 @@ function showArchiveError(message) {
 
 setInterval(() => {
   if ($("receiveView").hidden) return;
-  if (state.folder) loadFolder(state.folder.folderId, state.folder.path);
+  if (state.folderLocation) loadFolder(state.folderLocation.folderId, state.folderLocation.path, true);
 }, 4000);
 setInterval(sendPresence, 4000);
 initialize();

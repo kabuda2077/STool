@@ -83,8 +83,11 @@ public partial class CaptureOverlay
                       || (b == btnPen && _currentTool == AnnotationTool.Pen)
                       || (b == btnText && _currentTool == AnnotationTool.Text)
                       || (b == btnMosaic && _currentTool == AnnotationTool.Mosaic);
-            b.Background = active ? ResourceBrush("PrimarySoftBrush") : ResourceBrush("TransparentBrush");
+            b.Background = active ? ResourceBrush("PrimarySoftPressedBrush") : ResourceBrush("TransparentBrush");
             b.Foreground = active ? ResourceBrush("PrimaryBrush") : ResourceBrush("TextPrimaryBrush");
+            b.BorderBrush = active ? ResourceBrush("PrimaryBrush") : ResourceBrush("TransparentBrush");
+            b.BorderThickness = new Thickness(1);
+            System.Windows.Automation.AutomationProperties.SetItemStatus(b, active ? "已选中" : "未选中");
         }
     }
 
@@ -155,44 +158,69 @@ public partial class CaptureOverlay
 
     private void BtnSave_Click(object sender, RoutedEventArgs e) => SaveSelection();
 
-    private void SaveSelection()
+    private async void SaveSelection()
     {
-        if (!_interactionReady || _closing)
+        if (!_interactionReady || _closing || _savingSelection)
             return;
 
-        using var bmp = RenderSelectionBitmap();
-        CloseOverlay();   // 先关取景窗,保存对话框显示在真实桌面上
-
-        var dir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyPictures), "STool");
+        _savingSelection = true;
+        var previousFocus = Keyboard.FocusedElement;
+        string? savedPath = null;
+        Exception? failure = null;
         try
         {
-            Directory.CreateDirectory(dir);
+            using var bmp = RenderSelectionBitmap();
+            // 保留选区和标注，只在系统文件对话框及写入期间隐藏取景窗。
+            Hide();
+            IsEnabled = false;
+            var pictures = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+            var dir = Path.Combine(pictures, "STool");
+            try
+            {
+                await System.Threading.Tasks.Task.Run(() => Directory.CreateDirectory(dir));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Log.Warning(ex, "Failed to prepare screenshot save directory {Directory}", dir);
+                dir = pictures;
+            }
+            var dlg = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "保存截图",
+                Filter = "PNG 图片 (*.png)|*.png",
+                DefaultExt = ".png",
+                FileName = $"Screenshot_{DateTime.Now:yyyyMMdd_HHmmss}.png",
+                InitialDirectory = dir
+            };
+
+            if (dlg.ShowDialog() != true || _closing)
+                return;
+
+            await System.Threading.Tasks.Task.Run(() => bmp.Save(dlg.FileName, System.Drawing.Imaging.ImageFormat.Png));
+            savedPath = dlg.FileName;
+            CloseOverlay();
         }
         catch (Exception ex)
         {
-            Log.Warning(ex, "Failed to prepare screenshot save directory {Directory}", dir);
+            failure = ex;
         }
-
-        var dlg = new Microsoft.Win32.SaveFileDialog
+        finally
         {
-            Title = "保存截图",
-            Filter = "PNG 图片 (*.png)|*.png",
-            DefaultExt = ".png",
-            FileName = $"Screenshot_{DateTime.Now:yyyyMMdd_HHmmss}.png",
-            InitialDirectory = Directory.Exists(dir) ? dir : string.Empty
-        };
-
-        if (dlg.ShowDialog() != true)
-            return;   // 用户取消
-
-        try
-        {
-            bmp.Save(dlg.FileName, System.Drawing.Imaging.ImageFormat.Png);
-            ToastNotification.Show("截图已保存", dlg.FileName, ToastNotification.ToastType.Success);
-        }
-        catch (Exception ex)
-        {
-            ToastNotification.Show("保存失败", ex.Message, ToastNotification.ToastType.Error);
+            _savingSelection = false;
+            if (!_closing)
+            {
+                IsEnabled = true;
+                Show();
+                Activate();
+                if (previousFocus is UIElement { IsVisible: true, IsEnabled: true } element)
+                    element.Focus();
+                else
+                    Focus();
+            }
+            if (failure != null)
+                ToastNotification.Show("保存失败", failure.Message, ToastNotification.ToastType.Error);
+            else if (savedPath != null)
+                ToastNotification.Show("截图已保存", savedPath, ToastNotification.ToastType.Success);
         }
     }
 
@@ -281,7 +309,17 @@ public partial class CaptureOverlay
             var timer = System.Diagnostics.Stopwatch.StartNew();
             var pipeline = new ScreenshotTranslationPipeline(
                 new ScreenshotTranslationServices(_services.Ocr, _services.Translation));
-            var result = await pipeline.RunAsync(bmp, cancellationToken);
+            var progress = new Progress<ScreenshotTranslationStage>(stage =>
+            {
+                if (_closing || !ReferenceEquals(_translationCts, currentTranslationCts) || cancellationToken.IsCancellationRequested) return;
+                translationStageText.Text = stage switch
+                {
+                    ScreenshotTranslationStage.Recognizing => "正在识别文字…",
+                    ScreenshotTranslationStage.SelectingAndTranslating => "正在挑选并翻译内容…",
+                    _ => "正在翻译…"
+                } + " 再次点击翻译可取消";
+            });
+            var result = await pipeline.RunAsync(bmp, cancellationToken, progress);
             cancellationToken.ThrowIfCancellationRequested();
 
             if (result.Notice != null)
@@ -290,6 +328,7 @@ public partial class CaptureOverlay
             switch (result.Outcome)
             {
                 case ScreenshotTranslationOutcome.InPlace:
+                    translationStageText.Text = "正在排版译文…";
                     // 擦除与样式分析是纯像素运算，放到后台线程。
                     plan = await Task.Run(
                         () => ScreenshotTranslationRenderer.Prepare(bmp, result.Paragraphs, result.AllLines),
@@ -356,6 +395,8 @@ public partial class CaptureOverlay
             return;
 
         if (e.Key == Key.Escape) { CloseOverlay(); return; }
+        if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.S) { SaveSelection(); return; }
+        if (IsToolbarFocused) return;
         if (e.Key == Key.Enter) { CopyAndClose(); return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Z) { _annotation?.Undo(); return; }
         if (Keyboard.Modifiers == ModifierKeys.Control && e.Key == Key.Y) { _annotation?.Redo(); return; }

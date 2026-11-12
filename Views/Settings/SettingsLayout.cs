@@ -79,6 +79,7 @@ internal static class SettingsLayout
         Grid.SetColumn(lbl, 0);
         grid.Children.Add(lbl);
 
+        SetFieldLabel(input, lbl);
         input.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(input, 1);
         grid.Children.Add(input);
@@ -120,6 +121,7 @@ internal static class SettingsLayout
         Grid.SetColumn(lbl, 0);
         grid.Children.Add(lbl);
 
+        SetFieldLabel(input, lbl);
         input.VerticalAlignment = VerticalAlignment.Top;
         input.Margin = new Thickness(0, 12, 0, 0);
         Grid.SetRow(input, 0);
@@ -133,6 +135,13 @@ internal static class SettingsLayout
 
         AddRowDivider(grid, isLast);
         return grid;
+    }
+
+    private static void SetFieldLabel(FrameworkElement input, TextBlock label)
+    {
+        System.Windows.Automation.AutomationProperties.SetLabeledBy(input, label);
+        if (input is SecurePasswordField passwordField)
+            passwordField.SetAccessibleLabel(label);
     }
 
     private static void AddRowDivider(Grid grid, bool isLast)
@@ -211,8 +220,8 @@ internal static class SettingsLayout
             HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(12, 0, 0, 0),
-            Focusable = false,
-            IsHitTestVisible = false
+            Focusable = true,
+            IsHitTestVisible = true
         };
     }
 
@@ -227,8 +236,7 @@ internal static class SettingsLayout
             Padding = new Thickness(24, 10, 20, 10),
             Margin = new Thickness(0),
             Cursor = System.Windows.Input.Cursors.Hand,
-            Focusable = true,
-            FocusVisualStyle = (Style)Application.Current.FindResource("ModernFocusVisual"),
+            Focusable = false,
             BorderBrush = (System.Windows.Media.Brush)Application.Current.FindResource("SettingsSectionBorderBrush"),
             BorderThickness = new Thickness(0, 0, 0, isLast ? 0 : SectionBorderThickness)
         };
@@ -256,7 +264,6 @@ internal static class SettingsLayout
             Style = (Style)Application.Current.FindResource("HintText"),
             FontSize = HintFontSize,
             Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush"),
-            Opacity = 0.78,
             Margin = new Thickness(0, 2, 0, 0),
             TextWrapping = TextWrapping.Wrap
         });
@@ -267,38 +274,58 @@ internal static class SettingsLayout
         grid.Children.Add(switchBox);
         row.Child = grid;
 
-        WireSwitchHost(row, switchBox, title, onChanged);
+        WireSwitchHost(row, row, switchBox, title, description, onChanged,
+            (System.Windows.Media.Brush)Application.Current.FindResource("TransparentBrush"),
+            (System.Windows.Media.Brush)Application.Current.FindResource("SettingsItemHoverBrush"));
 
         return row;
     }
 
-    private static void WireSwitchHost(Border host, CheckBox switchBox, string title, Action<bool>? onChanged)
+    private static void WireSwitchHost(FrameworkElement host, Border surface, CheckBox switchBox,
+        string title, string description, Action<bool>? onChanged,
+        System.Windows.Media.Brush normalBrush, System.Windows.Media.Brush hoverBrush)
     {
-        var normalBrush = (System.Windows.Media.Brush)Application.Current.FindResource("TransparentBrush");
-        var hoverBrush = (System.Windows.Media.Brush)Application.Current.FindResource("SettingsItemHoverBrush");
-        var focusBrush = (System.Windows.Media.Brush)Application.Current.FindResource("PrimaryBrush");
+        var focusBrush = (System.Windows.Media.Brush)surface.FindResource("PrimaryBrush");
+        var borderBrush = surface.BorderBrush;
+        var notifying = false;
 
-        void SetChecked(bool enabled)
+        void OnChanged(object sender, RoutedEventArgs e)
         {
-            switchBox.IsChecked = enabled;
-            System.Windows.Automation.AutomationProperties.SetName(switchBox, title);
-            onChanged?.Invoke(enabled);
+            // Initial values are assigned before the panel is loaded. A failed callback may
+            // restore the old value; that restoration must not invoke the callback again.
+            if (!switchBox.IsLoaded || notifying)
+                return;
+
+            notifying = true;
+            try { onChanged?.Invoke(switchBox.IsChecked == true); }
+            finally { notifying = false; }
         }
 
-        void Toggle() => SetChecked(switchBox.IsChecked != true);
-
+        switchBox.Checked += OnChanged;
+        switchBox.Unchecked += OnChanged;
         System.Windows.Automation.AutomationProperties.SetName(switchBox, title);
+        System.Windows.Automation.AutomationProperties.SetHelpText(switchBox, description);
 
-        host.MouseEnter += (_, _) => host.Background = hoverBrush;
-        host.MouseLeave += (_, _) => host.Background = normalBrush;
-        host.GotKeyboardFocus += (_, _) => host.BorderBrush = focusBrush;
-        host.LostKeyboardFocus += (_, _) => host.BorderBrush = (System.Windows.Media.Brush)Application.Current.FindResource("SettingsSectionBorderBrush");
-        host.MouseLeftButtonUp += (_, _) => Toggle();
-        host.KeyDown += (_, e) =>
+        host.MouseEnter += (_, _) => surface.Background = hoverBrush;
+        host.MouseLeave += (_, _) => surface.Background = normalBrush;
+        host.GotKeyboardFocus += (_, _) => surface.BorderBrush = focusBrush;
+        host.LostKeyboardFocus += (_, _) => surface.BorderBrush = borderBrush;
+        host.MouseLeftButtonUp += (_, e) =>
         {
-            if (e.Key is System.Windows.Input.Key.Space or System.Windows.Input.Key.Enter)
+            // Native checkbox clicks are handled by CheckBox itself. The rest of the row
+            // focuses and changes the same control, including its automation toggle state.
+            if (switchBox.IsMouseOver)
+                return;
+            switchBox.Focus();
+            switchBox.IsChecked = switchBox.IsChecked != true;
+            e.Handled = true;
+        };
+        host.PreviewKeyDown += (_, e) =>
+        {
+            // Space is handled by the focused CheckBox; Enter also activates the row.
+            if (e.Key == System.Windows.Input.Key.Enter)
             {
-                Toggle();
+                switchBox.IsChecked = switchBox.IsChecked != true;
                 e.Handled = true;
             }
         };
@@ -311,8 +338,7 @@ internal static class SettingsLayout
         {
             Margin = new Thickness(0, 0, 0, isLast ? 0 : SpacingMD),
             Cursor = System.Windows.Input.Cursors.Hand,
-            Focusable = true,
-            FocusVisualStyle = (Style)Application.Current.FindResource("ModernFocusVisual")
+            Focusable = false
         };
         System.Windows.Automation.AutomationProperties.SetName(grid, title);
         System.Windows.Automation.AutomationProperties.SetHelpText(grid, description);
@@ -380,32 +406,9 @@ internal static class SettingsLayout
             grid.Children.Add(hintBlock);
         }
 
-        var normalBrush = (System.Windows.Media.Brush)Application.Current.FindResource("SettingsInputBrush");
-        var hoverBrush = (System.Windows.Media.Brush)Application.Current.FindResource("PrimarySoftBrush");
-        var focusBrush = (System.Windows.Media.Brush)Application.Current.FindResource("PrimaryBrush");
-
-        void Toggle()
-        {
-            var enabled = switchBox.IsChecked != true;
-            switchBox.IsChecked = enabled;
-            System.Windows.Automation.AutomationProperties.SetName(switchBox, title);
-            onChanged?.Invoke(enabled);
-        }
-
-        System.Windows.Automation.AutomationProperties.SetName(switchBox, title);
-        grid.MouseEnter += (_, _) => valueHost.Background = hoverBrush;
-        grid.MouseLeave += (_, _) => valueHost.Background = normalBrush;
-        grid.GotKeyboardFocus += (_, _) => valueHost.BorderBrush = focusBrush;
-        grid.LostKeyboardFocus += (_, _) => valueHost.BorderBrush = (System.Windows.Media.Brush)Application.Current.FindResource("SettingsSectionBorderBrush");
-        grid.MouseLeftButtonUp += (_, _) => Toggle();
-        grid.KeyDown += (_, e) =>
-        {
-            if (e.Key is System.Windows.Input.Key.Space or System.Windows.Input.Key.Enter)
-            {
-                Toggle();
-                e.Handled = true;
-            }
-        };
+        WireSwitchHost(grid, valueHost, switchBox, title, description, onChanged,
+            (System.Windows.Media.Brush)Application.Current.FindResource("SettingsInputBrush"),
+            (System.Windows.Media.Brush)Application.Current.FindResource("PrimarySoftBrush"));
 
         return grid;
     }
@@ -420,7 +423,6 @@ internal static class SettingsLayout
             Margin = inline ? InlineHintMargin : HintMargin,
             FontSize = HintFontSize,
             Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush"),
-            Opacity = 0.78,
             FontWeight = FontWeights.Normal,
             TextWrapping = TextWrapping.Wrap
         };

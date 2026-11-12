@@ -88,6 +88,8 @@ public partial class ClipboardPanel : Window
 
     private void ReloadItems() => _ = LoadPageAsync(reset: true);
 
+    private void RetryQuery_Click(object sender, RoutedEventArgs e) => ReloadItems();
+
     private void InvalidateQuery()
     {
         _queryGeneration++;
@@ -108,6 +110,7 @@ public partial class ClipboardPanel : Window
             _tabContentDelay.Stop();
             ResetThumbnailGeneration();
             InvalidateQuery();
+            queryErrorState.Visibility = Visibility.Collapsed;
         }
 
         var generation = _queryGeneration;
@@ -128,10 +131,17 @@ public partial class ClipboardPanel : Window
         {
             if (generation == _queryGeneration)
                 _loadingPage = false;
-            if (ex is not ObjectDisposedException && !_closing)
+            if (generation == _queryGeneration && ex is not ObjectDisposedException && !_closing)
             {
                 Log.Warning(ex, "Failed to query clipboard history");
-                ToastNotification.Show("读取剪贴板历史失败", ex.Message, ToastNotification.ToastType.Error);
+                _queryDirty = true;
+                _hasMore = false;
+                itemsList.IsEnabled = false;
+                itemsList.Visibility = Visibility.Collapsed;
+                emptyState.Visibility = Visibility.Collapsed;
+                queryErrorMessage.Text = "暂时无法读取记录，请重试。";
+                queryErrorMessage.ToolTip = ex.Message;
+                queryErrorState.Visibility = Visibility.Visible;
             }
             return;
         }
@@ -250,6 +260,7 @@ public partial class ClipboardPanel : Window
 
     private void UpdateEmptyState()
     {
+        queryErrorState.Visibility = Visibility.Collapsed;
         var any = _items.Count > 0;
         var hasSearch = !string.IsNullOrWhiteSpace(_searchText);
         emptyState.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
@@ -291,7 +302,7 @@ public partial class ClipboardPanel : Window
         txtSearch.Focus();
     }
 
-    private void Tab_Click(object sender, RoutedEventArgs e)
+    private void Tab_Checked(object sender, RoutedEventArgs e)
     {
         var nextTab = ReferenceEquals(sender, tabText) ? Tab.Text
                     : ReferenceEquals(sender, tabImage) ? Tab.Image
@@ -329,11 +340,11 @@ public partial class ClipboardPanel : Window
 
     private void UpdateTabs()
     {
-        tabAll.Tag = _tab == Tab.All ? "on" : null;
-        tabText.Tag = _tab == Tab.Text ? "on" : null;
-        tabImage.Tag = _tab == Tab.Image ? "on" : null;
-        tabFile.Tag = _tab == Tab.File ? "on" : null;
-        tabFavorite.Tag = _tab == Tab.Favorite ? "on" : null;
+        tabAll.IsChecked = _tab == Tab.All;
+        tabText.IsChecked = _tab == Tab.Text;
+        tabImage.IsChecked = _tab == Tab.Image;
+        tabFile.IsChecked = _tab == Tab.File;
+        tabFavorite.IsChecked = _tab == Tab.Favorite;
         btnClearAll.ToolTip = GetClearButtonTooltip();
         UpdateTabSlider();
     }
@@ -403,8 +414,17 @@ public partial class ClipboardPanel : Window
             }
         }
 
+        // 搜索与列表的导航键不能覆盖分类、收藏、重试等聚焦控件的操作。
+        if (!txtSearch.IsKeyboardFocusWithin &&
+            (!itemsList.IsKeyboardFocusWithin || Keyboard.FocusedElement is System.Windows.Controls.Primitives.ButtonBase))
+            return;
+
         switch (e.Key)
         {
+            case Key.F3 when itemsList.SelectedItem is ClipboardItemViewModel { IsImage: true } image:
+                e.Handled = true;
+                ShowImagePreview(image);
+                break;
             case Key.Down:
                 e.Handled = true;
                 MoveSelection(1);
@@ -620,6 +640,13 @@ public partial class ClipboardPanel : Window
         RemoveItem(id);
         UpdateEmptyState();
         ToastNotification.Show("已删除剪贴板记录", item == null ? "" : $"已删除{GetItemKindText(item)}记录");
+    }
+
+    private void MenuPreview_Click(object sender, RoutedEventArgs e)
+    {
+        var id = IdFromMenu(sender);
+        if (id != null && _viewModelsById.TryGetValue(id, out var image) && image.IsImage)
+            ShowImagePreview(image);
     }
 
     private void MenuSaveAs_Click(object sender, RoutedEventArgs e)

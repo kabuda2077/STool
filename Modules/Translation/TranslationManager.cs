@@ -36,6 +36,9 @@ public class TranslationManager : IDisposable
         _serviceFactory = serviceFactory;
     }
 
+    public bool IsProviderAvailable(TranslationProvider provider) =>
+        GetOrCreateService(provider, _configManager.Get().Accounts)?.IsAvailable() == true;
+
     public TranslationProvider GetConfiguredProvider()
     {
         return _configManager.Get().Translation.Provider;

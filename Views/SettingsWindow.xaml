@@ -4,7 +4,7 @@
         xmlns:core="clr-namespace:STool.Core"
         Style="{StaticResource ModernWindow}"
         core:ModernWindowChrome.HideTitleText="True"
-        Title=""
+        Title="STool 设置"
         Width="710"
         Height="560"
         MinWidth="640"
@@ -58,15 +58,26 @@
                 Background="{StaticResource SettingsContentBrush}">
             <Grid>
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="58"/>
+                    <RowDefinition Height="52"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
-                <Border BorderBrush="{StaticResource SettingsSectionBorderBrush}"
-                        BorderThickness="0"/>
+                <Grid Grid.Row="1" Margin="24,8,24,4">
+                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                    <TextBlock x:Name="pageTitle" FontSize="{StaticResource FontSizeTitle}"
+                               FontWeight="{StaticResource FontWeightStrong}" AutomationProperties.HeadingLevel="Level1"/>
+                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock x:Name="saveStatus" Style="{StaticResource HintText}"
+                                   VerticalAlignment="Center" Margin="12,0,0,0" AutomationProperties.LiveSetting="Polite"/>
+                        <Button x:Name="retrySave" Content="重试保存" Click="RetrySave_Click"
+                                Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
+                                Visibility="Collapsed"/>
+                    </StackPanel>
+                </Grid>
 
                 <ScrollViewer x:Name="contentScroll"
-                              Grid.Row="1"
+                              Grid.Row="2"
                               Margin="0"
                               VerticalScrollBarVisibility="Hidden"
                               Background="{StaticResource TransparentBrush}"
@@ -81,7 +92,7 @@
                 </ScrollViewer>
 
                 <ScrollBar x:Name="contentScrollBar"
-                           Grid.Row="1"
+                           Grid.Row="2"
                            Orientation="Vertical"
                            Width="6"
                            MinWidth="6"

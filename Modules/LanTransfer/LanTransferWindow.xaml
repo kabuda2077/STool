@@ -89,6 +89,8 @@
                                    AutomationProperties.LiveSetting="Polite"/>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Orientation="Horizontal">
+                        <Button x:Name="connectionDetailsButton" Style="{StaticResource ToolPanelSecondaryButton}"
+                                Content="连接详情" Visibility="Collapsed" Margin="0,0,8,0" Click="ConnectionDetails_Click"/>
                         <Button x:Name="repairButton"
                                 Style="{StaticResource PrimaryButton}"
                                 Content="修复连接"
@@ -214,7 +216,7 @@
                                 Grid.Column="2"
                                 Style="{StaticResource ToolPanelSecondaryButton}"
                                 Content="移除设备"
-                                ToolTip="移除所有已记住设备"
+                                ToolTip="清除所有已记住设备，当前连接将需要重新验证"
                                 MinWidth="80"
                                 Margin="8,0,0,0"
                                 HorizontalAlignment="Right"
@@ -231,6 +233,7 @@
                            VerticalAlignment="Center"
                            RenderOptions.BitmapScalingMode="NearestNeighbor"
                            AutomationProperties.Name="手机连接二维码"
+                           ToolTip="手机扫码连接，请连接同一 Wi-Fi"
                            SnapsToDevicePixels="True"/>
                 </Grid>
 
@@ -316,19 +319,21 @@
                                     <ColumnDefinition Width="Auto" MinWidth="82"/>
                                     <ColumnDefinition Width="Auto" MinWidth="82"/>
                                 </Grid.ColumnDefinitions>
-                                <Button x:Name="shareTabButton"
+                                <RadioButton x:Name="shareTabButton"
                                         Grid.Column="0"
                                         Style="{StaticResource SegmentedButton}"
+                                        GroupName="TransferView"
                                         MinWidth="82"
-                                        Tag="on"
+                                        IsChecked="True"
                                         Content="发送到手机"
-                                        Click="TransferTab_Click"/>
-                                <Button x:Name="historyTabButton"
+                                        Checked="TransferTab_Checked"/>
+                                <RadioButton x:Name="historyTabButton"
                                         Grid.Column="1"
                                         Style="{StaticResource SegmentedButton}"
+                                        GroupName="TransferView"
                                         MinWidth="82"
                                         Content="传输记录"
-                                        Click="TransferTab_Click"/>
+                                        Checked="TransferTab_Checked"/>
                             </Grid>
                         </Grid>
                     </Border>

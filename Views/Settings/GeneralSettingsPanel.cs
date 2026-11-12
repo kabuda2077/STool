@@ -50,7 +50,7 @@ public class GeneralSettingsPanel : StackPanel
             enabled =>
             {
                 if (SetAutoStart(enabled))
-                    ToastNotification.ShowSettingsSaved();
+                    SettingsFeedback.Report(this);
                 else
                     _chkAutoStart.IsChecked = !enabled;
             }));
@@ -226,7 +226,7 @@ public class GeneralSettingsPanel : StackPanel
             }
 
             RestoreHotkeyText(updated.Hotkeys);
-            ToastNotification.ShowSettingsSaved();
+            SettingsFeedback.Report(this);
         }
         catch (Exception ex)
         {
@@ -320,7 +320,7 @@ public class GeneralSettingsPanel : StackPanel
         {
             _configManager.Update(config => config.HideTrayIcon = enabled);
             _shell.ReloadTrayIconVisibility();
-            ToastNotification.ShowSettingsSaved();
+            SettingsFeedback.Report(this);
         }
         catch (Exception ex)
         {
@@ -335,7 +335,7 @@ public class GeneralSettingsPanel : StackPanel
         {
             _configManager.Update(config => config.Diagnostics.Enabled = enabled);
             _shell.ApplyDiagnosticsSettings();
-            ToastNotification.ShowSettingsSaved();
+            SettingsFeedback.Report(this);
         }
         catch (Exception ex)
         {

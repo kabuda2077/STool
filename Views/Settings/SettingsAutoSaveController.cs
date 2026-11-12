@@ -3,7 +3,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Threading;
-using STool.Core;
 using ComboBox = System.Windows.Controls.ComboBox;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using TextBox = System.Windows.Controls.TextBox;
@@ -15,33 +14,31 @@ namespace STool.Views.Settings;
 internal sealed class SettingsAutoSaveController
 {
     private static readonly TimeSpan SaveDelay = TimeSpan.FromMilliseconds(500);
-    private static readonly TimeSpan ToastQuietPeriod = TimeSpan.FromMilliseconds(600);
+    private static readonly DependencyProperty ControllerProperty = DependencyProperty.RegisterAttached(
+        "Controller", typeof(SettingsAutoSaveController), typeof(SettingsAutoSaveController));
+
+    public static SettingsAutoSaveController? GetController(DependencyObject owner) =>
+        (SettingsAutoSaveController?)owner.GetValue(ControllerProperty);
+
+    public bool HasPendingChanges => _dirty;
+    public bool HasSaveError { get; private set; }
+    public string? SaveError { get; private set; }
 
     private readonly DispatcherTimer _timer;
-    private readonly DispatcherTimer _toastTimer;
+    private readonly FrameworkElement _owner;
     private readonly Func<bool> _save;
     private bool _dirty;
     private bool _saving;
 
     public SettingsAutoSaveController(FrameworkElement owner, Func<bool> save)
     {
+        _owner = owner;
         _save = save;
+        owner.SetValue(ControllerProperty, this);
         _timer = new DispatcherTimer { Interval = SaveDelay };
         _timer.Tick += (_, _) => SaveNow();
 
-        // 连续修改（逐字符输入密钥）时把“已保存”合并为一次，避免提示反复打断。
-        _toastTimer = new DispatcherTimer { Interval = ToastQuietPeriod };
-        _toastTimer.Tick += (_, _) =>
-        {
-            _toastTimer.Stop();
-            ToastNotification.ShowSettingsSaved();
-        };
-
-        owner.Unloaded += (_, _) =>
-        {
-            _toastTimer.Stop();
-            SaveNow();
-        };
+        owner.Unloaded += (_, _) => SaveNow();
     }
 
     public void TrackImmediate(Selector selector)
@@ -87,32 +84,38 @@ internal sealed class SettingsAutoSaveController
     private void Schedule()
     {
         _dirty = true;
+        HasSaveError = false;
+        SaveError = null;
+        SettingsFeedback.Report(_owner, "等待保存…");
         _timer.Stop();
         _timer.Start();
     }
 
-    private void SaveNow()
+    public bool SaveNow()
     {
         _timer.Stop();
         if (!_dirty || _saving)
         {
-            return;
+            return !_dirty;
         }
 
         _saving = true;
         try
         {
-            var saved = _save();
+            // false means unchanged for existing panels; only an exception is a failed save.
+            _save();
             _dirty = false;
-            if (saved)
-            {
-                _toastTimer.Stop();
-                _toastTimer.Start();
-            }
+            HasSaveError = false;
+            SaveError = null;
+            SettingsFeedback.Report(_owner);
+            return true;
         }
         catch (Exception ex)
         {
-            ToastNotification.Show("自动保存失败", ex.Message, ToastNotification.ToastType.Error);
+            HasSaveError = true;
+            SaveError = ex.Message;
+            SettingsFeedback.Report(_owner, "保存失败，请重试");
+            return false;
         }
         finally
         {

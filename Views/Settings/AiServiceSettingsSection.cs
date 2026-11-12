@@ -34,7 +34,9 @@ internal sealed class AiServiceSettingsSection
 {
     private readonly IReadOnlyList<AiPlatformOption> _platforms;
     private readonly Func<string, string, string, Task<(bool Success, string Message)>> _test;
+    private readonly Func<string, string, Task<IReadOnlyList<string>>> _fetchModels;
     private readonly TextBlock _apiUrlHint;
+    private readonly TextBlock _testStatus;
     private EncryptedSetting _apiUrlSetting = new(null);
     private EncryptedSetting _apiKeySetting = new(null);
     private bool _loading;
@@ -42,14 +44,17 @@ internal sealed class AiServiceSettingsSection
     private readonly FrameworkElement _apiUrlRow;
     private readonly FrameworkElement _apiKeyRow;
     private Func<(string ApiUrl, string ApiKey)>? _sharedCredentials;
+    private long _requestGeneration;
 
     public AiServiceSettingsSection(
         StackPanel content,
         IReadOnlyList<AiPlatformOption> platforms,
-        Func<string, string, string, Task<(bool Success, string Message)>> test)
+        Func<string, string, string, Task<(bool Success, string Message)>> test,
+        Func<string, string, Task<IReadOnlyList<string>>>? fetchModels = null)
     {
         _platforms = platforms;
         _test = test;
+        _fetchModels = fetchModels ?? ((url, key) => OpenAiChatClient.FetchModelsAsync(url, key));
 
         Platform = SettingsLayout.CreateComboBox();
         foreach (var platform in platforms)
@@ -71,11 +76,19 @@ internal sealed class AiServiceSettingsSection
         Model = SettingsLayout.CreateEditableComboBox();
         content.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", Model, "可获取列表，也可手动输入。", isLast: true));
 
-        var fetchModels = SettingsLayout.CreateSecondaryActionButton("获取模型");
-        fetchModels.Click += FetchModels_Click;
-        var testButton = SettingsLayout.CreateSecondaryActionButton("测试");
+        var fetchModelsButton = SettingsLayout.CreateSecondaryActionButton("获取模型");
+        fetchModelsButton.Click += FetchModels_Click;
+        var testButton = SettingsLayout.CreateSecondaryActionButton("测试模型");
         testButton.Click += Test_Click;
-        content.Children.Add(SettingsLayout.CreateActionRow(fetchModels, testButton));
+        content.Children.Add(SettingsLayout.CreateActionRow(fetchModelsButton, testButton));
+        _testStatus = SettingsLayout.CreateHint("未测试", inline: true);
+        _testStatus.Margin = new Thickness(24 + SettingsLayout.InlineLabelWidth, 0, 24, 16);
+        System.Windows.Automation.AutomationProperties.SetLiveSetting(_testStatus, System.Windows.Automation.AutomationLiveSetting.Polite);
+        content.Children.Add(_testStatus);
+        ApiUrl.TextChanged += (_, _) => InvalidateTest();
+        ApiKey.PasswordChanged += (_, _) => InvalidateTest();
+        Model.AddHandler(System.Windows.Controls.Primitives.TextBoxBase.TextChangedEvent,
+            new TextChangedEventHandler((_, _) => InvalidateTest()));
     }
 
     /// <summary>
@@ -89,6 +102,14 @@ internal sealed class AiServiceSettingsSection
         _platformRow.Visibility = visibility;
         _apiUrlRow.Visibility = visibility;
         _apiKeyRow.Visibility = visibility;
+        InvalidateTest();
+    }
+
+    public void InvalidateTest()
+    {
+        _requestGeneration++;
+        _testStatus.Text = "未测试";
+        _testStatus.Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush");
     }
 
     private (string ApiUrl, string ApiKey) CurrentCredentials() =>
@@ -146,6 +167,7 @@ internal sealed class AiServiceSettingsSection
 
     private void Platform_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
+        InvalidateTest();
         if (_loading)
             return;
 
@@ -187,12 +209,18 @@ internal sealed class AiServiceSettingsSection
         if (sender is not Button button)
             return;
 
+        var credentials = CurrentCredentials();
+        var platform = SelectedPlatformTag;
+        var generation = ++_requestGeneration;
+        bool IsCurrent() => generation == _requestGeneration
+            && credentials == CurrentCredentials() && Equals(platform, SelectedPlatformTag);
+
         await UiBusyState.RunWithBusyStateAsync(button, "获取中...", async () =>
         {
             try
             {
-                var (apiUrl, apiKey) = CurrentCredentials();
-                var models = await OpenAiChatClient.FetchModelsAsync(apiUrl, apiKey);
+                var models = await _fetchModels(credentials.ApiUrl, credentials.ApiKey);
+                if (!IsCurrent()) return;
                 var currentModel = ModelName;
 
                 Model.Items.Clear();
@@ -203,11 +231,14 @@ internal sealed class AiServiceSettingsSection
                     ? currentModel
                     : models.FirstOrDefault() ?? string.Empty;
 
-                ToastNotification.Show("模型已获取", $"共 {models.Count} 个模型", ToastNotification.ToastType.Success);
+                _testStatus.Text = $"已获取 {models.Count} 个模型 · 尚未测试";
+                _testStatus.Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush");
             }
             catch (Exception ex)
             {
-                ToastNotification.Show("获取模型失败", NetworkErrorMessages.FromException(ex), ToastNotification.ToastType.Error);
+                if (!IsCurrent()) return;
+                _testStatus.Text = $"获取模型失败：{NetworkErrorMessages.FromException(ex)}";
+                _testStatus.Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("ErrorBrush");
             }
         });
     }
@@ -217,20 +248,28 @@ internal sealed class AiServiceSettingsSection
         if (sender is not Button button)
             return;
 
+        var credentials = CurrentCredentials();
+        var model = ModelName;
+        var platform = SelectedPlatformTag;
+        var generation = ++_requestGeneration;
+        bool IsCurrent() => generation == _requestGeneration
+            && credentials == CurrentCredentials() && model == ModelName
+            && Equals(platform, SelectedPlatformTag);
+        _testStatus.Text = "正在测试模型…";
         await UiBusyState.RunWithBusyStateAsync(button, "测试中...", async () =>
         {
             try
             {
-                var (apiUrl, apiKey) = CurrentCredentials();
-                var (success, message) = await _test(apiUrl, apiKey, ModelName);
-                ToastNotification.Show(
-                    success ? "测试成功" : "测试失败",
-                    message,
-                    success ? ToastNotification.ToastType.Success : ToastNotification.ToastType.Error);
+                var (success, message) = await _test(credentials.ApiUrl, credentials.ApiKey, model);
+                if (!IsCurrent()) return;
+                _testStatus.Text = success ? "测试通过 · 模型可用" : $"测试失败：{message}";
+                _testStatus.Foreground = (System.Windows.Media.Brush)Application.Current.FindResource(success ? "SuccessTextBrush" : "ErrorBrush");
             }
             catch (Exception ex)
             {
-                ToastNotification.Show("测试失败", NetworkErrorMessages.FromException(ex), ToastNotification.ToastType.Error);
+                if (!IsCurrent()) return;
+                _testStatus.Text = $"测试失败：{NetworkErrorMessages.FromException(ex)}";
+                _testStatus.Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("ErrorBrush");
             }
         });
     }

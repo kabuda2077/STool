@@ -163,7 +163,7 @@
     <!-- 色块分层:无边框白底卡片,靠柔和阴影从画布浮起(替代边框分组) -->
     <Style x:Key="SurfaceCard" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-        <Setter Property="CornerRadius" Value="8"/>
+        <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusMedium}"/>
         <Setter Property="Padding" Value="14"/>
         <Setter Property="Margin" Value="0,0,0,12"/>
         <Setter Property="Effect" Value="{StaticResource PaneShadow}"/>
@@ -172,9 +172,8 @@
     <!-- Floating tool panels: translation, clipboard and OCR result windows share this visual language. -->
     <Style x:Key="ToolPanelPane" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-        <Setter Property="CornerRadius" Value="10"/>
+        <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusMedium}"/>
         <Setter Property="Padding" Value="14"/>
-        <Setter Property="Effect" Value="{StaticResource PaneShadow}"/>
     </Style>
 
     <Style x:Key="ToolPanelToolbarSurface" TargetType="Border">
@@ -182,6 +181,30 @@
         <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusMedium}"/>
         <Setter Property="Padding" Value="2"/>
         <Setter Property="Effect" Value="{StaticResource PaneShadow}"/>
+    </Style>
+
+    <!-- 工具窗口共用标题到筛选栏、筛选栏到内容的间距。 -->
+    <Style x:Key="ToolPanelContentLayout" TargetType="Grid">
+        <Setter Property="Margin" Value="10,52,10,10"/>
+    </Style>
+    <Style x:Key="ToolPanelHeaderRow" TargetType="Grid">
+        <Setter Property="Margin" Value="0,0,0,8"/>
+        <Setter Property="Height" Value="36"/>
+    </Style>
+
+    <!-- 剪贴板搜索与翻译语言选择共用的标题下右侧控件。 -->
+    <Style x:Key="ToolPanelHeaderField" TargetType="Border" BasedOn="{StaticResource ToolPanelToolbarSurface}">
+        <Setter Property="Height" Value="36"/>
+        <Setter Property="Padding" Value="12,0"/>
+        <Setter Property="HorizontalAlignment" Value="Right"/>
+        <Setter Property="MinWidth" Value="218"/>
+        <Setter Property="MaxWidth" Value="300"/>
+        <Setter Property="Width" Value="Auto"/>
+        <Style.Triggers>
+            <Trigger Property="IsKeyboardFocusWithin" Value="True">
+                <Setter Property="BorderBrush" Value="{StaticResource PrimaryBrush}"/>
+            </Trigger>
+        </Style.Triggers>
     </Style>
 
     <Style x:Key="ToolPanelTextBox" TargetType="TextBox">
@@ -205,12 +228,16 @@
         </Setter>
     </Style>
 
+    <Style x:Key="TranslationTextBox" TargetType="TextBox" BasedOn="{StaticResource ToolPanelTextBox}">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+    </Style>
+
     <!-- Settings pages use quiet bordered sections for a flatter, more precise surface. -->
     <Style x:Key="SettingsFlatSection" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource SettingsSectionBrush}"/>
         <Setter Property="BorderBrush" Value="{StaticResource SettingsSectionBorderBrush}"/>
         <Setter Property="BorderThickness" Value="0.5"/>
-        <Setter Property="CornerRadius" Value="14"/>
+        <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusLarge}"/>
         <Setter Property="Padding" Value="0"/>
         <Setter Property="Margin" Value="0"/>
         <Setter Property="Effect" Value="{x:Null}"/>
@@ -260,7 +287,7 @@
                                             Background="{StaticResource TransparentBrush}"
                                             BorderBrush="{StaticResource SettingsSectionBorderBrush}"
                                             BorderThickness="0"
-                                            CornerRadius="14"
+                                            CornerRadius="{StaticResource CornerRadiusLarge}"
                                             MinHeight="50"
                                             Padding="20,0,12,0">
                                         <Grid>
@@ -368,9 +395,19 @@
         <Setter Property="TextWrapping" Value="Wrap"/>
     </Style>
 
+    <!-- 空输入区占位提示：与内容同字号，颜色较轻，输入后由页面隐藏。 -->
+    <Style x:Key="InputPlaceholderText" TargetType="TextBlock" BasedOn="{StaticResource HintText}">
+        <Setter Property="FontSize" Value="{StaticResource FontSizeBody}"/>
+        <Setter Property="Opacity" Value="0.65"/>
+        <!-- WPF TextBox 的文本视图在水平方向自带 2 DIP 留白。 -->
+        <Setter Property="Margin" Value="2,0"/>
+        <Setter Property="IsHitTestVisible" Value="False"/>
+        <Setter Property="VerticalAlignment" Value="Top"/>
+    </Style>
+
     <Style x:Key="ListRowStyle" TargetType="Border">
         <Setter Property="Background" Value="{StaticResource SurfaceBrush}"/>
-        <Setter Property="CornerRadius" Value="7"/>
+        <Setter Property="CornerRadius" Value="{StaticResource CornerRadiusMedium}"/>
         <Setter Property="Padding" Value="12"/>
         <Setter Property="Margin" Value="0,0,0,8"/>
         <Setter Property="BorderBrush" Value="{StaticResource BorderBrush}"/>

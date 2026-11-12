@@ -999,7 +999,7 @@ public class LanTransferTests
         Assert.NotEmpty(LanTransferWebAssets.Read("style.css")!);
         var script = Encoding.UTF8.GetString(LanTransferWebAssets.Read("app.js")!);
         Assert.Contains("/api/presence", script);
-        Assert.Contains("exchange({ token, remember: true })", script);
+        Assert.Contains("/api/auth/exchange", script);
         Assert.Contains("triggerDownloads", script);
         Assert.Contains("继续剩余", script);
     }

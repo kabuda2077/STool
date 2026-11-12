@@ -183,6 +183,7 @@ public partial class CaptureOverlay
 
     private void ShowTranslationLoading()
     {
+        translationStageText.Text = "正在识别文字… 再次点击翻译可取消";
         translationBlockCanvas.Visibility = Visibility.Collapsed;
         ClearBlockTranslation();
         translationOverlayText.Text = string.Empty;

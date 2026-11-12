@@ -19,6 +19,8 @@ Run this checklist on Windows 10/11 after a release build. Record the OS version
 ## Screenshot and OCR
 
 - [ ] Capture a region on one monitor; verify selection, move, resize, annotation, undo, redo, copy, save, and cancel.
+- [ ] Tab to screenshot toolbar actions and press Enter; verify the focused action runs. Esc must still close the capture.
+- [ ] Add annotations, open Save, then cancel or choose an unwritable destination; verify the same selection and annotations return and can be saved again.
 - [ ] Before confirming a selection, verify the magnifier follows the cursor, shows coordinates and color, arrow keys move the cursor by one pixel (Shift: ten), and `C` copies the color value.
 - [ ] After confirming, verify arrow keys move the selection, Ctrl+arrow resizes it, and Ctrl+S opens the save dialog.
 - [ ] Use each annotation tool with every color and size; add text (Enter for a new line, Ctrl+Enter or Esc to finish, empty text is discarded); verify the exported image matches the screen.
@@ -52,6 +54,9 @@ Run this checklist on Windows 10/11 after a release build. Record the OS version
 - [ ] Pause recording from the tray menu or clipboard settings; verify nothing is recorded until resumed.
 - [ ] Keep the Clipboard panel open: type to search immediately, use ↑/↓ to select, Enter to paste into the original window, Ctrl+Enter to copy only, Ctrl+1..5 to switch tabs, Esc to close.
 - [ ] Single-click copies and keeps the panel; double-click copies, closes, and pastes to the original window.
+- [ ] Tab to a category, favorite, clear-search or retry control and press Enter; verify no history item is pasted. From the search/list, Enter still pastes.
+- [ ] Select an image and press F3, or use its keyboard context menu to preview; close with Esc or the close button and verify focus returns.
+- [ ] Temporarily fail a history query in a disposable database; verify an inline error and Retry replace the unavailable list, and retry restores it after recovery.
 - [ ] With more than 200 records, verify favorites and search results include older records and scrolling loads more pages.
 - [ ] Hold the clipboard from another process during restore; verify asynchronous retry and no UI freeze.
 - [ ] Close the original target window before double-click paste; verify the content remains copied and a manual-paste message appears.
@@ -85,6 +90,35 @@ Run this checklist on Windows 10/11 after a release build. Record the OS version
 - [ ] Start a screenshot translation, cancel it, and immediately start another; verify callbacks from the old request cannot hide the new loading indicator or result.
 - [ ] Close a capture during OCR; verify no result window appears afterwards.
 - [ ] Perform several unrelated settings saves with an unreadable secret; verify the warning state and original ciphertext remain unchanged.
+
+## Design and accessibility regression
+
+- [ ] At each tool window's minimum size, verify the primary action, search, language selector and result actions remain visible. Repeat on displays at 100%, 150% and 200% scale, including moving between monitors.
+- [ ] Translate successfully, then edit the source: verify the old result is marked stale and all copy/paste actions are disabled. Translate again to restore them.
+- [ ] Simulate a failed translation: verify the error is outside the result text, retry is available, and neither copy nor paste can export the error. With an unconfigured provider, verify the service-account link opens the account settings page.
+- [ ] Cancel a slow translation and start another; verify the earlier completion never replaces the new result. The action button text and tooltip must return from Cancel to Translate.
+- [ ] Change settings repeatedly: verify inline pending/saved feedback, with no repeated success Toasts. Test failure messages stay visible and do not claim a successful save.
+- [ ] Make a disposable config unwritable, edit a field, then switch pages or close Settings; verify the draft remains, retry is available, and navigation/close succeeds after write access is restored.
+- [ ] Use UI Automation or a screen reader to toggle settings; verify each change persists once and dependent fields update. Verify hidden and revealed key inputs announce their field label.
+- [ ] Change credentials or the shared vision account while fetching models; verify old responses and errors cannot update the current account.
+- [ ] Use a screen reader to select translation providers, clipboard categories and transfer views; verify selected state and displayed content stay synchronized.
+- [ ] Trigger a long error Toast; verify the full message wraps within the notification, and success-test text is readable on its background.
+- [ ] On the phone, fail the first connection, restore Wi-Fi, and retry; verify an existing remembered device or QR token still connects. Invalid tokens must return to verification without a retry loop.
+- [ ] Fail upload-batch creation; verify the error is visible in the sending view, the selected files remain, and retry works. File selection must stay locked throughout preparation and upload.
+- [ ] Delay a folder refresh, navigate elsewhere or exit browsing, then release the response; verify it cannot replace the current location or reopen browsing.
+- [ ] Select all in a folder with several thousand files; verify controls remain responsive, checkbox/count state is correct, and keyboard focus remains on Select all.
+- [ ] Test an AI model or Tencent translation account; verify its inline result is invalidated after changing credentials/model. A late test response must not validate different credentials.
+- [ ] In clipboard history, verify image previews, metadata, favorite controls and keyboard selection at minimum width. No extra bottom instruction row should appear.
+- [ ] With no translation input, verify providers appear on the left below the title and language selection occupies the clipboard search position on the right. Clear and Translate stay at the input pane's bottom right, disabled until text is entered; only one result placeholder is visible. A successful translation has no extra status heading. OCR has no permanent instruction row; LAN details retain three aligned rows with device removal beside the code.
+- [ ] Edit OCR text, copy it and verify the window remains available for further correction. Ctrl+Enter copies; Esc closes.
+- [ ] During screenshot translation, verify recognition/translation/layout stage feedback and cancellation. The selected annotation tool has both a tint and an outline.
+- [ ] Open the tray menu using the keyboard: first item receives focus, Up/Down and Home/End navigate, Enter activates and Esc closes. Verify icon buttons have useful screen-reader names.
+- [ ] Connect a phone: verify connection details collapse once, can be expanded manually, and reappear on disconnect. Clearing remembered devices explains that all sessions will need verification again.
+- [ ] In the phone page, use only Tab, Shift+Tab, arrows and Enter to select files, switch tabs and accept/reject a transfer. Escape rejects the offer, and focus returns to the prior control.
+- [ ] Leave focus on Pause/Resume during polling; verify it remains usable. Repeat in the folder browser with a selected file. Long filenames must not push actions offscreen at 320px width.
+- [ ] With reduced motion enabled, verify the phone loading spinner is static while its status text remains visible. Test with VoiceOver/TalkBack or Narrator on the actual target browser.
+
+Automated coverage: `DesignInteractionTests` exercises translation output validity; `scripts/Test-LanTransferWeb.cjs` exercises browser keyboard, dialog, polling and viewport behavior. These checks do not replace physical multi-monitor DPI or mobile screen-reader testing.
 
 ## Build verification
 

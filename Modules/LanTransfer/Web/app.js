@@ -3,10 +3,14 @@ const state = {
   selectedRows: [],
   uploads: new Map(),
   folder: null,
+  folderLocation: null,
   folderRootName: "",
+  folderVersion: 0,
+  folderRequest: null,
   downloadSelection: new Map(),
   transferPollTimer: 0,
   uploadBatchId: null,
+  uploading: false,
   uploadRequests: new Map(),
   currentOfferId: null,
   currentOffer: null
@@ -14,6 +18,7 @@ const state = {
 const $ = id => document.getElementById(id);
 const headers = { "X-STool-Request": "1" };
 let sessionRefresh = null;
+let connectionToken;
 
 // 会话失效（电脑端重启服务、换了网络）时，用“记住此设备”的令牌换一个新会话。
 // 设备令牌的 Cookie 只发往 /api/session，其余请求只带会话 Cookie。
@@ -107,6 +112,8 @@ async function sendPresence() {
 }
 
 function showAuth(message = "") {
+  hideOffer();
+  closeFolderBrowser();
   $("loadingView").hidden = true;
   $("workspace").hidden = true;
   $("authView").hidden = false;
@@ -114,6 +121,7 @@ function showAuth(message = "") {
   $("statusDot").classList.remove("online");
   $("authError").textContent = message;
   clearTimeout(state.transferPollTimer);
+  $("codeInput").focus();
 }
 
 async function exchange(payload) {
@@ -123,22 +131,52 @@ async function exchange(payload) {
     headers: { "Content-Type": "application/json" }
   });
   showWorkspace();
+  document.querySelector('.tab[aria-selected="true"]').focus();
 }
 
 async function initialize() {
-  const params = new URLSearchParams(location.hash.startsWith("#") ? location.hash.slice(1) : "");
-  const token = params.get("token");
-  if (token) history.replaceState(null, "", "/");
-
+  if (connectionToken === undefined) {
+    const params = new URLSearchParams(location.hash.startsWith("#") ? location.hash.slice(1) : "");
+    connectionToken = params.get("token");
+    if (connectionToken) history.replaceState(null, "", "/");
+  }
+  $("retryConnection").disabled = true;
+  $("connectionLabel").textContent = "正在连接电脑";
+  $("connectionError").hidden = true;
+  $("connectionSpinner").hidden = false;
+  $("loadingMessage").hidden = false;
   try {
-    await api("/api/session");
-    showWorkspace();
-  } catch {
-    if (!token) return showAuth();
-    try { await exchange({ token, remember: true }); }
-    catch (error) { showAuth(error.message); }
+    try {
+      await api("/api/session");
+      showWorkspace();
+    } catch (error) {
+      if (error.status !== 401) throw error;
+      if (!connectionToken) return showAuth();
+      try {
+        await exchange({ token: connectionToken, remember: true });
+      } catch (exchangeError) {
+        if (exchangeError.status >= 400 && exchangeError.status < 500) {
+          connectionToken = null;
+          return showAuth(exchangeError.message);
+        }
+        throw exchangeError;
+      }
+    }
+  } catch (error) {
+    $("connectionLabel").textContent = "连接失败";
+    $("connectionSpinner").hidden = true;
+    $("loadingMessage").hidden = true;
+    $("connectionError").textContent = error.status
+      ? `${error.message}，请重试。`
+      : "无法连接电脑，请确认手机和电脑处于同一 Wi-Fi 后重试。";
+    $("connectionError").hidden = false;
+    $("retryConnection").hidden = false;
+  } finally {
+    $("retryConnection").disabled = false;
   }
 }
+
+$("retryConnection").addEventListener("click", () => initialize());
 
 $("authForm").addEventListener("submit", async event => {
   event.preventDefault();
@@ -155,11 +193,29 @@ document.querySelectorAll(".tab").forEach(button => button.addEventListener("cli
     const selected = tab === button;
     tab.classList.toggle("active", selected);
     tab.setAttribute("aria-selected", String(selected));
+    tab.tabIndex = selected ? 0 : -1;
   });
   const send = button.dataset.tab === "send";
+  const returningToReceive = !send && $("receiveView").hidden;
+  if (send) invalidateFolderRequest();
   $("sendView").hidden = !send;
   $("receiveView").hidden = send;
+  if (returningToReceive && state.folderLocation) {
+    const { folderId, path } = state.folderLocation;
+    loadFolder(folderId, path);
+  }
 }));
+
+document.querySelector(".tabs").addEventListener("keydown", event => {
+  const tabs = Array.from(document.querySelectorAll(".tab"));
+  const index = tabs.indexOf(document.activeElement);
+  if (index < 0 || !["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+  event.preventDefault();
+  const next = event.key === "Home" ? 0 : event.key === "End" ? tabs.length - 1
+    : (index + (event.key === "ArrowRight" ? 1 : -1) + tabs.length) % tabs.length;
+  tabs[next].focus();
+  tabs[next].click();
+});
 
 const transferStateText = {
   preparing: "准备中",
@@ -197,23 +253,57 @@ async function loadTransfers() {
 
 function renderActiveTransfers(transfers) {
   const container = $("activeTransferList");
-  container.replaceChildren();
+  const existing = new Map(Array.from(container.children, row => [row.dataset.id, row]));
   $("activeTransfers").hidden = transfers.length === 0;
-  transfers.forEach(transfer => container.append(createTransferTask(transfer)));
+  $("receiveEmpty").hidden = Boolean(state.folder) || transfers.some(transfer => transfer.direction === "toPhone");
+  transfers.forEach(transfer => {
+    const id = String(transfer.id);
+    const next = createTransferTask(transfer);
+    const row = existing.get(id);
+    if (!row) { container.append(next); return; }
+    existing.delete(id);
+    for (const selector of [".transfer-task-name", ".transfer-task-state", ".transfer-task-detail"]) {
+      const target = row.querySelector(selector);
+      const value = next.querySelector(selector);
+      if (target.textContent !== value.textContent) target.textContent = value.textContent;
+      target.title = value.title;
+    }
+    const progress = row.querySelector(".transfer-task-progress");
+    progress.firstElementChild.style.width = next.querySelector(".transfer-task-progress span").style.width;
+    progress.setAttribute("aria-valuenow", next.querySelector(".transfer-task-progress").getAttribute("aria-valuenow"));
+    const actions = row.querySelector(".transfer-task-actions");
+    const nextActions = next.querySelector(".transfer-task-actions");
+    if (actions.textContent !== nextActions.textContent) {
+      const hadFocus = actions.contains(document.activeElement);
+      actions.replaceChildren(...nextActions.children);
+      if (hadFocus) actions.querySelector("button")?.focus();
+    } else {
+      Array.from(actions.children).forEach((button, index) => {
+        button.onclick = nextActions.children[index].onclick;
+      });
+    }
+  });
+  for (const row of existing.values()) {
+    const hadFocus = row.contains(document.activeElement);
+    row.remove();
+    if (hadFocus) document.querySelector('.tab[aria-selected="true"]').focus();
+  }
 }
 
 function createTransferTask(transfer) {
   const row = document.createElement("div");
   row.className = "transfer-task";
+  row.dataset.id = String(transfer.id);
   const head = document.createElement("div");
   head.className = "transfer-task-head";
   const name = document.createElement("div");
   name.className = "transfer-task-name";
   name.textContent = transfer.name;
+  name.title = transfer.name;
   const status = document.createElement("span");
   status.className = "transfer-task-state";
   status.textContent = transfer.state === "transferring"
-    ? transfer.direction === "toPhone" ? "发送中" : "接收中"
+    ? transfer.direction === "toPhone" ? "正在从电脑接收" : "正在发送到电脑"
     : transferStateText[transfer.state] || transfer.state;
   const actions = document.createElement("div");
   actions.className = "transfer-task-actions";
@@ -241,6 +331,11 @@ function createTransferTask(transfer) {
     ? Math.min(100, transfer.transferredBytes / transfer.totalBytes * 100)
     : 0;
   progress.style.width = `${percent}%`;
+  progressTrack.setAttribute("role", "progressbar");
+  progressTrack.setAttribute("aria-label", `${transfer.name} 传输进度`);
+  progressTrack.setAttribute("aria-valuemin", "0");
+  progressTrack.setAttribute("aria-valuemax", "100");
+  progressTrack.setAttribute("aria-valuenow", String(Math.round(percent)));
   progressTrack.append(progress);
   const detail = document.createElement("div");
   detail.className = "transfer-task-detail";
@@ -262,21 +357,29 @@ function createTaskAction(label, handler, danger = false) {
   button.type = "button";
   button.className = `task-action${danger ? " danger" : ""}`;
   button.textContent = label;
-  button.addEventListener("click", handler);
+  button.onclick = handler;
   return button;
 }
 
 async function controlTransfer(id, action) {
   try {
+    $("workspaceError").hidden = true;
+    $("offerError").hidden = true;
     await api(`/api/transfers/${id}/${action}`, { method: "POST" });
     if ((action === "pause" || action === "cancel") && state.uploadBatchId === id)
       abortUploadRequests();
-    if (action === "cancel" && state.currentOfferId === id)
+    if ((action === "cancel" || action === "reject") && state.currentOfferId === id)
       hideOffer();
     await loadTransfers();
   } catch (error) {
-    showArchiveError(error.message);
+    showTransferError(error.message);
   }
+}
+
+function showTransferError(message) {
+  const target = $("offerDialog").open ? $("offerError") : $("workspaceError");
+  target.textContent = message;
+  target.hidden = false;
 }
 
 function renderOffer(offer) {
@@ -284,7 +387,7 @@ function renderOffer(offer) {
     if (state.currentOfferId) hideOffer();
     return;
   }
-  if (state.currentOfferId === offer.id && !$("offerDialog").hidden) return;
+  if (state.currentOfferId === offer.id && $("offerDialog").open) return;
   state.currentOfferId = offer.id;
   state.currentOffer = offer;
   $("offerDialog").querySelector(".offer-dialog").classList.toggle("separate", offer.separate);
@@ -301,11 +404,12 @@ function renderOffer(offer) {
   $("offerAccept").textContent = offer.separate
     ? `接收 ${offer.itemCount} 个项目`
     : offer.canBrowse ? "接收全部" : "接收";
-  $("offerDialog").hidden = false;
+  $("offerError").hidden = true;
+  if (!$("offerDialog").open) $("offerDialog").showModal();
 }
 
 function hideOffer() {
-  $("offerDialog").hidden = true;
+  $("offerDialog").close();
   state.currentOfferId = null;
   state.currentOffer = null;
 }
@@ -333,8 +437,28 @@ $("offerBrowse").addEventListener("click", async () => {
     await loadFolder(folder.folderId, "");
     scheduleTransferPoll(0);
   } catch (error) {
-    showArchiveError(error.message);
+    showTransferError(error.message);
   }
+});
+
+$("offerDialog").addEventListener("keydown", event => {
+  if (event.key !== "Tab") return;
+  const buttons = Array.from($("offerDialog").querySelectorAll("button:not(:disabled)"))
+    .filter(button => !button.hidden);
+  const first = buttons[0];
+  const last = buttons[buttons.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+});
+
+$("offerDialog").addEventListener("cancel", event => {
+  event.preventDefault();
+  $("offerReject").click();
 });
 
 $("offerReject").addEventListener("click", async () => {
@@ -345,6 +469,7 @@ $("offerReject").addEventListener("click", async () => {
 document.addEventListener("visibilitychange", () => scheduleTransferPoll(0));
 
 function selectFiles(fileList) {
+  if (state.uploading) return;
   state.selected = Array.from(fileList || []);
   $("uploadList").replaceChildren();
   state.selectedRows = state.selected.map(file => createUploadRow(file));
@@ -357,6 +482,9 @@ function selectFiles(fileList) {
 
 function updateUploadComposerVisibility() {
   $("uploadComposer").hidden = Boolean(state.uploadBatchId);
+  $("filePicker").disabled = state.uploading;
+  $("folderPicker").disabled = state.uploading;
+  $("uploadButton").disabled = state.uploading || state.selected.length === 0;
 }
 
 $("filePicker").addEventListener("change", event => selectFiles(event.target.files));
@@ -493,53 +621,52 @@ async function uploadFile(file, row, batchId) {
 }
 
 $("uploadButton").addEventListener("click", async () => {
+  if (state.uploading || !state.selected.length) return;
   const files = state.selected.slice();
-  if (!files.length) return;
-  $("uploadButton").disabled = true;
-  const batch = describeUploadBatch(files);
-  let batchId;
+  const queue = files.map((file, index) => ({ file, row: state.selectedRows[index] }));
+  state.uploading = true;
+  updateUploadComposerVisibility();
+  $("workspaceError").hidden = true;
+  let completed = false;
   try {
     const created = await api("/api/upload-batches", {
       method: "POST",
-      body: JSON.stringify(batch),
+      body: JSON.stringify(describeUploadBatch(files)),
       headers: { "Content-Type": "application/json" }
     });
-    batchId = created.id;
+    const batchId = created.id;
     state.uploadBatchId = batchId;
     updateUploadComposerVisibility();
     scheduleTransferPoll(0);
-  } catch (error) {
-    $("uploadButton").disabled = false;
-    showArchiveError(error.message);
-    return;
-  }
-  const queue = files.map((file, index) => ({
-    file,
-    row: state.selectedRows[index] || createUploadRow(file)
-  }));
-  let cursor = 0;
-  let uploadFailed = false;
-  const workers = Array.from({ length: Math.min(2, queue.length) }, async () => {
-    while (cursor < queue.length) {
-      const item = queue[cursor++];
-      try { await uploadFile(item.file, item.row, batchId); }
-      catch (error) {
-        uploadFailed = true;
-        item.row.status.textContent = "失败";
-        item.row.meta.textContent = error.message;
+    let cursor = 0;
+    let uploadFailed = false;
+    const workers = Array.from({ length: Math.min(2, queue.length) }, async () => {
+      while (cursor < queue.length) {
+        const item = queue[cursor++];
+        try { await uploadFile(item.file, item.row, batchId); }
+        catch (error) {
+          uploadFailed = true;
+          item.row.status.textContent = "失败";
+          item.row.meta.textContent = error.message;
+        }
       }
+    });
+    await Promise.all(workers);
+    completed = !uploadFailed;
+    if (uploadFailed) showTransferError("部分文件发送失败，请重试发送。");
+  } catch (error) {
+    showTransferError(`${error.message}，请重试发送。`);
+  } finally {
+    state.uploadBatchId = null;
+    state.uploadRequests.clear();
+    state.uploading = false;
+    if (completed) {
+      $("filePicker").value = "";
+      $("folderPicker").value = "";
+      selectFiles([]);
     }
-  });
-  await Promise.all(workers);
-  state.uploadBatchId = null;
-  state.uploadRequests.clear();
-  if (!uploadFailed) {
-    $("filePicker").value = "";
-    $("folderPicker").value = "";
-    selectFiles([]);
+    updateUploadComposerVisibility();
   }
-  updateUploadComposerVisibility();
-  $("uploadButton").disabled = state.selected.length === 0;
 });
 
 function describeUploadBatch(files) {
@@ -581,13 +708,32 @@ async function waitUntilUploadCanContinue(batchId, row) {
   }
 }
 
-async function loadFolder(folderId, path) {
+function invalidateFolderRequest() {
+  state.folderVersion++;
+  state.folderRequest = null;
+}
+
+async function loadFolder(folderId, path, poll = false) {
+  if ($("workspace").hidden || $("receiveView").hidden || (poll && state.folderRequest)) return;
+  state.folderLocation = { folderId, path };
+  const version = ++state.folderVersion;
+  state.folderRequest = version;
+  const isCurrent = () => version === state.folderVersion && !$("workspace").hidden && !$("receiveView").hidden;
   try {
     const query = path ? `?path=${encodeURIComponent(path)}` : "";
-    state.folder = await api(`/api/folders/${folderId}${query}`);
-    renderFolder();
+    const folder = await api(`/api/folders/${folderId}${query}`);
+    if (!isCurrent()) return;
+    if (JSON.stringify(folder) !== JSON.stringify(state.folder)) {
+      state.folder = folder;
+      renderFolder();
+    }
   } catch (error) {
-    showArchiveError(error.message);
+    if (isCurrent()) {
+      if (error.status === 401) showAuth();
+      else showArchiveError(error.message);
+    }
+  } finally {
+    if (state.folderRequest === version) state.folderRequest = null;
   }
 }
 
@@ -596,7 +742,11 @@ function renderFolder() {
   if (!folder) return closeFolderBrowser();
 
   const container = $("downloadList");
+  const focused = document.activeElement;
+  const focusKey = container.contains(focused) ? focused.closest(".item")?.dataset.path : null;
+  const focusIndex = focusKey ? Array.from(focused.closest(".item").querySelectorAll("button, input, a")).indexOf(focused) : -1;
   container.replaceChildren();
+  $("receiveEmpty").hidden = true;
   container.hidden = false;
   $("folderToolbar").hidden = false;
   $("folderTitle").textContent = folder.name;
@@ -615,6 +765,7 @@ function renderFolder() {
   folder.items.forEach(item => {
     const row = document.createElement("div");
     row.className = "item";
+    row.dataset.path = item.relativePath;
     if (item.isFolder) {
       const main = createItemMain(item.name, `文件夹 · ${item.fileCount} 个文件 · ${formatBytes(item.size)}`, true);
       main.addEventListener("click", () => loadFolder(folder.folderId, item.relativePath));
@@ -642,11 +793,18 @@ function renderFolder() {
     }
     container.append(row);
   });
+  if (focusKey) {
+    const row = Array.from(container.children).find(item => item.dataset.path === focusKey);
+    const target = row?.querySelectorAll("button, input, a")[focusIndex];
+    (target || $("folderBack")).focus();
+  }
   updateSelectionBar();
 }
 
 function closeFolderBrowser() {
+  invalidateFolderRequest();
   state.folder = null;
+  state.folderLocation = null;
   state.folderRootName = "";
   state.downloadSelection.clear();
   $("folderToolbar").hidden = true;
@@ -654,6 +812,7 @@ function closeFolderBrowser() {
   $("archiveStatus").hidden = true;
   $("downloadList").replaceChildren();
   $("downloadList").hidden = true;
+  $("receiveEmpty").hidden = false;
 }
 
 function createItemMain(nameText, metaText, interactive) {
@@ -666,6 +825,7 @@ function createItemMain(nameText, metaText, interactive) {
   const name = document.createElement("div");
   name.className = "item-name";
   name.textContent = nameText;
+  name.title = nameText;
   const meta = document.createElement("div");
   meta.className = "item-meta";
   meta.textContent = metaText;
@@ -681,7 +841,7 @@ function folderFileUrl(folderId, relativePath) {
   return `/api/folders/${folderId}/file?path=${encodeURIComponent(relativePath)}`;
 }
 
-function toggleDownloadSelection(folderId, item, selected) {
+function setDownloadSelection(folderId, item, selected) {
   const key = downloadKey(folderId, item.relativePath);
   if (selected) {
     state.downloadSelection.set(key, {
@@ -691,6 +851,10 @@ function toggleDownloadSelection(folderId, item, selected) {
   } else {
     state.downloadSelection.delete(key);
   }
+}
+
+function toggleDownloadSelection(folderId, item, selected) {
+  setDownloadSelection(folderId, item, selected);
   updateSelectionBar();
 }
 
@@ -726,8 +890,11 @@ $("selectAll").addEventListener("click", () => {
   const files = state.folder.items.filter(item => !item.isFolder);
   const allSelected = files.length > 0 && files.every(item =>
     state.downloadSelection.has(downloadKey(state.folder.folderId, item.relativePath)));
-  files.forEach(item => toggleDownloadSelection(state.folder.folderId, item, !allSelected));
-  renderFolder();
+  files.forEach(item => setDownloadSelection(state.folder.folderId, item, !allSelected));
+  $("downloadList").querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+    checkbox.checked = !allSelected;
+  });
+  updateSelectionBar();
 });
 
 $("downloadSelected").addEventListener("click", () => {
@@ -771,7 +938,7 @@ function showArchiveError(message) {
 
 setInterval(() => {
   if ($("receiveView").hidden) return;
-  if (state.folder) loadFolder(state.folder.folderId, state.folder.path);
+  if (state.folderLocation) loadFolder(state.folderLocation.folderId, state.folderLocation.path, true);
 }, 4000);
 setInterval(sendPresence, 4000);
 initialize();

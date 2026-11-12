@@ -55,6 +55,8 @@ internal sealed class ScreenshotTranslationServices : IScreenshotTranslationServ
         _translation.TranslateAsync(text, cancellationToken: cancellationToken);
 }
 
+internal enum ScreenshotTranslationStage { Recognizing, SelectingAndTranslating, Translating }
+
 internal enum ScreenshotTranslationOutcome
 {
     /// <summary>原位翻译：译文按段落贴回原位置。</summary>
@@ -103,12 +105,14 @@ internal sealed class ScreenshotTranslationPipeline
         _services = services;
     }
 
-    public async Task<ScreenshotTranslationResult> RunAsync(Bitmap crop, CancellationToken cancellationToken)
+    public async Task<ScreenshotTranslationResult> RunAsync(Bitmap crop, CancellationToken cancellationToken,
+        IProgress<ScreenshotTranslationStage>? progress = null)
     {
         var trace = new List<string>();
         string? notice = null;
 
         // ① 识别
+        progress?.Report(ScreenshotTranslationStage.Recognizing);
         var ocr = await _services.RecognizeForLayoutAsync(crop, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         trace.Add($"ocr provider={ocr.Provider} success={ocr.Success} blocks={ocr.TextBlocks.Count}");
@@ -138,6 +142,7 @@ internal sealed class ScreenshotTranslationPipeline
             // ② 挑选：智能
             if (_services.ScreenshotMode == ScreenshotTranslationMode.Smart)
             {
+                progress?.Report(ScreenshotTranslationStage.SelectingAndTranslating);
                 var smart = await TrySmartAsync(lines, targetLanguage, trace, cancellationToken);
                 if (smart.Result != null)
                     return Log(smart.Result);
@@ -145,6 +150,7 @@ internal sealed class ScreenshotTranslationPipeline
             }
 
             // ② 挑选：快速
+            progress?.Report(ScreenshotTranslationStage.Translating);
             var fast = await TryFastAsync(lines, crop, targetLanguage, trace, cancellationToken);
             if (fast != null)
                 return Log(WithNotice(fast, notice));
@@ -155,6 +161,7 @@ internal sealed class ScreenshotTranslationPipeline
         }
 
         // ③ 整段翻译
+        progress?.Report(ScreenshotTranslationStage.Translating);
         var whole = await _services.TranslateAsync(ocr.FullText, cancellationToken);
         cancellationToken.ThrowIfCancellationRequested();
         trace.Add($"whole-block success={whole.Success} provider={whole.Provider}");

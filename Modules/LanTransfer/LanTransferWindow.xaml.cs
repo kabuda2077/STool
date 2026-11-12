@@ -25,6 +25,8 @@ public partial class LanTransferWindow : Window
     private bool _closeStarted;
     private bool _cleanupCompleted;
     private bool _showingHistory;
+    private bool _wasConnected;
+    private bool _showConnectionDetails;
 
     internal LanTransferWindow(LanTransferController controller)
     {
@@ -65,7 +67,6 @@ public partial class LanTransferWindow : Window
         var state = _controller.State;
         var permissionRequired = state == ServerLifecycleState.PermissionRequired;
         permissionSetupPanel.Visibility = permissionRequired ? Visibility.Visible : Visibility.Collapsed;
-        connectionDetailsPanel.Visibility = permissionRequired ? Visibility.Collapsed : Visibility.Visible;
         repairButton.Visibility = _controller.RepairVisible ? Visibility.Visible : Visibility.Collapsed;
         if (permissionRequired)
         {
@@ -78,7 +79,15 @@ public partial class LanTransferWindow : Window
         }
 
         var status = _controller.Status;
-        SetStatus(StatusText(status), status == LanStatusKind.PhoneConnected);
+        var connected = status == LanStatusKind.PhoneConnected;
+        SetStatus(StatusText(status), connected);
+        if (connected != _wasConnected)
+            _showConnectionDetails = false;
+        _wasConnected = connected;
+        connectionDetailsButton.Visibility = connected ? Visibility.Visible : Visibility.Collapsed;
+        connectionDetailsPanel.Visibility = permissionRequired || (connected && !_showConnectionDetails)
+            ? Visibility.Collapsed : Visibility.Visible;
+        connectionDetailsButton.Content = _showConnectionDetails ? "收起详情" : "连接详情";
 
         var transitioning = state is ServerLifecycleState.Starting or ServerLifecycleState.Stopping;
         var running = state == ServerLifecycleState.Running;
@@ -92,6 +101,12 @@ public partial class LanTransferWindow : Window
         allowLanAccessButton.IsEnabled = permissionRequired;
         permissionLaterButton.IsEnabled = permissionRequired;
         AllowDrop = running;
+    }
+
+    private void ConnectionDetails_Click(object sender, RoutedEventArgs e)
+    {
+        _showConnectionDetails = !_showConnectionDetails;
+        Render();
     }
 
     private void RenderConnectionDetails()
@@ -140,7 +155,7 @@ public partial class LanTransferWindow : Window
         statusDot.Fill = (System.Windows.Media.Brush)FindResource(online ? "SuccessBrush" : "TextSecondaryBrush");
     }
 
-    private void TransferTab_Click(object sender, RoutedEventArgs e)
+    private void TransferTab_Checked(object sender, RoutedEventArgs e)
     {
         var showHistory = ReferenceEquals(sender, historyTabButton);
         if (showHistory == _showingHistory)
@@ -152,8 +167,8 @@ public partial class LanTransferWindow : Window
 
     private void UpdateTransferTabUi(bool animate)
     {
-        shareTabButton.Tag = _showingHistory ? null : "on";
-        historyTabButton.Tag = _showingHistory ? "on" : null;
+        shareTabButton.IsChecked = !_showingHistory;
+        historyTabButton.IsChecked = _showingHistory;
         shareView.Visibility = _showingHistory ? Visibility.Collapsed : Visibility.Visible;
         historyView.Visibility = _showingHistory ? Visibility.Visible : Visibility.Collapsed;
         shareActions.Visibility = _showingHistory ? Visibility.Collapsed : Visibility.Visible;
@@ -250,9 +265,9 @@ public partial class LanTransferWindow : Window
     {
         var confirmed = ConfirmDialog.Show(
             this,
-            "移除已记住设备？",
-            "之前选择“记住此设备”的手机将需要重新扫码或输入验证码。",
-            "移除",
+            "清除所有已记住设备？",
+            "所有设备的记住状态将被清除，当前连接也会失效。手机需要重新扫码或输入验证码才能继续访问。",
+            "清除设备",
             "取消");
         if (!confirmed)
             return;

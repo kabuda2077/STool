@@ -30,6 +30,8 @@
                      TextWrapping="Wrap"
                      AcceptsReturn="True"
                      IsReadOnly="False"
+                     AutomationProperties.Name="识别文字，可编辑"
+                     ToolTip="可直接编辑识别文字"
                      VerticalScrollBarVisibility="Auto"/>
         </Border>
 
@@ -47,7 +49,7 @@
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center">
                 <TextBlock x:Name="txtProvider"
-                           Text="提供商: Windows Local"
+                           Text="Windows 本地识别"
                            FontSize="{StaticResource FontSizeHint}"
                            Foreground="{StaticResource TextSecondaryBrush}"
                            VerticalAlignment="Center"
@@ -76,6 +78,7 @@
             <Button x:Name="btnCopy"
                     Grid.Column="2"
                     Style="{StaticResource ToolPanelPrimaryButton}"
+                    ToolTip="复制 (Ctrl+Enter)"
                     Click="BtnCopy_Click"
                     Margin="6,0,0,0">
                 <StackPanel Orientation="Horizontal">

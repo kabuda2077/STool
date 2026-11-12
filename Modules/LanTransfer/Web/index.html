@@ -10,7 +10,7 @@
 <body>
   <main class="shell">
     <header class="topbar">
-      <h1>STool</h1>
+      <h1>STool 传输</h1>
       <div class="connection-status" role="status" aria-live="polite">
         <span id="statusDot" class="status-dot" aria-hidden="true"></span>
         <span id="connectionLabel">正在连接电脑</span>
@@ -18,8 +18,10 @@
     </header>
 
     <section id="loadingView" class="loading-view" role="status" aria-live="polite">
-      <div class="loading-spinner" aria-hidden="true"></div>
-      <p>正在连接电脑...</p>
+      <div id="connectionSpinner" class="loading-spinner" aria-hidden="true"></div>
+      <p id="loadingMessage">正在连接电脑...</p>
+      <p id="connectionError" class="error" role="alert" hidden></p>
+      <button id="retryConnection" class="primary" type="button" hidden>重试连接</button>
     </section>
 
     <section id="authView" class="auth-view" hidden>
@@ -36,9 +38,10 @@
     <section id="workspace" hidden>
       <nav class="tabs" aria-label="传输方向" role="tablist">
         <button id="receiveTab" class="tab active" data-tab="receive" role="tab" aria-selected="true" aria-controls="receiveView">从电脑下载</button>
-        <button id="sendTab" class="tab" data-tab="send" role="tab" aria-selected="false" aria-controls="sendView">发送到电脑</button>
+        <button id="sendTab" class="tab" data-tab="send" role="tab" aria-selected="false" aria-controls="sendView" tabindex="-1">发送到电脑</button>
       </nav>
 
+      <p id="workspaceError" class="error" role="alert" hidden></p>
       <section id="activeTransfers" class="active-transfers" aria-label="活动传输" hidden>
         <div id="activeTransferList" class="transfer-list"></div>
       </section>
@@ -46,8 +49,8 @@
       <section id="sendView" class="view" role="tabpanel" aria-labelledby="sendTab" hidden>
         <div id="uploadComposer">
           <div class="picker-row">
-            <label class="picker"><input id="filePicker" type="file" multiple>选择文件</label>
-            <label class="picker"><input id="folderPicker" type="file" multiple webkitdirectory>选择文件夹</label>
+            <label class="picker"><input id="filePicker" type="file" multiple aria-label="选择文件">选择文件</label>
+            <label class="picker"><input id="folderPicker" type="file" multiple webkitdirectory aria-label="选择文件夹">选择文件夹</label>
           </div>
           <div id="selectionSummary" class="selection-summary">尚未选择文件</div>
           <button id="uploadButton" class="primary" disabled>开始发送</button>
@@ -56,6 +59,7 @@
       </section>
 
       <section id="receiveView" class="view" role="tabpanel" aria-labelledby="receiveTab">
+        <p id="receiveEmpty" class="empty">等待电脑发送文件<br>在电脑端添加文件后，在此确认接收。</p>
         <div id="folderToolbar" class="folder-toolbar" hidden>
           <button id="folderBack" class="folder-back" type="button">返回</button>
           <div class="folder-location">
@@ -82,7 +86,7 @@
       </section>
     </section>
 
-    <div id="offerDialog" class="offer-backdrop" role="dialog" aria-modal="true" aria-labelledby="offerTitle" hidden>
+    <dialog id="offerDialog" class="offer-backdrop" aria-labelledby="offerTitle" aria-describedby="offerDetail offerHint">
       <section class="offer-dialog">
         <p class="offer-label">电脑正在发送</p>
         <h2 id="offerTitle"></h2>
@@ -90,11 +94,12 @@
         <p id="offerHint" class="offer-hint" hidden></p>
         <div id="offerActions" class="offer-actions">
           <button id="offerBrowse" class="secondary" type="button" hidden>选择文件</button>
-          <button id="offerAccept" class="primary offer-accept" type="button">接收</button>
+          <button id="offerAccept" class="primary offer-accept" type="button" autofocus>接收</button>
         </div>
         <button id="offerReject" class="offer-reject" type="button">拒绝</button>
+        <p id="offerError" class="error" role="alert" hidden></p>
       </section>
-    </div>
+    </dialog>
 
   </main>
   <script src="/assets/app.js"></script>

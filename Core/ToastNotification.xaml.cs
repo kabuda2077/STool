@@ -8,7 +8,6 @@ namespace STool.Core
 {
     public partial class ToastNotification : Window
     {
-        private const string SettingsSavedKey = "settings-saved";
         private DispatcherTimer? _timer;
         private Action? _action;
         private const int DEFAULT_DURATION = 2500; // 毫秒
@@ -152,10 +151,6 @@ namespace STool.Core
             sb.Completed += (s, e) => base.Close();
             sb.Begin();
         }
-
-        /// <summary>设置自动保存后的轻量提示；连续保存只延长同一条提示，不会堆叠。</summary>
-        public static void ShowSettingsSaved() =>
-            Show("设置已保存", type: ToastType.Success, duration: 1600, dedupeKey: SettingsSavedKey);
 
         public static void Show(
             string title,

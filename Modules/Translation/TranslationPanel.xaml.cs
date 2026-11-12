@@ -17,14 +17,17 @@ public partial class TranslationPanel : Window
     private readonly TranslationManager _translationManager;
     private TranslationProvider _provider = TranslationProvider.Google;
     private bool _busy;
+    private bool _hasValidResult;
+    private readonly Action _openAccounts;
     private bool _closing;
     private bool _initializingLanguages = true;
     private CancellationTokenSource? _translationCts;
     private long _translationVersion;
     private readonly IntPtr _targetHwnd;   // 打开面板前的前台窗口("复制并输入"时切回它粘贴)
 
-    public TranslationPanel(TranslationManager translationManager)
+    public TranslationPanel(TranslationManager translationManager, Action openAccounts)
     {
+        _openAccounts = openAccounts;
         _targetHwnd = NativeWindows.GetForegroundWindow();   // 在 Show() 之前抓取 = 用户原来的应用
         _translationManager = translationManager;
         InitializeComponent();
@@ -56,14 +59,18 @@ public partial class TranslationPanel : Window
         }), DispatcherPriority.ApplicationIdle);
     }
 
-    private void Provider_Click(object sender, RoutedEventArgs e)
+    private void Provider_Checked(object sender, RoutedEventArgs e)
     {
-        _provider = sender switch
+        var provider = sender switch
         {
             var button when ReferenceEquals(button, btnProviderTencent) => TranslationProvider.Tencent,
             var button when ReferenceEquals(button, btnProviderAi) => TranslationProvider.OpenAI,
             _ => TranslationProvider.Google
         };
+        if (_provider == provider)
+            return;
+
+        _provider = provider;
         _translationManager.SaveConfiguredProvider(_provider);
         UpdateProviderButtons();
 
@@ -73,9 +80,9 @@ public partial class TranslationPanel : Window
 
     private void UpdateProviderButtons()
     {
-        btnProviderGoogle.Tag = _provider == TranslationProvider.Google ? "on" : null;
-        btnProviderTencent.Tag = _provider == TranslationProvider.Tencent ? "on" : null;
-        btnProviderAi.Tag = _provider == TranslationProvider.OpenAI ? "on" : null;
+        btnProviderGoogle.IsChecked = _provider == TranslationProvider.Google;
+        btnProviderTencent.IsChecked = _provider == TranslationProvider.Tencent;
+        btnProviderAi.IsChecked = _provider == TranslationProvider.OpenAI;
         UpdateProviderSlider();
     }
 
@@ -133,16 +140,18 @@ public partial class TranslationPanel : Window
     {
         var hasText = !string.IsNullOrEmpty(txtSource.Text);
         srcWatermark.Visibility = hasText ? Visibility.Collapsed : Visibility.Visible;
-        sourceActions.Visibility = hasText ? Visibility.Visible : Visibility.Collapsed;
-
         if (_busy)
             CancelCurrentTranslation();
+
+        if (_hasValidResult || txtTarget.Text.Length > 0)
+            SetResultStatus("原文已修改，请重新翻译", canRetry: hasText);
+        btnClearSource.IsEnabled = hasText;
+        btnTranslateSource.IsEnabled = !string.IsNullOrWhiteSpace(txtSource.Text);
     }
 
     private void TxtTarget_TextChanged(object sender, TextChangedEventArgs e)
     {
-        var hasText = !string.IsNullOrEmpty(txtTarget.Text);
-        tgtWatermark.Visibility = hasText ? Visibility.Collapsed : Visibility.Visible;
+        UpdateResultWatermark();
     }
 
     private async Task TranslateAsync()
@@ -160,6 +169,8 @@ public partial class TranslationPanel : Window
         try
         {
             _busy = true;
+            SetResultStatus("正在翻译…");
+            btnTranslateSource.Content = "取消";
             btnTranslateSource.ToolTip = "取消翻译";
             txtTarget.Text = string.Empty;
             loadingIndicator.Visibility = Visibility.Visible;
@@ -173,9 +184,13 @@ public partial class TranslationPanel : Window
 
             if (IsCurrentRequest(translationCts, requestVersion, sourceSnapshot))
             {
-                txtTarget.Text = result.Success
-                    ? result.TranslatedText
-                    : $"翻译失败：{result.ErrorMessage}";
+                if (result.Success && !string.IsNullOrWhiteSpace(result.TranslatedText))
+                {
+                    txtTarget.Text = result.TranslatedText;
+                    SetResultStatus(string.Empty, valid: true);
+                }
+                else
+                    SetResultStatus($"翻译失败：{result.ErrorMessage ?? "未返回译文"}", canRetry: true, error: true);
             }
         }
         catch (OperationCanceledException) when (translationCts.IsCancellationRequested || _closing)
@@ -184,7 +199,7 @@ public partial class TranslationPanel : Window
         catch (Exception ex)
         {
             if (IsCurrentRequest(translationCts, requestVersion, sourceSnapshot))
-                txtTarget.Text = $"翻译失败：{NetworkErrorMessages.FromException(ex, translationCts.Token)}";
+                SetResultStatus($"翻译失败：{NetworkErrorMessages.FromException(ex, translationCts.Token)}", canRetry: true, error: true);
         }
         finally
         {
@@ -211,16 +226,41 @@ public partial class TranslationPanel : Window
         var request = _translationCts;
         _translationCts = null;
         request?.Cancel();
+        SetResultStatus("已取消翻译", canRetry: !string.IsNullOrWhiteSpace(txtSource.Text));
         ResetTranslationUi();
     }
 
     private void ResetTranslationUi()
     {
         _busy = false;
-        btnTranslateSource.ToolTip = "翻译";
+        btnTranslateSource.Content = "翻译";
+        btnTranslateSource.ToolTip = "翻译 (Ctrl+Enter)";
+        btnTranslateSource.IsEnabled = !string.IsNullOrWhiteSpace(txtSource.Text);
+        actionBar.IsEnabled = _hasValidResult;
+        resultStatusPanel.Visibility = !string.IsNullOrEmpty(resultStatus.Text) ? Visibility.Visible : Visibility.Collapsed;
         loadingIndicator.Visibility = Visibility.Collapsed;
-        tgtWatermark.Visibility = string.IsNullOrEmpty(txtTarget.Text) ? Visibility.Visible : Visibility.Collapsed;
+        UpdateResultWatermark();
     }
+
+    private void SetResultStatus(string message, bool valid = false, bool canRetry = false, bool error = false)
+    {
+        _hasValidResult = valid;
+        resultStatus.Text = message;
+        resultStatusPanel.Visibility = !string.IsNullOrEmpty(message) && !_busy ? Visibility.Visible : Visibility.Collapsed;
+        resultStatus.Foreground = (System.Windows.Media.Brush)FindResource(error ? "ErrorBrush" : "TextSecondaryBrush");
+        actionBar.IsEnabled = valid && !_busy;
+        btnRetry.Visibility = canRetry ? Visibility.Visible : Visibility.Collapsed;
+        btnAccounts.Visibility = error && !_translationManager.IsProviderAvailable(_provider) ? Visibility.Visible : Visibility.Collapsed;
+        UpdateResultWatermark();
+    }
+
+    private void UpdateResultWatermark()
+    {
+        tgtWatermark.Visibility = !_busy && string.IsNullOrEmpty(txtTarget.Text) && resultStatusPanel.Visibility != Visibility.Visible
+            ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void BtnAccounts_Click(object sender, RoutedEventArgs e) => _openAccounts();
 
     private string GetTranslationMode()
     {
@@ -230,7 +270,7 @@ public partial class TranslationPanel : Window
     /// <summary>复制译文到剪贴板;无结果或翻译中返回 false。</summary>
     private async Task<bool> CopyTextAsync()
     {
-        if (_busy || string.IsNullOrEmpty(txtTarget.Text))
+        if (_busy || !_hasValidResult || string.IsNullOrEmpty(txtTarget.Text))
             return false;
         try
         {
@@ -245,7 +285,11 @@ public partial class TranslationPanel : Window
         }
     }
 
-    private async void BtnCopyOnly_Click(object sender, RoutedEventArgs e) => await CopyTextAsync();
+    private async void BtnCopyOnly_Click(object sender, RoutedEventArgs e)
+    {
+        if (await CopyTextAsync())
+            ToastNotification.Show("已复制");
+    }
 
     private void BtnTranslateSource_Click(object sender, RoutedEventArgs e)
     {
@@ -262,6 +306,7 @@ public partial class TranslationPanel : Window
     {
         txtSource.Clear();
         txtTarget.Clear();
+        SetResultStatus(string.Empty);
         txtSource.Focus();
     }
 

@@ -212,9 +212,12 @@ public sealed class AppBootstrap : IAppShell, IDisposable
 
     private void ShowScreenshotOverlay()
     {
+        var existing = _windows.Get<CaptureOverlay>("screenshot");
+        if (existing?.IsSavingSelection == true)
+            return;
+
         var diagnosticsEnabled = _configManager.Get().Diagnostics.Enabled;
         var startupTimer = diagnosticsEnabled ? Stopwatch.StartNew() : null;
-        var existing = _windows.Get<CaptureOverlay>("screenshot");
         var overlay = _windows.ShowSingle("screenshot", () =>
         {
             var created = new CaptureOverlay(
@@ -234,7 +237,11 @@ public sealed class AppBootstrap : IAppShell, IDisposable
     private void OnTranslationHotkey()
     {
         Log.Information("Translation hotkey triggered");
-        _windows.ShowSingle("translation", () => new TranslationPanel(_translationManager));
+        _windows.ShowSingle("translation", () => new TranslationPanel(_translationManager, () =>
+        {
+            ShowSettings();
+            _windows.Get<SettingsWindow>("settings")?.ShowAccountsSettings();
+        }));
     }
 
     private void OnClipboardHotkey()

@@ -29,7 +29,11 @@
             <StaticResource ResourceKey="MenuShadow"/>
         </Border.Effect>
 
-        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+        <Grid VerticalAlignment="Center">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto"/>
+                <ColumnDefinition Width="*"/>
+            </Grid.ColumnDefinitions>
             <TextBlock x:Name="iconText"
                        Text="&#xE73E;"
                        FontFamily="Segoe MDL2 Assets"
@@ -38,7 +42,7 @@
                        Margin="0,0,7,0"
                        HorizontalAlignment="Center"
                        VerticalAlignment="Center"/>
-            <StackPanel VerticalAlignment="Center">
+            <StackPanel Grid.Column="1" VerticalAlignment="Center">
                 <TextBlock x:Name="titleText"
                            Text="操作成功"
                            FontSize="{StaticResource FontSizeBody}"
@@ -61,6 +65,6 @@
                         Visibility="Collapsed"
                         Click="ActionButton_Click"/>
             </StackPanel>
-        </StackPanel>
+        </Grid>
     </Border>
 </Window>

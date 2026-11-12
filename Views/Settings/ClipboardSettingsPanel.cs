@@ -118,7 +118,7 @@ public class ClipboardSettingsPanel : StackPanel
         {
             _configManager.Update(config => config.Clipboard.Enabled = enabled);
             _shell.ApplyClipboardSettings();
-            ToastNotification.ShowSettingsSaved();
+            SettingsFeedback.Report(this);
         }
         catch (Exception ex)
         {

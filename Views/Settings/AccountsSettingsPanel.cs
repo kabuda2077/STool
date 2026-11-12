@@ -24,6 +24,7 @@ public class AccountsSettingsPanel : StackPanel
     private AiServiceSettingsSection _aiText = null!;
     private AiServiceSettingsSection _aiVision = null!;
     private CheckBox _chkVisionSameAccount = null!;
+    private TextBlock _tencentTestStatus = null!;
 
     public AccountsSettingsPanel(ConfigManager configManager)
     {
@@ -31,6 +32,21 @@ public class AccountsSettingsPanel : StackPanel
         InitializeUI();
         LoadSettings();
         EnableAutoSave();
+        _txtTencentSecretId.TextChanged += (_, _) => ResetTencentTest();
+        _pwdTencentSecretKey.PasswordChanged += (_, _) => ResetTencentTest();
+        _aiText.ApiUrl.TextChanged += (_, _) => InvalidateSharedTest();
+        _aiText.ApiKey.PasswordChanged += (_, _) => InvalidateSharedTest();
+    }
+
+    private void ResetTencentTest()
+    {
+        _tencentTestStatus.Text = "未测试";
+        _tencentTestStatus.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondaryBrush");
+    }
+
+    private void InvalidateSharedTest()
+    {
+        if (_chkVisionSameAccount.IsChecked == true) _aiVision.InvalidateTest();
     }
 
     private void InitializeUI()
@@ -44,9 +60,13 @@ public class AccountsSettingsPanel : StackPanel
         tencent.Children.Add(SettingsLayout.CreateInlineField("Secret ID", _txtTencentSecretId));
         _pwdTencentSecretKey = SettingsLayout.CreatePasswordField();
         tencent.Children.Add(SettingsLayout.CreateInlineField("Secret Key", _pwdTencentSecretKey, isLast: true));
-        var testTencent = SettingsLayout.CreateSecondaryActionButton("测试");
+        var testTencent = SettingsLayout.CreateSecondaryActionButton("测试翻译服务");
         testTencent.Click += TestTencent_Click;
         tencent.Children.Add(SettingsLayout.CreateActionRow(testTencent));
+        _tencentTestStatus = SettingsLayout.CreateHint("未测试", inline: true);
+        _tencentTestStatus.Margin = new Thickness(24 + SettingsLayout.InlineLabelWidth, 0, 24, 16);
+        System.Windows.Automation.AutomationProperties.SetLiveSetting(_tencentTestStatus, System.Windows.Automation.AutomationLiveSetting.Polite);
+        tencent.Children.Add(_tencentTestStatus);
         Children.Add(SettingsLayout.CreateSection(tencent));
 
         // ── AI 文本模型 ──
@@ -100,15 +120,24 @@ public class AccountsSettingsPanel : StackPanel
         if (sender is not System.Windows.Controls.Button button)
             return;
 
+        var secretId = _txtTencentSecretId.Text;
+        var secretKey = _pwdTencentSecretKey.Password;
+        _tencentTestStatus.Text = "正在测试翻译服务…";
         await UiBusyState.RunWithBusyStateAsync(button, "测试中...", async () =>
         {
-            var (success, message) = await TencentTranslationService.TestAsync(
-                _txtTencentSecretId.Text,
-                _pwdTencentSecretKey.Password);
-            ToastNotification.Show(
-                success ? "测试成功" : "测试失败",
-                message,
-                success ? ToastNotification.ToastType.Success : ToastNotification.ToastType.Error);
+            try
+            {
+                var (success, message) = await TencentTranslationService.TestAsync(secretId, secretKey);
+                if (secretId != _txtTencentSecretId.Text || secretKey != _pwdTencentSecretKey.Password) return;
+                _tencentTestStatus.Text = success ? "翻译服务测试通过 · OCR 权限需单独验证" : $"测试失败：{message}";
+                _tencentTestStatus.Foreground = (System.Windows.Media.Brush)FindResource(success ? "SuccessTextBrush" : "ErrorBrush");
+            }
+            catch (Exception ex)
+            {
+                if (secretId != _txtTencentSecretId.Text || secretKey != _pwdTencentSecretKey.Password) return;
+                _tencentTestStatus.Text = $"测试失败：{NetworkErrorMessages.FromException(ex)}";
+                _tencentTestStatus.Foreground = (System.Windows.Media.Brush)FindResource("ErrorBrush");
+            }
         });
     }
 

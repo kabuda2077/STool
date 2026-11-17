@@ -58,13 +58,13 @@ internal static class SettingsLayout
 
     /// <summary>创建 Label(左) + Input(右) 同行布局。</summary>
     public static Grid CreateInlineField(string label, FrameworkElement input,
-        double? labelWidth = null, bool isLast = false)
+        double? labelWidth = null, bool isLast = false, double? minHeight = null)
     {
         var resolvedLabelWidth = labelWidth ?? InlineLabelWidth;
         var grid = new Grid
         {
             Margin = FieldSpacing,
-            MinHeight = 58
+            MinHeight = minHeight ?? 48
         };
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(resolvedLabelWidth) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -232,7 +232,7 @@ internal static class SettingsLayout
         {
             Background = (System.Windows.Media.Brush)Application.Current.FindResource("TransparentBrush"),
             CornerRadius = new CornerRadius(0),
-            MinHeight = 60,
+            MinHeight = string.IsNullOrWhiteSpace(description) ? 44 : 56,
             Padding = new Thickness(24, 10, 20, 10),
             Margin = new Thickness(0),
             Cursor = System.Windows.Input.Cursors.Hand,
@@ -258,7 +258,8 @@ internal static class SettingsLayout
             Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextPrimaryBrush"),
             FontWeight = FontWeights.Normal
         });
-        textStack.Children.Add(new TextBlock
+        if (!string.IsNullOrWhiteSpace(description))
+            textStack.Children.Add(new TextBlock
         {
             Text = description,
             Style = (Style)Application.Current.FindResource("HintText"),

@@ -16,6 +16,20 @@ Run this checklist on Windows 10/11 after a release build. Record the OS version
 - [ ] Focus each hotkey input, record Ctrl/Alt/Shift/Win combinations, F1-F24, arrows, navigation keys, Escape, and Tab.
 - [ ] Enable auto-start, move the portable folder, open General settings; verify the auto-start entry is updated to the new path.
 
+## Settings
+
+- [ ] Open all five pages at 710×560 and 640×480, including 125%, 150%, and 200% display scaling; verify labels, status, and actions remain reachable without horizontal scrolling.
+- [ ] Record a duplicate or externally occupied hotkey; verify the original value is restored and the affected fields retain the error until edited.
+- [ ] Select “不限时间” in Clipboard; verify the quantity limit remains visible and favorites are excluded from both cleanup rules.
+- [ ] Type an excluded app name slowly, pause, then finish it; verify it remains a draft until Add, Enter, focus loss, or leaving the page. Paste multiple names, remove one, and reopen the page to verify persistence and deduplication.
+- [ ] Follow missing-account links from OCR and Translation; verify the correct account expands and Return restores the originating page and its choices.
+- [ ] Expand/collapse each account with mouse and keyboard; verify collapsed controls cannot receive focus. Check shared vision credentials and independent credentials.
+- [ ] Select preset and custom AI platforms; verify preset URLs are supplied, custom URLs remain editable, and the effective URL appears only when normalized or invalid.
+- [ ] Test Tencent translation and OCR separately; verify each reports its own result. Change credentials during either request and verify stale results are ignored.
+- [ ] Switch between local/cloud OCR and enable/disable local fallback; verify only relevant fields appear. A saved language missing on this PC must remain selected and marked unavailable after editing another setting.
+- [ ] Switch Fast/Smart screenshot translation; verify the selected mode explains its active service and missing accounts link to the matching group.
+- [ ] Simulate a config write failure; verify Retry and Discard work after both blocked navigation and blocked closing. Resume editing and save successfully, then fail again; verify an earlier close/navigation request is not replayed.
+
 ## Screenshot and OCR
 
 - [ ] Capture a region on one monitor; verify selection, move, resize, annotation, undo, redo, copy, save, and cancel.

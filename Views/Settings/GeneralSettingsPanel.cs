@@ -18,6 +18,9 @@ public class GeneralSettingsPanel : StackPanel
 
     private readonly ConfigManager _configManager;
     private readonly IAppShell _shell;
+    private const string HotkeyRecordingHint = "点击后直接按快捷键组合，按 Tab 或点击其他位置保存，Esc 结束录制";
+    private readonly Dictionary<System.Windows.Controls.TextBox, TextBlock> _hotkeyErrors = new();
+    private bool _restoringHotkeys;
     private System.Windows.Controls.CheckBox _chkAutoStart = null!;
     private System.Windows.Controls.CheckBox _chkHideTrayIcon = null!;
     private System.Windows.Controls.CheckBox _chkDiagnostics = null!;
@@ -27,8 +30,19 @@ public class GeneralSettingsPanel : StackPanel
     private System.Windows.Controls.TextBox _txtSettingsHotkey = null!;
     private System.Windows.Controls.TextBox _txtLanTransferHotkey = null!;
 
+    private readonly Func<bool> _readAutoStart;
+    private readonly Func<bool, bool> _writeAutoStart;
+
     public GeneralSettingsPanel(ConfigManager configManager, IAppShell shell)
+        : this(configManager, shell, IsAutoStartEnabled, SetAutoStart)
     {
+    }
+
+    internal GeneralSettingsPanel(ConfigManager configManager, IAppShell shell,
+        Func<bool> readAutoStart, Func<bool, bool> writeAutoStart)
+    {
+        _readAutoStart = readAutoStart;
+        _writeAutoStart = writeAutoStart;
         _configManager = configManager;
         _shell = shell;
         InitializeUI();
@@ -45,11 +59,11 @@ public class GeneralSettingsPanel : StackPanel
         _chkAutoStart = SettingsLayout.CreateSwitch();
         launchSection.Children.Add(SettingsLayout.CreateSwitchRow(
             "开机自动启动",
-            "随系统启动",
+            string.Empty,
             _chkAutoStart,
             enabled =>
             {
-                if (SetAutoStart(enabled))
+                if (_writeAutoStart(enabled))
                     SettingsFeedback.Report(this);
                 else
                     _chkAutoStart.IsChecked = !enabled;
@@ -68,32 +82,25 @@ public class GeneralSettingsPanel : StackPanel
         // ── 快捷键设置(紧凑双列) ──
         var hotkeysSection = SettingsLayout.CreateSectionContent("快捷键设置");
         _txtScreenshotHotkey = CreateHotkeyBox();
-        hotkeysSection.Children.Add(SettingsLayout.CreateInlineField("截图", _txtScreenshotHotkey, SettingsLayout.HotkeyLabelWidth));
+        hotkeysSection.Children.Add(CreateHotkeyRow("截图", _txtScreenshotHotkey));
 
         _txtTranslationHotkey = CreateHotkeyBox();
-        hotkeysSection.Children.Add(SettingsLayout.CreateInlineField("翻译", _txtTranslationHotkey, SettingsLayout.HotkeyLabelWidth));
+        hotkeysSection.Children.Add(CreateHotkeyRow("翻译", _txtTranslationHotkey));
 
         _txtClipboardHotkey = CreateHotkeyBox();
-        hotkeysSection.Children.Add(SettingsLayout.CreateInlineField("剪贴板", _txtClipboardHotkey, SettingsLayout.HotkeyLabelWidth));
+        hotkeysSection.Children.Add(CreateHotkeyRow("剪贴板", _txtClipboardHotkey));
 
         _txtLanTransferHotkey = CreateHotkeyBox();
-        hotkeysSection.Children.Add(SettingsLayout.CreateInlineField("传输", _txtLanTransferHotkey, SettingsLayout.HotkeyLabelWidth));
+        hotkeysSection.Children.Add(CreateHotkeyRow("传输", _txtLanTransferHotkey));
 
         _txtSettingsHotkey = CreateHotkeyBox();
-        hotkeysSection.Children.Add(SettingsLayout.CreateInlineField("设置", _txtSettingsHotkey, SettingsLayout.HotkeyLabelWidth, isLast: true));
+        hotkeysSection.Children.Add(CreateHotkeyRow("设置", _txtSettingsHotkey, isLast: true));
 
         // 即时保存:快捷键录制完(失焦)自动校验并保存
         foreach (var box in new[] { _txtScreenshotHotkey, _txtTranslationHotkey, _txtClipboardHotkey, _txtSettingsHotkey, _txtLanTransferHotkey })
         {
             box.LostKeyboardFocus += (_, _) => CommitHotkeysIfChanged();
         }
-        var hotkeyHint = SettingsLayout.CreateHint("点击后直接按快捷键组合");
-        hotkeyHint.Margin = new Thickness(
-            24 + SettingsLayout.HotkeyLabelWidth + SettingsLayout.FormTextInset,
-            -SettingsLayout.SpacingXS,
-            24,
-            16);
-        hotkeysSection.Children.Add(hotkeyHint);
 
         Children.Add(SettingsLayout.CreateSection(hotkeysSection));
 
@@ -111,6 +118,44 @@ public class GeneralSettingsPanel : StackPanel
         Children.Add(new Border { Height = 12 });
     }
 
+    private Grid CreateHotkeyRow(string label, System.Windows.Controls.TextBox box, bool isLast = false)
+    {
+        var field = new StackPanel();
+        field.Children.Add(box);
+        var error = SettingsLayout.CreateHint(string.Empty);
+        error.Foreground = (System.Windows.Media.Brush)FindResource("ErrorBrush");
+        error.Margin = new Thickness(SettingsLayout.FormTextInset, 4, 0, 8);
+        error.Visibility = Visibility.Collapsed;
+        System.Windows.Automation.AutomationProperties.SetLiveSetting(error, System.Windows.Automation.AutomationLiveSetting.Polite);
+        field.Children.Add(error);
+        _hotkeyErrors.Add(box, error);
+        System.Windows.Automation.AutomationProperties.SetName(box, $"{label}快捷键");
+        SetHotkeyError(box, string.Empty);
+        box.TextChanged += (_, _) =>
+        {
+            if (_restoringHotkeys || string.IsNullOrEmpty(error.Text))
+                return;
+
+            // Duplicate/conflicting fields share one message; editing either dismisses that failure.
+            var previousError = error.Text;
+            foreach (var affected in _hotkeyErrors.Where(pair => pair.Value.Text == previousError).Select(pair => pair.Key).ToArray())
+                SetHotkeyError(affected, string.Empty);
+        };
+        return SettingsLayout.CreateInlineField(label, field, SettingsLayout.HotkeyLabelWidth, isLast, minHeight: 44);
+    }
+
+    private void SetHotkeyError(System.Windows.Controls.TextBox box, string message)
+    {
+        var error = _hotkeyErrors[box];
+        error.Text = message;
+        error.Visibility = string.IsNullOrEmpty(message) ? Visibility.Collapsed : Visibility.Visible;
+        var help = string.IsNullOrEmpty(message) ? HotkeyRecordingHint : $"{message}。{HotkeyRecordingHint}";
+        box.ToolTip = help;
+        System.Windows.Automation.AutomationProperties.SetHelpText(box, help);
+        if (!string.IsNullOrEmpty(message))
+            System.Windows.Automation.Peers.UIElementAutomationPeer.FromElement(error)?.RaiseAutomationEvent(System.Windows.Automation.Peers.AutomationEvents.LiveRegionChanged);
+    }
+
     private System.Windows.Controls.TextBox CreateHotkeyBox()
     {
         return new HotkeyBox
@@ -126,7 +171,7 @@ public class GeneralSettingsPanel : StackPanel
     {
         var config = _configManager.Get();
 
-        _chkAutoStart.IsChecked = IsAutoStartEnabled();
+        _chkAutoStart.IsChecked = _readAutoStart();
         _chkHideTrayIcon.IsChecked = config.HideTrayIcon;
         _chkDiagnostics.IsChecked = config.Diagnostics.Enabled;
 
@@ -157,14 +202,21 @@ public class GeneralSettingsPanel : StackPanel
             return;
         }
 
-        // 任一非法:全部回退到已保存值并提示
-        if (!ValidateHotkey(screenshot, "截图快捷键") ||
-            !ValidateHotkey(translation, "翻译快捷键") ||
-            !ValidateHotkey(clipboard, "剪贴板快捷键") ||
-            !ValidateHotkey(settings, "设置快捷键") ||
-            !ValidateHotkey(lanTransfer, "传输快捷键"))
+        var fields = new[]
+        {
+            (Box: _txtScreenshotHotkey, Label: "截图", Value: screenshot, Previous: config.Hotkeys.Screenshot),
+            (Box: _txtTranslationHotkey, Label: "翻译", Value: translation, Previous: config.Hotkeys.Translation),
+            (Box: _txtClipboardHotkey, Label: "剪贴板", Value: clipboard, Previous: config.Hotkeys.Clipboard),
+            (Box: _txtSettingsHotkey, Label: "设置", Value: settings, Previous: config.Hotkeys.Settings),
+            (Box: _txtLanTransferHotkey, Label: "传输", Value: lanTransfer, Previous: config.Hotkeys.LanTransfer)
+        };
+        var changedFields = fields.Where(field => field.Value != field.Previous).ToArray();
+        var invalidFields = fields.Where(field => !HotkeyManager.IsValidHotkey(field.Value)).ToArray();
+        if (invalidFields.Length > 0)
         {
             RestoreHotkeyText(config.Hotkeys);
+            foreach (var field in invalidFields)
+                SetHotkeyError(field.Box, $"{field.Label}快捷键格式无效，请使用 Ctrl+Alt+A 或 Ctrl+Shift+F1 等组合，已恢复原设置");
             return;
         }
 
@@ -176,23 +228,19 @@ public class GeneralSettingsPanel : StackPanel
             Settings = HotkeyManager.NormalizeHotkey(settings)!,
             LanTransfer = HotkeyManager.NormalizeHotkey(lanTransfer)!
         };
-        var duplicate = new (string Label, string Hotkey)[]
-            {
-                ("截图", proposed.Screenshot),
-                ("翻译", proposed.Translation),
-                ("剪贴板", proposed.Clipboard),
-                ("设置", proposed.Settings),
-                ("传输", proposed.LanTransfer)
-            }
-            .GroupBy(pair => pair.Hotkey, StringComparer.OrdinalIgnoreCase)
-            .FirstOrDefault(group => group.Count() > 1);
-        if (duplicate != null)
+        var duplicates = fields
+            .GroupBy(field => HotkeyManager.NormalizeHotkey(field.Value)!, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .ToArray();
+        if (duplicates.Length > 0)
         {
-            ToastNotification.Show(
-                "快捷键重复",
-                $"{string.Join("、", duplicate.Select(pair => pair.Label))} 都使用了 {duplicate.Key}",
-                ToastNotification.ToastType.Warning);
             RestoreHotkeyText(config.Hotkeys);
+            foreach (var duplicate in duplicates)
+            {
+                var message = $"{string.Join("、", duplicate.Select(field => field.Label))} 重复使用了 {duplicate.Key}，已恢复原设置";
+                foreach (var field in duplicate)
+                    SetHotkeyError(field.Box, message);
+            }
             return;
         }
 
@@ -217,15 +265,20 @@ public class GeneralSettingsPanel : StackPanel
                 _shell.ReloadHotkeys();
                 RestoreHotkeyText(previous);
 
-                var details = string.Join("、", failures.Select(result => $"{result.FeatureName} {result.Hotkey}"));
-                ToastNotification.Show(
-                    "快捷键未生效",
-                    $"{details} 已被其他程序占用，已恢复原设置。",
-                    ToastNotification.ToastType.Warning);
+                foreach (var failure in failures)
+                {
+                    foreach (var field in fields.Where(field => string.Equals(
+                        HotkeyManager.NormalizeHotkey(field.Value), failure.Hotkey, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        SetHotkeyError(field.Box, $"{failure.Hotkey} 未能注册，可能已被其他程序占用，已恢复原设置");
+                    }
+                }
                 return;
             }
 
             RestoreHotkeyText(updated.Hotkeys);
+            foreach (var field in fields)
+                SetHotkeyError(field.Box, string.Empty);
             SettingsFeedback.Report(this);
         }
         catch (Exception ex)
@@ -240,17 +293,26 @@ public class GeneralSettingsPanel : StackPanel
                 Log.Error(rollbackEx, "Failed to roll back hotkey settings");
             }
             RestoreHotkeyText(previous);
-            ToastNotification.Show("保存失败", ex.Message, ToastNotification.ToastType.Error);
+            foreach (var field in changedFields)
+                SetHotkeyError(field.Box, $"保存失败：{ex.Message}");
         }
     }
 
     private void RestoreHotkeyText(HotkeyConfig hotkeys)
     {
-        _txtScreenshotHotkey.Text = hotkeys.Screenshot;
-        _txtTranslationHotkey.Text = hotkeys.Translation;
-        _txtClipboardHotkey.Text = hotkeys.Clipboard;
-        _txtSettingsHotkey.Text = hotkeys.Settings;
-        _txtLanTransferHotkey.Text = hotkeys.LanTransfer;
+        _restoringHotkeys = true;
+        try
+        {
+            _txtScreenshotHotkey.Text = hotkeys.Screenshot;
+            _txtTranslationHotkey.Text = hotkeys.Translation;
+            _txtClipboardHotkey.Text = hotkeys.Clipboard;
+            _txtSettingsHotkey.Text = hotkeys.Settings;
+            _txtLanTransferHotkey.Text = hotkeys.LanTransfer;
+        }
+        finally
+        {
+            _restoringHotkeys = false;
+        }
     }
 
     private static void ApplyHotkeys(HotkeyConfig target, HotkeyConfig source)
@@ -260,15 +322,6 @@ public class GeneralSettingsPanel : StackPanel
         target.Clipboard = source.Clipboard;
         target.Settings = source.Settings;
         target.LanTransfer = source.LanTransfer;
-    }
-
-    private static bool ValidateHotkey(string hotkey, string label)
-    {
-        if (HotkeyManager.IsValidHotkey(hotkey))
-            return true;
-
-        ToastNotification.Show("快捷键格式无效", $"{label} 请使用类似 Ctrl+Alt+A 或 Ctrl+Shift+F1 的格式", ToastNotification.ToastType.Warning);
-        return false;
     }
 
     /// <summary>

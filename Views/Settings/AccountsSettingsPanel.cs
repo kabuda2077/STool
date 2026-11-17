@@ -1,7 +1,9 @@
 using System;
+using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using STool.Core;
 using STool.Models;
 using STool.Modules.Ocr;
@@ -25,8 +27,13 @@ public class AccountsSettingsPanel : StackPanel
     private AiServiceSettingsSection _aiVision = null!;
     private CheckBox _chkVisionSameAccount = null!;
     private TextBlock _tencentTestStatus = null!;
+    private TextBlock _tencentOcrTestStatus = null!;
+    private Expander _tencentExpander = null!;
+    private Expander _aiTextExpander = null!;
+    private Expander _aiVisionExpander = null!;
+    private long _tencentCredentialsGeneration;
 
-    public AccountsSettingsPanel(ConfigManager configManager)
+    public AccountsSettingsPanel(ConfigManager configManager, ServiceAccountTarget? target = null)
     {
         _configManager = configManager;
         InitializeUI();
@@ -36,12 +43,82 @@ public class AccountsSettingsPanel : StackPanel
         _pwdTencentSecretKey.PasswordChanged += (_, _) => ResetTencentTest();
         _aiText.ApiUrl.TextChanged += (_, _) => InvalidateSharedTest();
         _aiText.ApiKey.PasswordChanged += (_, _) => InvalidateSharedTest();
+        _aiText.ConfigurationChanged += (_, _) => UpdateAccountHeaders();
+        _aiVision.ConfigurationChanged += (_, _) => UpdateAccountHeaders();
+        UpdateAccountHeaders();
+        Unloaded += (_, _) => _tencentCredentialsGeneration++;
+
+        var initialTarget = target ?? (!IsTencentConfigured ? ServiceAccountTarget.Tencent
+            : !_aiText.IsConfigured ? ServiceAccountTarget.AiText
+            : !_aiVision.IsConfigured ? ServiceAccountTarget.AiVision
+            : ServiceAccountTarget.AiText);
+        var initialExpander = initialTarget switch
+        {
+            ServiceAccountTarget.Tencent => _tencentExpander,
+            ServiceAccountTarget.AiVision => _aiVisionExpander,
+            _ => _aiTextExpander
+        };
+        initialExpander.IsExpanded = true;
+
+        if (target.HasValue)
+        {
+            RoutedEventHandler? onLoaded = null;
+            onLoaded = (_, _) =>
+            {
+                Loaded -= onLoaded;
+                Dispatcher.BeginInvoke(DispatcherPriority.Loaded, new Action(() =>
+                {
+                    if (!IsLoaded) return;
+                    initialExpander.IsExpanded = true;
+                    initialExpander.UpdateLayout();
+                    initialExpander.BringIntoView(new Rect(0, 0, initialExpander.ActualWidth, 50));
+                }));
+            };
+            Loaded += onLoaded;
+        }
+    }
+
+    private bool IsTencentConfigured => !string.IsNullOrWhiteSpace(_txtTencentSecretId.Text)
+        && !string.IsNullOrWhiteSpace(_pwdTencentSecretKey.Password);
+
+    private void UpdateAccountHeaders()
+    {
+        var missing = new List<string>();
+        if (string.IsNullOrWhiteSpace(_txtTencentSecretId.Text)) missing.Add("Secret ID");
+        if (string.IsNullOrWhiteSpace(_pwdTencentSecretKey.Password)) missing.Add("Secret Key");
+        SetAccountHeader(_tencentExpander, "腾讯云", IsTencentConfigured ? "已配置" : $"待填写：{string.Join("、", missing)}");
+        SetAccountHeader(_aiTextExpander, "AI 文本模型", _aiText.ConfigurationSummary);
+        SetAccountHeader(_aiVisionExpander, "AI 视觉模型", _aiVision.ConfigurationSummary);
+    }
+
+    private static void SetAccountHeader(Expander expander, string title, string summary)
+    {
+        var header = new Grid();
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        header.Children.Add(new TextBlock { Text = title, VerticalAlignment = VerticalAlignment.Center });
+        var status = SettingsLayout.CreateHint(summary);
+        status.TextWrapping = TextWrapping.NoWrap;
+        status.TextTrimming = TextTrimming.CharacterEllipsis;
+        status.ToolTip = summary;
+        status.VerticalAlignment = VerticalAlignment.Center;
+        status.HorizontalAlignment = System.Windows.HorizontalAlignment.Right;
+        status.Margin = new Thickness(12, 0, 4, 0);
+        status.Visibility = expander.IsExpanded ? Visibility.Collapsed : Visibility.Visible;
+        Grid.SetColumn(status, 1);
+        header.Children.Add(status);
+        expander.Header = header;
+        System.Windows.Automation.AutomationProperties.SetName(expander, $"{title} · {summary}");
     }
 
     private void ResetTencentTest()
     {
-        _tencentTestStatus.Text = "未测试";
+        _tencentCredentialsGeneration++;
+        _tencentTestStatus.Text = "翻译服务：未测试";
+        _tencentOcrTestStatus.Text = "OCR 服务：未测试";
         _tencentTestStatus.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondaryBrush");
+        _tencentOcrTestStatus.Foreground = _tencentTestStatus.Foreground;
+        UpdateAccountHeaders();
     }
 
     private void InvalidateSharedTest()
@@ -54,7 +131,9 @@ public class AccountsSettingsPanel : StackPanel
         Margin = new Thickness(0);
 
         // ── 腾讯云 ──
-        var tencent = SettingsLayout.CreateSectionContent("腾讯云");
+        var tencentGroup = SettingsLayout.CreateCollapsibleSection("腾讯云");
+        _tencentExpander = tencentGroup.expander;
+        var tencent = tencentGroup.content;
         tencent.Children.Add(SettingsLayout.CreateSectionNote("用于腾讯云 OCR、腾讯云翻译和截图翻译识别。"));
         _txtTencentSecretId = SettingsLayout.CreateTextBox();
         tencent.Children.Add(SettingsLayout.CreateInlineField("Secret ID", _txtTencentSecretId));
@@ -62,15 +141,23 @@ public class AccountsSettingsPanel : StackPanel
         tencent.Children.Add(SettingsLayout.CreateInlineField("Secret Key", _pwdTencentSecretKey, isLast: true));
         var testTencent = SettingsLayout.CreateSecondaryActionButton("测试翻译服务");
         testTencent.Click += TestTencent_Click;
-        tencent.Children.Add(SettingsLayout.CreateActionRow(testTencent));
-        _tencentTestStatus = SettingsLayout.CreateHint("未测试", inline: true);
+        var testTencentOcr = SettingsLayout.CreateSecondaryActionButton("测试 OCR 服务");
+        testTencentOcr.Click += TestTencentOcr_Click;
+        tencent.Children.Add(SettingsLayout.CreateActionRow(testTencent, testTencentOcr));
+        _tencentTestStatus = SettingsLayout.CreateHint("翻译服务：未测试", inline: true);
         _tencentTestStatus.Margin = new Thickness(24 + SettingsLayout.InlineLabelWidth, 0, 24, 16);
         System.Windows.Automation.AutomationProperties.SetLiveSetting(_tencentTestStatus, System.Windows.Automation.AutomationLiveSetting.Polite);
         tencent.Children.Add(_tencentTestStatus);
-        Children.Add(SettingsLayout.CreateSection(tencent));
+        _tencentOcrTestStatus = SettingsLayout.CreateHint("OCR 服务：未测试", inline: true);
+        _tencentOcrTestStatus.Margin = _tencentTestStatus.Margin;
+        System.Windows.Automation.AutomationProperties.SetLiveSetting(_tencentOcrTestStatus, System.Windows.Automation.AutomationLiveSetting.Polite);
+        tencent.Children.Add(_tencentOcrTestStatus);
+        Children.Add(tencentGroup.section);
 
         // ── AI 文本模型 ──
-        var aiText = SettingsLayout.CreateSectionContent("AI 文本模型");
+        var aiTextGroup = SettingsLayout.CreateCollapsibleSection("AI 文本模型");
+        _aiTextExpander = aiTextGroup.expander;
+        var aiText = aiTextGroup.content;
         aiText.Children.Add(SettingsLayout.CreateSectionNote("用于 AI 翻译和截图翻译的智能模式。支持 OpenAI 兼容接口。"));
         _aiText = new AiServiceSettingsSection(
             aiText,
@@ -82,16 +169,17 @@ public class AccountsSettingsPanel : StackPanel
                 new AiPlatformOption("自定义", AiPlatform.Custom, null)
             },
             TestAiTextAsync);
-        Children.Add(SettingsLayout.CreateSection(aiText));
+        Children.Add(aiTextGroup.section);
 
         // ── AI 视觉模型 ──
-        var aiVision = SettingsLayout.CreateSectionContent("AI 视觉模型");
+        var aiVisionGroup = SettingsLayout.CreateCollapsibleSection("AI 视觉模型");
+        _aiVisionExpander = aiVisionGroup.expander;
+        var aiVision = aiVisionGroup.content;
         aiVision.Children.Add(SettingsLayout.CreateSectionNote("用于 AI OCR，模型需要支持图片输入。"));
         _chkVisionSameAccount = SettingsLayout.CreateSwitch();
-        aiVision.Children.Add(SettingsLayout.CreateInlineSwitchField(
-            "账号",
-            "与文本模型使用同一账号",
-            "只需单独填写模型名",
+        aiVision.Children.Add(SettingsLayout.CreateSwitchRow(
+            "共用文本模型账号",
+            "单独选择支持图片的模型",
             _chkVisionSameAccount,
             UpdateVisionAccountMode));
         _aiVision = new AiServiceSettingsSection(
@@ -104,7 +192,14 @@ public class AccountsSettingsPanel : StackPanel
                 new AiPlatformOption("自定义", AiPlatform.Custom, null)
             },
             (url, key, model) => AiVisionOcrService.TestAsync(url, key, model));
-        Children.Add(SettingsLayout.CreateSection(aiVision));
+        Children.Add(aiVisionGroup.section);
+        foreach (var expander in new[] { _tencentExpander, _aiTextExpander, _aiVisionExpander })
+        {
+            ((StackPanel)expander.Content).SetBinding(UIElement.IsEnabledProperty,
+                new System.Windows.Data.Binding(nameof(Expander.IsExpanded)) { Source = expander });
+            expander.Expanded += (_, e) => { if (ReferenceEquals(e.OriginalSource, expander)) UpdateAccountHeaders(); };
+            expander.Collapsed += (_, e) => { if (ReferenceEquals(e.OriginalSource, expander)) UpdateAccountHeaders(); };
+        }
     }
 
     private static async Task<(bool Success, string Message)> TestAiTextAsync(string url, string key, string model)
@@ -115,28 +210,40 @@ public class AccountsSettingsPanel : StackPanel
             : (false, result.ErrorMessage ?? "未知错误");
     }
 
-    private async void TestTencent_Click(object sender, RoutedEventArgs e)
+    private async void TestTencent_Click(object sender, RoutedEventArgs e) =>
+        await TestTencentServiceAsync(sender, _tencentTestStatus, "翻译服务", TencentTranslationService.TestAsync);
+
+    private async void TestTencentOcr_Click(object sender, RoutedEventArgs e) =>
+        await TestTencentServiceAsync(sender, _tencentOcrTestStatus, "OCR 服务",
+            (id, key) => TencentOcrService.TestAsync(id, key));
+
+    private async Task TestTencentServiceAsync(object sender, TextBlock status, string serviceName,
+        Func<string, string, Task<(bool Success, string Message)>> test)
     {
         if (sender is not System.Windows.Controls.Button button)
             return;
 
         var secretId = _txtTencentSecretId.Text;
         var secretKey = _pwdTencentSecretKey.Password;
-        _tencentTestStatus.Text = "正在测试翻译服务…";
+        var generation = _tencentCredentialsGeneration;
+        bool IsCurrent() => generation == _tencentCredentialsGeneration
+            && secretId == _txtTencentSecretId.Text && secretKey == _pwdTencentSecretKey.Password;
+        status.Text = $"正在测试{serviceName}…";
+        status.Foreground = (System.Windows.Media.Brush)FindResource("TextSecondaryBrush");
         await UiBusyState.RunWithBusyStateAsync(button, "测试中...", async () =>
         {
             try
             {
-                var (success, message) = await TencentTranslationService.TestAsync(secretId, secretKey);
-                if (secretId != _txtTencentSecretId.Text || secretKey != _pwdTencentSecretKey.Password) return;
-                _tencentTestStatus.Text = success ? "翻译服务测试通过 · OCR 权限需单独验证" : $"测试失败：{message}";
-                _tencentTestStatus.Foreground = (System.Windows.Media.Brush)FindResource(success ? "SuccessTextBrush" : "ErrorBrush");
+                var (success, message) = await test(secretId, secretKey);
+                if (!IsCurrent()) return;
+                status.Text = success ? $"{serviceName}测试通过" : $"{serviceName}测试失败：{message}";
+                status.Foreground = (System.Windows.Media.Brush)FindResource(success ? "SuccessTextBrush" : "ErrorBrush");
             }
             catch (Exception ex)
             {
-                if (secretId != _txtTencentSecretId.Text || secretKey != _pwdTencentSecretKey.Password) return;
-                _tencentTestStatus.Text = $"测试失败：{NetworkErrorMessages.FromException(ex)}";
-                _tencentTestStatus.Foreground = (System.Windows.Media.Brush)FindResource("ErrorBrush");
+                if (!IsCurrent()) return;
+                status.Text = $"{serviceName}测试失败：{NetworkErrorMessages.FromException(ex)}";
+                status.Foreground = (System.Windows.Media.Brush)FindResource("ErrorBrush");
             }
         });
     }

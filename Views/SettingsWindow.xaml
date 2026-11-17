@@ -60,6 +60,7 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="52"/>
                     <RowDefinition Height="Auto"/>
+                    <RowDefinition Height="Auto"/>
                     <RowDefinition Height="*"/>
                 </Grid.RowDefinitions>
 
@@ -70,14 +71,26 @@
                     <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                         <TextBlock x:Name="saveStatus" Style="{StaticResource HintText}"
                                    VerticalAlignment="Center" Margin="12,0,0,0" AutomationProperties.LiveSetting="Polite"/>
-                        <Button x:Name="retrySave" Content="重试保存" Click="RetrySave_Click"
+                        <Button x:Name="returnToSettings" Click="ReturnToSettings_Click"
                                 Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
                                 Visibility="Collapsed"/>
                     </StackPanel>
                 </Grid>
 
+                <StackPanel x:Name="saveFailure" Grid.Row="2" Margin="24,8,24,4" Visibility="Collapsed">
+                    <TextBlock x:Name="saveError" Foreground="{StaticResource ErrorBrush}"
+                               FontSize="{StaticResource FontSizeBody}" TextWrapping="Wrap"
+                               AutomationProperties.LiveSetting="Polite"/>
+                    <WrapPanel Margin="0,8,0,0">
+                        <Button x:Name="retrySave" Content="重试保存" Click="RetrySave_Click"
+                                Style="{StaticResource SecondaryButton}"/>
+                        <Button Content="放弃未保存修改" Click="DiscardSave_Click"
+                                Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"/>
+                    </WrapPanel>
+                </StackPanel>
+
                 <ScrollViewer x:Name="contentScroll"
-                              Grid.Row="2"
+                              Grid.Row="3"
                               Margin="0"
                               VerticalScrollBarVisibility="Hidden"
                               Background="{StaticResource TransparentBrush}"
@@ -92,10 +105,10 @@
                 </ScrollViewer>
 
                 <ScrollBar x:Name="contentScrollBar"
-                           Grid.Row="2"
+                           Grid.Row="3"
                            Orientation="Vertical"
-                           Width="6"
-                           MinWidth="6"
+                           Width="10"
+                           MinWidth="10"
                            Margin="0,4,2,4"
                            HorizontalAlignment="Right"
                            VerticalAlignment="Stretch"

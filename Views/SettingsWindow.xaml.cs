@@ -9,11 +9,23 @@ public partial class SettingsWindow : Window
 {
     private readonly ConfigManager _configManager;
     private readonly IAppShell _shell;
+    private readonly Func<GeneralSettingsPanel> _createGeneralPanel;
     private System.Windows.Controls.Button? _currentSelectedButton;
     private bool _syncingScrollBar;
+    private Action? _pendingNavigation;
+    private Action? _returnToPage;
+    private Func<UIElement>? _currentPanelFactory;
+    private string _currentTitle = string.Empty;
+    private readonly Dictionary<System.Windows.Controls.Button, double> _scrollOffsets = new();
 
     public SettingsWindow(ConfigManager configManager, IAppShell shell)
+        : this(configManager, shell, () => new GeneralSettingsPanel(configManager, shell))
     {
+    }
+
+    internal SettingsWindow(ConfigManager configManager, IAppShell shell, Func<GeneralSettingsPanel> createGeneralPanel)
+    {
+        _createGeneralPanel = createGeneralPanel;
         InitializeComponent();
         _configManager = configManager;
         _shell = shell;
@@ -21,7 +33,9 @@ public partial class SettingsWindow : Window
         {
             saveStatus.Text = e.NewValue;
             saveStatus.ToolTip = CurrentAutoSave?.SaveError;
-            retrySave.Visibility = CurrentAutoSave?.HasSaveError == true ? Visibility.Visible : Visibility.Collapsed;
+            saveFailure.Visibility = CurrentAutoSave?.HasSaveError == true ? Visibility.Visible : Visibility.Collapsed;
+            saveError.Text = CurrentAutoSave?.SaveErrorSummary ?? string.Empty;
+            saveError.ToolTip = CurrentAutoSave?.SaveError;
             e.Handled = true;
         }));
         ApplyLayoutMetrics();
@@ -47,6 +61,25 @@ public partial class SettingsWindow : Window
     {
         ShowPanel("服务账号", btnAccountsSettings, () => new AccountsSettingsPanel(_configManager));
     }
+
+    private void OpenAccount(ServiceAccountTarget target)
+    {
+        var returnAction = _currentSelectedButton == btnOcrSettings
+            ? (Action)ShowOcrSettings : ShowTranslationSettings;
+        var returnTitle = _currentTitle;
+        if (ShowPanel("服务账号", btnAccountsSettings, () => new AccountsSettingsPanel(_configManager, target)))
+        {
+            _returnToPage = returnAction;
+            returnToSettings.Content = $"返回{returnTitle}";
+            returnToSettings.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            _pendingNavigation = () => OpenAccount(target);
+        }
+    }
+
+    private void ReturnToSettings_Click(object sender, RoutedEventArgs e) => _returnToPage?.Invoke();
 
     private void BtnOcrSettings_Click(object sender, RoutedEventArgs e)
     {
@@ -99,17 +132,17 @@ public partial class SettingsWindow : Window
 
     private void ShowGeneralSettings()
     {
-        ShowPanel("通用设置", btnGeneralSettings, () => new GeneralSettingsPanel(_configManager, _shell));
+        ShowPanel("通用设置", btnGeneralSettings, () => _createGeneralPanel());
     }
 
     private void ShowOcrSettings()
     {
-        ShowPanel("OCR 设置", btnOcrSettings, () => new OcrSettingsPanel(_configManager, ShowAccountsSettings));
+        ShowPanel("OCR 设置", btnOcrSettings, () => new OcrSettingsPanel(_configManager, OpenAccount));
     }
 
     private void ShowTranslationSettings()
     {
-        ShowPanel("翻译设置", btnTranslationSettings, () => new TranslationSettingsPanel(_configManager, ShowAccountsSettings));
+        ShowPanel("翻译设置", btnTranslationSettings, () => new TranslationSettingsPanel(_configManager, OpenAccount));
     }
 
     private SettingsAutoSaveController? CurrentAutoSave => contentPanel.Children.Count > 0
@@ -120,28 +153,64 @@ public partial class SettingsWindow : Window
     {
         base.OnClosing(e);
         if (CurrentAutoSave?.SaveNow() == false)
+        {
+            _pendingNavigation = Close;
             e.Cancel = true;
+        }
     }
 
-    private void RetrySave_Click(object sender, RoutedEventArgs e) => CurrentAutoSave?.SaveNow();
+    private void RetrySave_Click(object sender, RoutedEventArgs e)
+    {
+        var pending = _pendingNavigation;
+        if (CurrentAutoSave?.SaveNow() == false) return;
+        _pendingNavigation = null;
+        pending?.Invoke();
+    }
 
-    private void ShowPanel(string title, System.Windows.Controls.Button navigationButton, Func<UIElement> createPanel)
+    private void DiscardSave_Click(object sender, RoutedEventArgs e)
+    {
+        CurrentAutoSave?.DiscardChanges();
+        var pending = _pendingNavigation;
+        _pendingNavigation = null;
+        if (pending != null) pending();
+        else if (_currentSelectedButton != null && _currentPanelFactory != null)
+            ShowPanel(_currentTitle, _currentSelectedButton, _currentPanelFactory);
+    }
+
+    private bool ShowPanel(string title, System.Windows.Controls.Button navigationButton, Func<UIElement> createPanel)
     {
         if (CurrentAutoSave?.SaveNow() == false)
-            return;
+        {
+            _pendingNavigation = () => ShowPanel(title, navigationButton, createPanel);
+            return false;
+        }
+
+        _pendingNavigation = null;
+        if (_currentSelectedButton != null)
+            _scrollOffsets[_currentSelectedButton] = contentScroll.VerticalOffset;
 
         var panel = createPanel();
         pageTitle.Text = title;
         Title = $"STool 设置 · {title}";
         saveStatus.Text = string.Empty;
         saveStatus.ToolTip = null;
-        retrySave.Visibility = Visibility.Collapsed;
+        saveFailure.Visibility = Visibility.Collapsed;
+        returnToSettings.Visibility = Visibility.Collapsed;
+        _returnToPage = null;
+        _currentTitle = title;
+        _currentPanelFactory = createPanel;
         contentPanel.Children.Clear();
         contentPanel.Children.Add(panel);
+        if (CurrentAutoSave is { } controller)
+            controller.DraftChanged += (sender, _) =>
+            {
+                if (ReferenceEquals(CurrentAutoSave, sender)) _pendingNavigation = null;
+            };
         SelectNavigationButton(navigationButton);
         UpdateContentPanelWidth();
         UpdateOverlayScrollBar();
-        contentScroll.ScrollToTop();
+        contentScroll.ScrollToVerticalOffset(_scrollOffsets.GetValueOrDefault(navigationButton));
+        return true;
     }
 
     private void ApplyLayoutMetrics()

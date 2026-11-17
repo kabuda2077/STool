@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>STool · 设置设计预览</title>
+  <link rel="icon" href="data:,">
+  <link id="app-styles" rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <header class="preview-bar">
+    <div class="preview-identity"><span class="preview-mark" aria-hidden="true">S</span><strong>STool</strong><span class="preview-caption">设置设计预览</span></div>
+    <nav class="preview-tabs" aria-label="预览内容">
+      <button data-view="app" aria-current="page">界面</button>
+      <button data-view="components">组件样板</button>
+      <button data-view="standards">设计标准</button>
+    </nav>
+    <div class="preview-tools">
+      <label><span class="sr-only">窗口尺寸</span><select id="viewport-size"><option value="standard">800 × 680</option><option value="compact">680 × 580</option></select></label>
+      <label><span class="sr-only">预览缩放</span><select id="preview-scale"><option value="1">100%</option><option value="1.5">150%</option></select></label>
+      <button id="reset-demo" class="preview-reset">重置</button>
+    </div>
+  </header>
+  <main id="preview-stage" class="preview-stage">
+    <div id="app-frame" class="app-frame"></div>
+    <section id="specimen" class="specimen" hidden></section>
+  </main>
+  <footer class="preview-footer">
+    <span><i class="live-dot" aria-hidden="true"></i><span id="live-status">实时预览</span><span class="footer-divider">/</span>演示数据，不连接真实服务</span>
+    <label>演示状态 <select id="demo-scenario"><option value="normal">正常</option><option value="network-error">连接失败</option><option value="save-error">保存失败</option><option value="missing-language">语言未安装</option></select></label>
+  </footer>
+  <div id="announcement" class="sr-only" role="status" aria-live="polite"></div>
+</body>
+</html>

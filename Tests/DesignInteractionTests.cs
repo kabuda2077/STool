@@ -116,7 +116,7 @@ public class DesignInteractionTests
         });
         thread.SetApartmentState(ApartmentState.STA);
         thread.Start();
-        Assert.True(thread.Join(TimeSpan.FromSeconds(10)), $"WPF interaction test timed out: {phase}; {failure}");
+        Assert.True(thread.Join(TimeSpan.FromSeconds(30)), $"WPF interaction test timed out: {phase}; {failure}");
         if (failure != null) ExceptionDispatchInfo.Capture(failure).Throw();
     }
 

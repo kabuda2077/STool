@@ -25,9 +25,35 @@ public class TencentOcrService : IOcrService
     private readonly string _secretKey;
 
     public TencentOcrService(string secretIdEncrypted, string secretKeyEncrypted)
+        : this(SecureStorage.Decrypt(secretIdEncrypted), SecureStorage.Decrypt(secretKeyEncrypted), plain: true)
     {
-        _secretId = SecureStorage.Decrypt(secretIdEncrypted);
-        _secretKey = SecureStorage.Decrypt(secretKeyEncrypted);
+    }
+
+    private TencentOcrService(string secretId, string secretKey, bool plain)
+    {
+        _secretId = secretId;
+        _secretKey = secretKey;
+    }
+
+    /// <summary>用生成的示例图片独立验证 GeneralBasicOCR 权限，不依赖翻译服务权限。</summary>
+    public static async Task<(bool Success, string Message)> TestAsync(
+        string secretId, string secretKey, CancellationToken cancellationToken = default)
+    {
+        if (string.IsNullOrWhiteSpace(secretId) || string.IsNullOrWhiteSpace(secretKey))
+            return (false, "请先填写 SecretId 和 SecretKey");
+
+        using var service = new TencentOcrService(secretId.Trim(), secretKey.Trim(), plain: true);
+        using var sample = new Bitmap(360, 96, System.Drawing.Imaging.PixelFormat.Format32bppArgb);
+        using (var graphics = Graphics.FromImage(sample))
+        using (var font = new Font("Arial", 24, FontStyle.Regular, GraphicsUnit.Pixel))
+        {
+            graphics.Clear(Color.White);
+            graphics.DrawString("STool OCR test", font, Brushes.Black, new PointF(18, 26));
+        }
+        var result = await service.RecognizeAsync(sample, cancellationToken);
+        return result.Success
+            ? (true, $"识别结果：{result.FullText.ReplaceLineEndings(" ")}")
+            : (false, result.ErrorMessage ?? "未知错误");
     }
 
     public bool IsAvailable()

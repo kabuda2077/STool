@@ -14,15 +14,18 @@ namespace STool.Views.Settings;
 public class TranslationSettingsPanel : StackPanel
 {
     private readonly ConfigManager _configManager;
-    private readonly Action _openAccounts;
+    private readonly Action<ServiceAccountTarget> _openAccounts;
     private System.Windows.Controls.ComboBox _cmbProvider = null!;
     private System.Windows.Controls.ComboBox _cmbTranslationMode = null!;
     private System.Windows.Controls.ComboBox _cmbScreenshotOcr = null!;
     private System.Windows.Controls.ComboBox _cmbScreenshotMode = null!;
     private TextBlock _providerNote = null!;
-    private TextBlock _screenshotNote = null!;
+    private TextBlock _screenshotOcrNote = null!;
+    private TextBlock _smartAccountNote = null!;
+    private TextBlock _modeHint = null!;
+    private TextBlock _ocrHint = null!;
 
-    public TranslationSettingsPanel(ConfigManager configManager, Action openAccounts)
+    public TranslationSettingsPanel(ConfigManager configManager, Action<ServiceAccountTarget> openAccounts)
     {
         _configManager = configManager;
         _openAccounts = openAccounts;
@@ -36,19 +39,18 @@ public class TranslationSettingsPanel : StackPanel
         Margin = new Thickness(0);
 
         // ── 翻译 ──
-        var providerSection = SettingsLayout.CreateSectionContent("翻译");
-        _providerNote = SettingsLayout.CreateSectionNote("所选引擎的账号尚未配置。", "前往服务账号", _openAccounts);
-        providerSection.Children.Add(_providerNote);
+        var providerSection = SettingsLayout.CreateSectionContent("文字翻译");
+        _providerNote = SettingsLayout.CreateSectionNote(string.Empty, "配置账号", () =>
+            _openAccounts((_cmbProvider.SelectedItem as ComboBoxItem)?.Tag is TranslationProvider.Tencent
+                ? ServiceAccountTarget.Tencent : ServiceAccountTarget.AiText));
 
         _cmbProvider = SettingsLayout.CreateComboBox();
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "谷歌翻译", Tag = TranslationProvider.Google });
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "腾讯云翻译", Tag = TranslationProvider.Tencent });
         _cmbProvider.Items.Add(new ComboBoxItem { Content = "AI 翻译", Tag = TranslationProvider.OpenAI });
-        _cmbProvider.SelectionChanged += (_, _) => UpdateNotes();
-        providerSection.Children.Add(SettingsLayout.CreateInlineFieldWithHint(
-            "翻译引擎",
-            _cmbProvider,
-            "用于翻译面板和截图翻译的快速模式。"));
+        _cmbProvider.ToolTip = "用于翻译面板，以及截图翻译的快速模式。";
+        providerSection.Children.Add(SettingsLayout.CreateInlineField("翻译引擎", _cmbProvider));
+        providerSection.Children.Add(_providerNote);
 
         _cmbTranslationMode = SettingsLayout.CreateComboBox();
         _cmbTranslationMode.Items.Add(CreateLanguageModeItem("中文", "英文", "zh-en", bidirectional: true));
@@ -56,33 +58,34 @@ public class TranslationSettingsPanel : StackPanel
         _cmbTranslationMode.Items.Add(CreateLanguageModeItem("自动", "英文", "auto-en"));
         _cmbTranslationMode.Items.Add(CreateLanguageModeItem("自动", "日文", "auto-ja"));
         _cmbTranslationMode.Items.Add(CreateLanguageModeItem("自动", "韩文", "auto-ko"));
-        providerSection.Children.Add(SettingsLayout.CreateInlineField("翻译策略", _cmbTranslationMode, isLast: true));
+        providerSection.Children.Add(SettingsLayout.CreateInlineField("语言", _cmbTranslationMode, isLast: true));
         Children.Add(SettingsLayout.CreateSection(providerSection));
 
         // ── 截图翻译 ──
         var screenshotSection = SettingsLayout.CreateSectionContent("截图翻译");
-        _screenshotNote = SettingsLayout.CreateSectionNote(string.Empty, "前往服务账号", _openAccounts);
-        screenshotSection.Children.Add(_screenshotNote);
+        _screenshotOcrNote = SettingsLayout.CreateSectionNote("腾讯云账号尚未配置。", "配置腾讯云", () => _openAccounts(ServiceAccountTarget.Tencent));
+        _smartAccountNote = SettingsLayout.CreateSectionNote("AI 文本模型尚未配置。", "配置 AI 文本模型", () => _openAccounts(ServiceAccountTarget.AiText));
 
         _cmbScreenshotOcr = SettingsLayout.CreateComboBox();
         _cmbScreenshotOcr.Items.Add(new ComboBoxItem { Content = "Windows 本地 OCR", Tag = ScreenshotOcrEngine.WindowsLocal });
         _cmbScreenshotOcr.Items.Add(new ComboBoxItem { Content = "腾讯云 OCR", Tag = ScreenshotOcrEngine.Tencent });
-        _cmbScreenshotOcr.SelectionChanged += (_, _) => UpdateNotes();
-        screenshotSection.Children.Add(SettingsLayout.CreateInlineFieldWithHint(
-            "识别引擎",
-            _cmbScreenshotOcr,
-            "原位翻译需要文字位置，只能用这两种引擎。腾讯云失败时自动改用本地。"));
+        _cmbScreenshotOcr.ToolTip = "截图翻译需要文字位置，使用独立于 OCR 页的识别引擎。";
+        _ocrHint = SettingsLayout.CreateHint(string.Empty);
+        screenshotSection.Children.Add(SettingsLayout.CreateInlineFieldWithHint("识别引擎", _cmbScreenshotOcr, _ocrHint));
+        screenshotSection.Children.Add(_screenshotOcrNote);
 
         _cmbScreenshotMode = SettingsLayout.CreateComboBox();
-        _cmbScreenshotMode.Items.Add(new ComboBoxItem { Content = "快速：本地规则挑选 + 翻译引擎", Tag = ScreenshotTranslationMode.Fast });
-        _cmbScreenshotMode.Items.Add(new ComboBoxItem { Content = "智能：AI 文本模型挑选并翻译", Tag = ScreenshotTranslationMode.Smart });
-        _cmbScreenshotMode.SelectionChanged += (_, _) => UpdateNotes();
-        screenshotSection.Children.Add(SettingsLayout.CreateInlineFieldWithHint(
-            "模式",
-            _cmbScreenshotMode,
-            "智能模式失败时自动改用快速模式。",
-            isLast: true));
+        _cmbScreenshotMode.Items.Add(new ComboBoxItem { Content = "快速", Tag = ScreenshotTranslationMode.Fast });
+        _cmbScreenshotMode.Items.Add(new ComboBoxItem { Content = "智能", Tag = ScreenshotTranslationMode.Smart });
+        _modeHint = SettingsLayout.CreateHint(string.Empty);
+        screenshotSection.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模式", _cmbScreenshotMode, _modeHint, isLast: true));
+        screenshotSection.Children.Add(_smartAccountNote);
         Children.Add(SettingsLayout.CreateSection(screenshotSection));
+        foreach (var note in new[] { _providerNote, _screenshotOcrNote, _smartAccountNote })
+            note.Margin = new Thickness(24, 0, 24, 12);
+        _cmbProvider.SelectionChanged += (_, _) => UpdateNotes();
+        _cmbScreenshotOcr.SelectionChanged += (_, _) => UpdateNotes();
+        _cmbScreenshotMode.SelectionChanged += (_, _) => UpdateNotes();
     }
 
     private ComboBoxItem CreateLanguageModeItem(string source, string target, string tag, bool bidirectional = false)
@@ -160,14 +163,18 @@ public class TranslationSettingsPanel : StackPanel
         };
         _providerNote.Visibility = providerConfigured ? Visibility.Collapsed : Visibility.Visible;
 
-        var missing = new System.Collections.Generic.List<string>();
-        if (_cmbScreenshotOcr.SelectedItem is ComboBoxItem { Tag: ScreenshotOcrEngine.Tencent } && !accounts.Tencent.IsConfigured)
-            missing.Add("腾讯云账号");
-        if (_cmbScreenshotMode.SelectedItem is ComboBoxItem { Tag: ScreenshotTranslationMode.Smart } && !accounts.AiText.IsConfigured)
-            missing.Add("AI 文本模型");
-        _screenshotNote.Visibility = missing.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
-        if (missing.Count > 0 && _screenshotNote.Inlines.FirstInline is System.Windows.Documents.Run run)
-            run.Text = $"{string.Join("、", missing)}尚未配置。";
+        if (_providerNote.Inlines.FirstInline is System.Windows.Documents.Run run)
+            run.Text = provider == TranslationProvider.Tencent ? "腾讯云账号尚未配置。" : "AI 文本模型尚未配置。";
+        var cloudOcr = _cmbScreenshotOcr.SelectedItem is ComboBoxItem { Tag: ScreenshotOcrEngine.Tencent };
+        var smart = _cmbScreenshotMode.SelectedItem is ComboBoxItem { Tag: ScreenshotTranslationMode.Smart };
+        _screenshotOcrNote.Visibility = cloudOcr && !accounts.Tencent.IsConfigured ? Visibility.Visible : Visibility.Collapsed;
+        _smartAccountNote.Visibility = smart && !accounts.AiText.IsConfigured ? Visibility.Visible : Visibility.Collapsed;
+        _ocrHint.Text = cloudOcr ? "识别失败时自动改用 Windows 本地 OCR。" : string.Empty;
+        _ocrHint.Visibility = cloudOcr ? Visibility.Visible : Visibility.Collapsed;
+        var providerName = (_cmbProvider.SelectedItem as ComboBoxItem)?.Content as string ?? "所选翻译引擎";
+        _modeHint.Text = smart
+            ? "使用 AI 文本模型选段并翻译；失败时改用快速模式。"
+            : $"自动选段，使用{providerName}翻译。";
     }
 
     private void LoadSettings()

@@ -42,6 +42,8 @@ internal sealed class AiServiceSettingsSection
     private bool _loading;
     private readonly FrameworkElement _platformRow;
     private readonly FrameworkElement _apiUrlRow;
+    private readonly Border _apiUrlSection;
+    private readonly Expander _apiUrlDisclosure;
     private readonly FrameworkElement _apiKeyRow;
     private Func<(string ApiUrl, string ApiKey)>? _sharedCredentials;
     private long _requestGeneration;
@@ -53,6 +55,8 @@ internal sealed class AiServiceSettingsSection
         Func<string, string, Task<IReadOnlyList<string>>>? fetchModels = null)
     {
         _platforms = platforms;
+        // Retired pages must not accept responses that change models or restart auto-save.
+        content.Unloaded += (_, _) => _requestGeneration++;
         _test = test;
         _fetchModels = fetchModels ?? ((url, key) => OpenAiChatClient.FetchModelsAsync(url, key));
 
@@ -66,15 +70,31 @@ internal sealed class AiServiceSettingsSection
         ApiUrl = SettingsLayout.CreateTextBox();
         _apiUrlHint = SettingsLayout.CreateHint(string.Empty, inline: false);
         ApiUrl.TextChanged += (_, _) => UpdateApiUrlPreview();
-        _apiUrlRow = SettingsLayout.CreateInlineFieldWithHint("API URL", ApiUrl, _apiUrlHint);
-        content.Children.Add(_apiUrlRow);
+        _apiUrlRow = SettingsLayout.CreateInlineFieldWithHint("API URL", ApiUrl, _apiUrlHint, isLast: true);
+        var advanced = SettingsLayout.CreateCompactCollapsibleSection("接口地址（高级）");
+        _apiUrlSection = advanced.section;
+        _apiUrlSection.Background = (System.Windows.Media.Brush)Application.Current.FindResource("TransparentBrush");
+        _apiUrlSection.BorderThickness = new Thickness(0);
+        _apiUrlSection.Margin = new Thickness(0);
+        _apiUrlDisclosure = advanced.expander;
+        _apiUrlDisclosure.Header = new TextBlock
+        {
+            Text = "接口地址（高级）", FontSize = SettingsLayout.BodyFontSize,
+            FontWeight = FontWeights.Normal
+        };
+        System.Windows.Automation.AutomationProperties.SetName(_apiUrlDisclosure, "接口地址（高级）");
+        advanced.content.Children.Add(_apiUrlRow);
+        advanced.content.SetBinding(UIElement.IsEnabledProperty,
+            new System.Windows.Data.Binding(nameof(Expander.IsExpanded)) { Source = _apiUrlDisclosure });
+        content.Children.Add(_apiUrlSection);
 
         ApiKey = SettingsLayout.CreatePasswordField();
         _apiKeyRow = SettingsLayout.CreateInlineField("API Key", ApiKey);
         content.Children.Add(_apiKeyRow);
 
         Model = SettingsLayout.CreateEditableComboBox();
-        content.Children.Add(SettingsLayout.CreateInlineFieldWithHint("模型", Model, "可获取列表，也可手动输入。", isLast: true));
+        Model.ToolTip = "可手动输入模型名，或点击“获取模型”选择。";
+        content.Children.Add(SettingsLayout.CreateInlineField("模型", Model, isLast: true));
 
         var fetchModelsButton = SettingsLayout.CreateSecondaryActionButton("获取模型");
         fetchModelsButton.Click += FetchModels_Click;
@@ -100,7 +120,7 @@ internal sealed class AiServiceSettingsSection
         _sharedCredentials = sharedCredentials;
         var visibility = sharedCredentials == null ? Visibility.Visible : Visibility.Collapsed;
         _platformRow.Visibility = visibility;
-        _apiUrlRow.Visibility = visibility;
+        _apiUrlSection.Visibility = visibility;
         _apiKeyRow.Visibility = visibility;
         InvalidateTest();
     }
@@ -110,6 +130,45 @@ internal sealed class AiServiceSettingsSection
         _requestGeneration++;
         _testStatus.Text = "未测试";
         _testStatus.Foreground = (System.Windows.Media.Brush)Application.Current.FindResource("TextSecondaryBrush");
+        ConfigurationChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    public event EventHandler? ConfigurationChanged;
+
+    /// <summary>只描述配置完整性，不代表账号已通过服务测试。</summary>
+    public string ConfigurationSummary
+    {
+        get
+        {
+            var (url, key) = CurrentCredentials();
+            var missing = new List<string>();
+            if (string.IsNullOrWhiteSpace(url)) missing.Add("API URL");
+            if (string.IsNullOrWhiteSpace(key)) missing.Add("API Key");
+            if (string.IsNullOrWhiteSpace(ModelName)) missing.Add("模型");
+            if (missing.Count > 0) return $"待填写：{string.Join("、", missing)}";
+            return IsConfigured
+                ? (_sharedCredentials == null ? "已配置" : "已配置 · 共用文本账号")
+                : "接口地址无效";
+        }
+    }
+
+    public bool IsConfigured
+    {
+        get
+        {
+            var (url, key) = CurrentCredentials();
+            if (string.IsNullOrWhiteSpace(url) || string.IsNullOrWhiteSpace(key) ||
+                string.IsNullOrWhiteSpace(ModelName)) return false;
+            try
+            {
+                AiApiEndpointResolver.ResolvePrimaryChatCompletionUrl(url);
+                return true;
+            }
+            catch (InvalidOperationException)
+            {
+                return false;
+            }
+        }
     }
 
     private (string ApiUrl, string ApiKey) CurrentCredentials() =>
@@ -138,10 +197,13 @@ internal sealed class AiServiceSettingsSection
 
             _apiUrlSetting = new EncryptedSetting(apiUrlEncrypted);
             _apiKeySetting = new EncryptedSetting(apiKeyEncrypted);
-            ApiUrl.Text = _apiUrlSetting.Plain;
+            var preset = _platforms.FirstOrDefault(platform => Equals(platform.Tag, SelectedPlatformTag))?.Preset;
+            ApiUrl.Text = string.IsNullOrWhiteSpace(_apiUrlSetting.Plain) && !_apiUrlSetting.IsUnreadable && preset != null
+                ? preset.Url : _apiUrlSetting.Plain;
             ApiKey.Password = _apiKeySetting.Plain;
             Model.Text = model ?? string.Empty;
             UpdateApiUrlPreview();
+            UpdateApiUrlDisclosure();
         }
         finally
         {
@@ -173,9 +235,13 @@ internal sealed class AiServiceSettingsSection
 
         var preset = _platforms.FirstOrDefault(platform => Equals(platform.Tag, SelectedPlatformTag))?.Preset;
         if (preset == null)
+        {
+            UpdateApiUrlDisclosure();
             return;
+        }
 
         ApiUrl.Text = preset.Url;
+        UpdateApiUrlDisclosure();
 
         // 只替换空模型或其他平台的默认模型，保留用户手动填写的模型名。
         var current = ModelName;
@@ -183,25 +249,41 @@ internal sealed class AiServiceSettingsSection
             Model.Text = preset.DefaultModel;
     }
 
+    private void UpdateApiUrlDisclosure()
+    {
+        var preset = _platforms.FirstOrDefault(platform => Equals(platform.Tag, SelectedPlatformTag))?.Preset;
+        _apiUrlDisclosure.IsExpanded = preset == null ||
+            !string.Equals(ApiUrl.Text.Trim(), preset.Url, StringComparison.Ordinal);
+    }
+
     private void UpdateApiUrlPreview()
     {
         var apiUrl = ApiUrl.Text.Trim();
+        string hint;
         if (string.IsNullOrEmpty(apiUrl))
         {
-            _apiUrlHint.Text = _apiUrlSetting.IsUnreadable
+            hint = _apiUrlSetting.IsUnreadable
                 ? "已保存的地址无法解密，请重新填写"
-                : "输入域名或完整的 Chat Completions 地址";
-            return;
+                : "请填写 API URL";
+        }
+        else
+        {
+            try
+            {
+                var effectiveUrl = AiApiEndpointResolver.ResolvePrimaryChatCompletionUrl(apiUrl);
+                hint = string.Equals(effectiveUrl, ApiUrl.Text, StringComparison.Ordinal)
+                    ? string.Empty
+                    : $"实际请求：{effectiveUrl}";
+            }
+            catch (InvalidOperationException ex)
+            {
+                hint = ex.Message;
+            }
         }
 
-        try
-        {
-            _apiUrlHint.Text = $"实际请求：{AiApiEndpointResolver.ResolvePrimaryChatCompletionUrl(apiUrl)}";
-        }
-        catch (InvalidOperationException ex)
-        {
-            _apiUrlHint.Text = ex.Message;
-        }
+        _apiUrlHint.Text = hint;
+        _apiUrlHint.Visibility = hint.Length == 0 ? Visibility.Collapsed : Visibility.Visible;
+        _apiUrlRow.MinHeight = hint.Length == 0 ? 58 : 72;
     }
 
     private async void FetchModels_Click(object sender, RoutedEventArgs e)

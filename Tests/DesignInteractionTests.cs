@@ -43,7 +43,7 @@ public class DesignInteractionTests
                 try
                 {
                     phase = "loading resources";
-                    foreach (var name in new[] { "Colors", "Typography", "Icons", "Buttons", "Inputs", "Windows", "Navigation", "LoadingIndicator" })
+                    foreach (var name in new[] { "Colors", "Typography", "Icons", "Buttons", "Inputs", "Windows", "Settings", "LoadingIndicator" })
                         app.Resources.MergedDictionaries.Add(new ResourceDictionary { Source = new Uri($"pack://application:,,,/STool;component/Styles/{name}.xaml") });
                     System.IO.Directory.CreateDirectory(root);
                     var config = new ConfigManager(System.IO.Path.Combine(root, "config.json"), _ => "", value => "v2:" + value, value => value.StartsWith("v2:"));
@@ -96,6 +96,7 @@ public class DesignInteractionTests
 
                     phase = "settings drafts and accessibility";
                     await SettingsInteractionChecks.VerifyAllAsync();
+                    await SettingsVisualChecks.VerifyAndCaptureAsync();
                     phase = "long notification layout";
                     VerifyNotificationLayout();
                     phase = "clipboard keyboard and query recovery";

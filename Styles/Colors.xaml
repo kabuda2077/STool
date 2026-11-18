@@ -8,17 +8,10 @@
     <Color x:Key="PrimarySoftColor">#F0F5FF</Color>
     <Color x:Key="SurfaceColor">#FFFFFF</Color>
     <Color x:Key="SurfaceAltColor">#F7F7F8</Color>
-    <Color x:Key="SettingsContentColor">#FFFFFF</Color>
-    <Color x:Key="SettingsSectionColor">#F4F5F7</Color>
-    <Color x:Key="SettingsSectionBorderColor">#EEF1F5</Color>
+    <Color x:Key="SettingsContentColor">#F4F4F6</Color>
+    <Color x:Key="SettingsSectionColor">#FFFFFF</Color>
+    <Color x:Key="SettingsSectionBorderColor">#E3E3E8</Color>
     <Color x:Key="SettingsInputColor">#FFFFFF</Color>
-    <Color x:Key="SettingsItemHoverColor">#FAFBFC</Color>
-    <Color x:Key="SettingsSidebarColor">#F6F7F9</Color>
-    <Color x:Key="SettingsSidebarHoverColor">#EEF1F5</Color>
-    <Color x:Key="SettingsSidebarSelectedColor">#E7ECF5</Color>
-    <Color x:Key="SettingsSidebarTextColor">#343A46</Color>
-    <Color x:Key="SettingsSidebarTextMutedColor">#6B7280</Color>
-    <Color x:Key="SettingsSidebarFocusColor">#2554C7</Color>
     <Color x:Key="BorderColor">#E7E7EA</Color>
     <Color x:Key="TextPrimaryColor">#18181B</Color>
     <Color x:Key="TextSecondaryColor">#6B7280</Color>
@@ -42,13 +35,6 @@
     <SolidColorBrush x:Key="SettingsSectionBrush" Color="{StaticResource SettingsSectionColor}"/>
     <SolidColorBrush x:Key="SettingsSectionBorderBrush" Color="{StaticResource SettingsSectionBorderColor}"/>
     <SolidColorBrush x:Key="SettingsInputBrush" Color="{StaticResource SettingsInputColor}"/>
-    <SolidColorBrush x:Key="SettingsItemHoverBrush" Color="{StaticResource SettingsItemHoverColor}"/>
-    <SolidColorBrush x:Key="SettingsSidebarBrush" Color="{StaticResource SettingsSidebarColor}"/>
-    <SolidColorBrush x:Key="SettingsSidebarHoverBrush" Color="{StaticResource SettingsSidebarHoverColor}"/>
-    <SolidColorBrush x:Key="SettingsSidebarSelectedBrush" Color="{StaticResource SettingsSidebarSelectedColor}"/>
-    <SolidColorBrush x:Key="SettingsSidebarTextBrush" Color="{StaticResource SettingsSidebarTextColor}"/>
-    <SolidColorBrush x:Key="SettingsSidebarTextMutedBrush" Color="{StaticResource SettingsSidebarTextMutedColor}"/>
-    <SolidColorBrush x:Key="SettingsSidebarFocusBrush" Color="{StaticResource SettingsSidebarFocusColor}"/>
     <SolidColorBrush x:Key="BorderBrush" Color="{StaticResource BorderColor}"/>
     <SolidColorBrush x:Key="TextPrimaryBrush" Color="{StaticResource TextPrimaryColor}"/>
     <SolidColorBrush x:Key="TextSecondaryBrush" Color="{StaticResource TextSecondaryColor}"/>

@@ -58,12 +58,17 @@ public class ConfigManager
         lock (_gate)
         {
             var next = Clone(GetOrLoadInternal());
+            var previousOcrProvider = next.Ocr.Provider;
             update(next);
+            if (next.Ocr.Provider != previousOcrProvider)
+                next.Translation.ScreenshotOcrMigrationPending = false;
             SaveInternal(next);
             _config = next;
             return Clone(next);
         }
     }
+
+    internal string DecryptSecret(string encrypted) => _decrypt(encrypted);
 
     public void Reload()
     {
@@ -110,10 +115,21 @@ public class ConfigManager
         }
 
         var changed = false;
+        if (_config.ConfigVersion < AppConfig.CurrentVersion)
+            BackupBeforeMigration(_config.ConfigVersion);
         if (_config.ConfigVersion < 2)
         {
-            BackupBeforeMigration(_config.ConfigVersion);
             MigrateToV2(_config);
+            changed = true;
+        }
+        if (_config.ConfigVersion < 3)
+        {
+            MigrateToV3(_config);
+            changed = true;
+        }
+        if (_config.ConfigVersion < 4)
+        {
+            MigrateToV4(_config);
             changed = true;
         }
 
@@ -215,6 +231,13 @@ public class ConfigManager
         var ocr = config.Ocr;
         var translation = config.Translation;
         var accounts = config.Accounts;
+        var legacyTencent = accounts.LegacyTencent ??= new TencentAccountConfig();
+
+        // 保留 v1 各用途的原账号，避免合并后遗失不同的凭据。
+        accounts.TencentOcr.SecretIdEncrypted = ocr.LegacyTencentSecretIdEncrypted;
+        accounts.TencentOcr.SecretKeyEncrypted = ocr.LegacyTencentSecretKeyEncrypted;
+        accounts.TencentTranslation.SecretIdEncrypted = translation.LegacyTencentSecretIdEncrypted;
+        accounts.TencentTranslation.SecretKeyEncrypted = translation.LegacyTencentSecretKeyEncrypted;
 
         // 腾讯云：翻译页优先，为空时取 OCR 页。
         var useTranslationTencent = !string.IsNullOrEmpty(translation.LegacyTencentSecretIdEncrypted) &&
@@ -224,18 +247,18 @@ public class ConfigManager
                             !string.IsNullOrEmpty(ocr.LegacyTencentSecretKeyEncrypted);
         if (useTranslationTencent)
         {
-            accounts.Tencent.SecretIdEncrypted = translation.LegacyTencentSecretIdEncrypted;
-            accounts.Tencent.SecretKeyEncrypted = translation.LegacyTencentSecretKeyEncrypted;
+            legacyTencent.SecretIdEncrypted = translation.LegacyTencentSecretIdEncrypted;
+            legacyTencent.SecretKeyEncrypted = translation.LegacyTencentSecretKeyEncrypted;
             if (!string.IsNullOrEmpty(ocr.LegacyTencentSecretIdEncrypted) &&
                 ocr.LegacyTencentSecretIdEncrypted != translation.LegacyTencentSecretIdEncrypted)
             {
-                Log.Information("Config migration: OCR and translation had different Tencent credentials; kept the translation one");
+                Log.Information("Config migration: preserved separate OCR and translation Tencent credentials");
             }
         }
         else if (useOcrTencent)
         {
-            accounts.Tencent.SecretIdEncrypted = ocr.LegacyTencentSecretIdEncrypted;
-            accounts.Tencent.SecretKeyEncrypted = ocr.LegacyTencentSecretKeyEncrypted;
+            legacyTencent.SecretIdEncrypted = ocr.LegacyTencentSecretIdEncrypted;
+            legacyTencent.SecretKeyEncrypted = ocr.LegacyTencentSecretKeyEncrypted;
         }
 
         // AI 文本模型 ← 翻译页；AI 视觉模型 ← OCR 页。
@@ -252,17 +275,14 @@ public class ConfigManager
         var sameAsText = !ocrHasOwnAccount ||
                          (ocr.LegacyAiApiUrlEncrypted == translation.LegacyAiApiUrlEncrypted &&
                           ocr.LegacyAiApiKeyEncrypted == translation.LegacyAiApiKeyEncrypted);
-        vision.SameAccountAsText = sameAsText;
+        vision.LegacySameAccountAsText = sameAsText;
         vision.Model = visionModel;
-        if (!sameAsText)
-        {
-            vision.Platform = ocr.LegacyAiPlatform ?? vision.Platform;
-            vision.ApiUrlEncrypted = ocr.LegacyAiApiUrlEncrypted;
-            vision.ApiKeyEncrypted = ocr.LegacyAiApiKeyEncrypted;
-        }
+        vision.Platform = ocr.LegacyAiPlatform ?? vision.Platform;
+        vision.ApiUrlEncrypted = ocr.LegacyAiApiUrlEncrypted;
+        vision.ApiKeyEncrypted = ocr.LegacyAiApiKeyEncrypted;
 
         // 截图翻译识别引擎：只有腾讯云和本地能返回文字位置。
-        translation.ScreenshotOcr = ocr.Provider == OcrProvider.Tencent
+        translation.LegacyScreenshotOcr = ocr.Provider == OcrProvider.Tencent
             ? ScreenshotOcrEngine.Tencent
             : ScreenshotOcrEngine.WindowsLocal;
 
@@ -277,6 +297,45 @@ public class ConfigManager
         ClearLegacy(ocr);
         ClearLegacy(translation);
         config.ConfigVersion = 2;
+    }
+
+    /// <summary>v2 → v3：账号按用途拆分，保留显式 AI 关联；旧本地截图识别等待用户明确改为跟随。</summary>
+    internal static void MigrateToV3(AppConfig config)
+    {
+        var accounts = config.Accounts;
+        if (accounts.LegacyTencent is { } legacy)
+        {
+            CopyTencentIfEmpty(legacy, accounts.TencentOcr);
+            CopyTencentIfEmpty(legacy, accounts.TencentTranslation);
+        }
+        accounts.LegacyTencent = null;
+
+        // v2 缺省为 true；只有明确 false 才是独立视觉账号。
+        if (accounts.AiVision.LegacySameAccountAsText != false)
+            accounts.AiVision.ReuseFrom = AccountReuseSource.Translation;
+        accounts.AiVision.LegacySameAccountAsText = null;
+
+        config.Translation.ScreenshotOcrMigrationPending =
+            config.Ocr.Provider == OcrProvider.Tencent &&
+            config.Translation.LegacyScreenshotOcr != ScreenshotOcrEngine.Tencent;
+        config.Translation.LegacyScreenshotOcr = null;
+        // MaxImageSizeKB 已从模型移除，旧 JSON 字段在读取时忽略，不影响内部图片上限。
+        config.ConfigVersion = 3;
+    }
+
+    /// <summary>v3 → v4：只按条数保留剪贴板记录；旧 retentionDays 字段在读取时忽略，重写后移除。</summary>
+    internal static void MigrateToV4(AppConfig config)
+    {
+        config.ConfigVersion = 4;
+    }
+
+    private static void CopyTencentIfEmpty(TencentAccountConfig source, TencentAccountConfig target)
+    {
+        if (string.IsNullOrEmpty(target.SecretIdEncrypted) && string.IsNullOrEmpty(target.SecretKeyEncrypted))
+        {
+            target.SecretIdEncrypted = source.SecretIdEncrypted;
+            target.SecretKeyEncrypted = source.SecretKeyEncrypted;
+        }
     }
 
     /// <summary>已下线的模型名换成当前名称；旧版默认 gpt-4o-mini 只在用户没填 Key 时替换。</summary>
@@ -318,8 +377,10 @@ public class ConfigManager
     {
         var accounts = config.Accounts;
         var changed = false;
-        changed |= ReencryptIfLegacy(accounts.Tencent.SecretIdEncrypted, value => accounts.Tencent.SecretIdEncrypted = value);
-        changed |= ReencryptIfLegacy(accounts.Tencent.SecretKeyEncrypted, value => accounts.Tencent.SecretKeyEncrypted = value);
+        changed |= ReencryptIfLegacy(accounts.TencentOcr.SecretIdEncrypted, value => accounts.TencentOcr.SecretIdEncrypted = value);
+        changed |= ReencryptIfLegacy(accounts.TencentOcr.SecretKeyEncrypted, value => accounts.TencentOcr.SecretKeyEncrypted = value);
+        changed |= ReencryptIfLegacy(accounts.TencentTranslation.SecretIdEncrypted, value => accounts.TencentTranslation.SecretIdEncrypted = value);
+        changed |= ReencryptIfLegacy(accounts.TencentTranslation.SecretKeyEncrypted, value => accounts.TencentTranslation.SecretKeyEncrypted = value);
         changed |= ReencryptIfLegacy(accounts.AiText.ApiUrlEncrypted, value => accounts.AiText.ApiUrlEncrypted = value);
         changed |= ReencryptIfLegacy(accounts.AiText.ApiKeyEncrypted, value => accounts.AiText.ApiKeyEncrypted = value);
         changed |= ReencryptIfLegacy(accounts.AiVision.ApiUrlEncrypted, value => accounts.AiVision.ApiUrlEncrypted = value);

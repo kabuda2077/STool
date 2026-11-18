@@ -164,7 +164,9 @@ public static class ModernWindowChrome
 
         if (window.Template?.FindName("PART_MaximizeButton", window) is System.Windows.Controls.Button button)
         {
-            button.ToolTip = isMaximized ? "还原" : "最大化";
+            var action = isMaximized ? "还原" : "最大化";
+            if (button.ToolTip != null) button.ToolTip = action;
+            System.Windows.Automation.AutomationProperties.SetName(button, action);
         }
     }
 

@@ -90,7 +90,7 @@ public class HotkeyManager : IDisposable
             return false;
 
         var parts = hotkeyString.Split('+', StringSplitOptions.TrimEntries);
-        if (parts.Length < 2 || parts.Any(string.IsNullOrWhiteSpace))
+        if (parts.Any(string.IsNullOrWhiteSpace))
             return false;
 
         uint modifiers = 0;
@@ -111,7 +111,8 @@ public class HotkeyManager : IDisposable
             modifiers |= modifier;
         }
 
-        if (modifiers == 0 || !TryParseKey(parts[^1], out var key, out var keyToken))
+        if (!TryParseKey(parts[^1], out var key, out var keyToken) ||
+            (modifiers == 0 && (parts.Length != 1 || key is < 0x70 or > 0x87)))
             return false;
 
         var normalizedParts = new List<string>(5);

@@ -1,120 +1,60 @@
 <Window x:Class="STool.Views.SettingsWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        xmlns:core="clr-namespace:STool.Core"
-        Style="{StaticResource ModernWindow}"
-        core:ModernWindowChrome.HideTitleText="True"
-        Title="STool 设置"
-        Width="710"
-        Height="560"
-        MinWidth="640"
-        MinHeight="480"
+        xmlns:views="clr-namespace:STool.Views"
+        xmlns:settings="clr-namespace:STool.Views.Settings"
+        xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
+        Style="{StaticResource SettingsWindow}"
+        Title="STool 设置" Width="660" Height="560" MinWidth="600" MinHeight="480"
         WindowStartupLocation="CenterScreen">
-
-    <Grid Background="{StaticResource TransparentBrush}">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="172"/>
-            <ColumnDefinition Width="*"/>
-        </Grid.ColumnDefinitions>
-
-        <Border Grid.Column="0"
-                Background="{StaticResource SettingsSidebarBrush}"
-                BorderBrush="{StaticResource SettingsSectionBorderBrush}"
-                BorderThickness="0,0,0.5,0"
-                Padding="8,56,8,16">
-            <StackPanel>
-                <Button x:Name="btnGeneralSettings"
-                        Click="BtnGeneralSettings_Click"
-                        Style="{StaticResource NavigationButton}"
-                        Content="通用"/>
-
-                <Button x:Name="btnClipboardSettings"
-                        Click="BtnClipboardSettings_Click"
-                        Style="{StaticResource NavigationButton}"
-                        Margin="0,6,0,0"
-                        Content="剪贴板"/>
-
-                <Button x:Name="btnAccountsSettings"
-                        Click="BtnAccountsSettings_Click"
-                        Style="{StaticResource NavigationButton}"
-                        Margin="0,6,0,0"
-                        Content="服务账号"/>
-
-                <Button x:Name="btnOcrSettings"
-                        Click="BtnOcrSettings_Click"
-                        Style="{StaticResource NavigationButton}"
-                        Margin="0,6,0,0"
-                        Content="OCR"/>
-
-                <Button x:Name="btnTranslationSettings"
-                        Click="BtnTranslationSettings_Click"
-                        Style="{StaticResource NavigationButton}"
-                        Margin="0,6,0,0"
-                        Content="翻译"/>
-            </StackPanel>
-        </Border>
-
-        <Border Grid.Column="1"
-                Background="{StaticResource SettingsContentBrush}">
-            <Grid>
-                <Grid.RowDefinitions>
-                    <RowDefinition Height="52"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="Auto"/>
-                    <RowDefinition Height="*"/>
-                </Grid.RowDefinitions>
-
-                <Grid Grid.Row="1" Margin="24,8,24,4">
-                    <Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
-                    <TextBlock x:Name="pageTitle" FontSize="{StaticResource FontSizeTitle}"
-                               FontWeight="{StaticResource FontWeightStrong}" AutomationProperties.HeadingLevel="Level1"/>
-                    <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock x:Name="saveStatus" Style="{StaticResource HintText}"
-                                   VerticalAlignment="Center" Margin="12,0,0,0" AutomationProperties.LiveSetting="Polite"/>
-                        <Button x:Name="returnToSettings" Click="ReturnToSettings_Click"
-                                Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"
-                                Visibility="Collapsed"/>
-                    </StackPanel>
-                </Grid>
-
-                <StackPanel x:Name="saveFailure" Grid.Row="2" Margin="24,8,24,4" Visibility="Collapsed">
-                    <TextBlock x:Name="saveError" Foreground="{StaticResource ErrorBrush}"
-                               FontSize="{StaticResource FontSizeBody}" TextWrapping="Wrap"
-                               AutomationProperties.LiveSetting="Polite"/>
-                    <WrapPanel Margin="0,8,0,0">
-                        <Button x:Name="retrySave" Content="重试保存" Click="RetrySave_Click"
-                                Style="{StaticResource SecondaryButton}"/>
-                        <Button Content="放弃未保存修改" Click="DiscardSave_Click"
-                                Style="{StaticResource SecondaryButton}" Margin="8,0,0,0"/>
-                    </WrapPanel>
+    <Window.Resources>
+        <PopupAnimation x:Key="{x:Static SystemParameters.ToolTipPopupAnimationKey}">None</PopupAnimation>
+        <Style TargetType="ToolTip" BasedOn="{StaticResource SettingsToolTip}"/>
+    </Window.Resources>
+    <Grid Background="{StaticResource SettingsContentBrush}">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="54"/>
+            <RowDefinition Height="Auto"/>
+            <RowDefinition Height="*"/>
+        </Grid.RowDefinitions>
+        <Grid Grid.Row="0">
+            <TextBlock VerticalAlignment="Center" Margin="16,0,0,0" FontSize="15" FontWeight="SemiBold"
+                       HorizontalAlignment="Left" AutomationProperties.Name="STool" MouseLeftButtonUp="Brand_Click"
+                       Cursor="Hand" shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                <Run Text="STool"/><Run Text="." Foreground="{StaticResource SettingsAccentBrush}"/>
+            </TextBlock>
+            <Grid HorizontalAlignment="Center" VerticalAlignment="Center" Height="28"
+                  shell:WindowChrome.IsHitTestVisibleInChrome="True">
+                <Border x:Name="navigationSlider" Style="{StaticResource SettingsNavigationSlider}" HorizontalAlignment="Left"
+                        Margin="2,0,0,0" Visibility="Hidden">
+                    <Border.RenderTransform><TransformGroup><ScaleTransform x:Name="navigationScale"/><TranslateTransform x:Name="navigationTranslate"/></TransformGroup></Border.RenderTransform>
+                </Border>
+                <StackPanel x:Name="navigationTabs" Orientation="Horizontal" Margin="2" SizeChanged="NavigationTabs_SizeChanged">
+                    <settings:SettingsNavigationButton x:Name="btnGeneralSettings" Click="BtnGeneralSettings_Click" Style="{StaticResource SettingsNavigationButton}" Content="通用"/>
+                    <settings:SettingsNavigationButton x:Name="btnClipboardSettings" Click="BtnClipboardSettings_Click" Style="{StaticResource SettingsNavigationButton}" Content="剪贴板"/>
+                    <settings:SettingsNavigationButton x:Name="btnOcrSettings" Click="BtnOcrSettings_Click" Style="{StaticResource SettingsNavigationButton}" Content="文字识别"/>
+                    <settings:SettingsNavigationButton x:Name="btnTranslationSettings" Click="BtnTranslationSettings_Click" Style="{StaticResource SettingsNavigationButton}" Content="翻译"/>
+                    <settings:SettingsNavigationButton x:Name="btnAccountsSettings" Click="BtnAccountsSettings_Click" Style="{StaticResource SettingsNavigationButton}" Content="服务账号"/>
                 </StackPanel>
-
-                <ScrollViewer x:Name="contentScroll"
-                              Grid.Row="3"
-                              Margin="0"
-                              VerticalScrollBarVisibility="Hidden"
-                              Background="{StaticResource TransparentBrush}"
-                              FocusVisualStyle="{x:Null}"
-                              SizeChanged="ContentScroll_SizeChanged"
-                              ScrollChanged="ContentScroll_ScrollChanged"
-                              PreviewMouseWheel="ContentScroll_PreviewMouseWheel"
-                              Padding="0">
-                    <Grid x:Name="contentPanel"
-                          HorizontalAlignment="Left"
-                          Margin="6,0,6,18"/>
-                </ScrollViewer>
-
-                <ScrollBar x:Name="contentScrollBar"
-                           Grid.Row="3"
-                           Orientation="Vertical"
-                           Width="10"
-                           MinWidth="10"
-                           Margin="0,4,2,4"
-                           HorizontalAlignment="Right"
-                           VerticalAlignment="Stretch"
-                           Visibility="Collapsed"
-                           ValueChanged="ContentScrollBar_ValueChanged"/>
             </Grid>
+        </Grid>
+        <StackPanel x:Name="saveFailure" Grid.Row="1" Margin="16,0,16,8" Visibility="Collapsed">
+            <TextBlock x:Name="saveError" Foreground="{StaticResource SettingsErrorBrush}" FontSize="12" TextWrapping="Wrap" AutomationProperties.LiveSetting="Polite"/>
+            <WrapPanel Margin="0,6,0,0">
+                <Button x:Name="retrySave" Content="重试保存" Click="RetrySave_Click" Style="{StaticResource SettingsActionButton}"/>
+                <Button Content="放弃未保存修改" Click="DiscardSave_Click" Style="{StaticResource SettingsActionButton}" Margin="8,0,0,0"/>
+            </WrapPanel>
+        </StackPanel>
+        <ScrollViewer x:Name="contentScroll" Grid.Row="2" VerticalScrollBarVisibility="Hidden" HorizontalScrollBarVisibility="Disabled"
+                      Background="Transparent" FocusVisualStyle="{x:Null}" SizeChanged="ContentScroll_SizeChanged"
+                      PreviewMouseWheel="ContentScroll_PreviewMouseWheel" ScrollChanged="ContentScroll_ScrollChanged">
+            <settings:SettingsContentGrid x:Name="contentPanel" HorizontalAlignment="Left" Margin="16,2,16,22"/>
+        </ScrollViewer>
+        <Border x:Name="savedToast" Grid.Row="2" HorizontalAlignment="Center" VerticalAlignment="Bottom" Margin="0,0,0,12">
+            <Border.Style>
+                <Style TargetType="Border" BasedOn="{StaticResource SettingsSavedToast}"><Style.Triggers><DataTrigger Binding="{Binding Text, ElementName=saveStatus}" Value=""><Setter Property="Visibility" Value="Collapsed"/></DataTrigger></Style.Triggers></Style>
+            </Border.Style>
+            <TextBlock x:Name="saveStatus" FontSize="11" Foreground="{StaticResource SettingsSecondaryBrush}" LineHeight="16.5" LineStackingStrategy="BlockLineHeight" AutomationProperties.LiveSetting="Polite"/>
         </Border>
     </Grid>
 </Window>

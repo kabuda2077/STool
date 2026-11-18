@@ -329,21 +329,9 @@ public class ClipboardStorage : IDisposable
         DeleteWhere("id = @id", command => command.Parameters.AddWithValue("@id", id));
     }
 
-    /// <summary>
-    /// 清理过期和超量的非收藏记录。<paramref name="retentionDays"/> 小于等于 0 时不按时间清理。
-    /// </summary>
-    public void CleanOldEntries(int retentionDays, int maxEntries)
+    /// <summary>保留最新的 <paramref name="maxEntries"/> 条非收藏记录；收藏记录不计入且不删除。</summary>
+    public void TrimToMaxEntries(int maxEntries)
     {
-        if (retentionDays > 0)
-        {
-            var cutoffUtc = FormatDate(DateTime.UtcNow.AddDays(-retentionDays));
-            var oldDeleted = DeleteWhere(
-                "is_favorite = 0 AND created_at < @cutoff_date",
-                command => command.Parameters.AddWithValue("@cutoff_date", cutoffUtc));
-            if (oldDeleted > 0)
-                Log.Information("Cleaned {DeletedCount} old clipboard entries", oldDeleted);
-        }
-
         var excessDeleted = DeleteWhere(@"
             is_favorite = 0
             AND id IN (

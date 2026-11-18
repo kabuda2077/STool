@@ -16,6 +16,7 @@ public class ConfigManagerTests
         var config = fixture.Manager.Get();
 
         Assert.Equal("Alt+1", config.Hotkeys.Screenshot);
+        Assert.Equal(1000, config.Clipboard.MaxEntries);
         Assert.True(File.Exists(fixture.ConfigPath));
     }
 
@@ -159,7 +160,7 @@ public class ConfigManagerTests
 
         var config = fixture.CreateManager().Get();
 
-        Assert.Equal("v2:test:plain-secret", config.Accounts.Tencent.SecretIdEncrypted);
+        Assert.Equal("v2:test:plain-secret", config.Accounts.TencentOcr.SecretIdEncrypted);
     }
 
     [Fact]
@@ -190,13 +191,13 @@ public class ConfigManagerTests
         ConfigManager.MigrateToV2(config);
 
         Assert.Equal(2, config.ConfigVersion);
-        Assert.Equal("tr-id", config.Accounts.Tencent.SecretIdEncrypted);
-        Assert.Equal("tr-key", config.Accounts.Tencent.SecretKeyEncrypted);
+        Assert.Equal("tr-id", config.Accounts.LegacyTencent!.SecretIdEncrypted);
+        Assert.Equal("tr-key", config.Accounts.LegacyTencent!.SecretKeyEncrypted);
         Assert.Equal(AiPlatform.DeepSeek, config.Accounts.AiText.Platform);
         Assert.Equal("deepseek-flash", config.Accounts.AiText.Model);
-        Assert.True(config.Accounts.AiVision.SameAccountAsText);
+        Assert.True(config.Accounts.AiVision.LegacySameAccountAsText);
         Assert.Equal("vision-model", config.Accounts.AiVision.Model);
-        Assert.Equal(ScreenshotOcrEngine.Tencent, config.Translation.ScreenshotOcr);
+        Assert.Equal(ScreenshotOcrEngine.Tencent, config.Translation.LegacyScreenshotOcr);
         Assert.Null(config.Ocr.LegacyTencentSecretIdEncrypted);
         Assert.Null(config.Translation.LegacyAiApiKeyEncrypted);
     }
@@ -225,12 +226,12 @@ public class ConfigManagerTests
 
         ConfigManager.MigrateToV2(config);
 
-        Assert.Equal("ocr-id", config.Accounts.Tencent.SecretIdEncrypted);
-        Assert.False(config.Accounts.AiVision.SameAccountAsText);
+        Assert.Equal("ocr-id", config.Accounts.TencentOcr.SecretIdEncrypted);
+        Assert.False(config.Accounts.AiVision.LegacySameAccountAsText);
         Assert.Equal("vision-url", config.Accounts.AiVision.ApiUrlEncrypted);
         Assert.Equal(AiPlatform.GoogleAiStudio, config.Accounts.AiVision.Platform);
         Assert.Equal("my-model", config.Accounts.AiText.Model);
-        Assert.Equal(ScreenshotOcrEngine.WindowsLocal, config.Translation.ScreenshotOcr);
+        Assert.Equal(ScreenshotOcrEngine.WindowsLocal, config.Translation.LegacyScreenshotOcr);
     }
 
     [Fact]
@@ -242,7 +243,7 @@ public class ConfigManagerTests
             Translation = new TranslationConfig
             {
                 LegacyAiPlatform = AiPlatform.DeepSeek,
-                LegacyAiApiUrlEncrypted = "url",
+                LegacyAiApiUrlEncrypted = "https://api.deepseek.com/chat/completions",
                 LegacyAiApiKeyEncrypted = "key",
                 LegacyAiModel = "deepseek-flash"
             }
@@ -250,9 +251,50 @@ public class ConfigManagerTests
 
         ConfigManager.MigrateToV2(config);
 
-        Assert.True(config.Accounts.AiVision.SameAccountAsText);
+        Assert.True(config.Accounts.AiVision.LegacySameAccountAsText);
         Assert.Equal("deepseek-flash", config.Accounts.AiVision.Model);
-        Assert.True(config.Accounts.ResolveVision().IsConfigured);
+        ConfigManager.MigrateToV3(config);
+        Assert.True(config.Accounts.ResolveVision(value => value).IsConfigured);
+    }
+
+    [Theory]
+    [InlineData(AiPlatform.Custom, "https://gateway.example/v1")]
+    [InlineData(AiPlatform.OpenAI, "https://gateway.example/v1/chat/completions")]
+    [InlineData(AiPlatform.Custom, "http://gateway.example/api/openai/chat/completions?channel=one")]
+    public void Get_V2SharedProxy_RemainsConfiguredAfterMigrationAndReload(AiPlatform platform, string endpoint)
+    {
+        using var fixture = new ConfigFixture(decrypt: value => value, isPortable: _ => true);
+        fixture.Write(new AppConfig
+        {
+            ConfigVersion = 2,
+            Accounts = new AccountsConfig
+            {
+                AiText = new AiAccountConfig
+                {
+                    Platform = platform, ApiUrlEncrypted = endpoint, ApiKeyEncrypted = "source-key", Model = "text-model"
+                },
+                AiVision = new AiVisionAccountConfig
+                {
+                    LegacySameAccountAsText = true, ApiUrlEncrypted = "hidden-draft", ApiKeyEncrypted = "hidden-key", Model = "vision-model"
+                }
+            }
+        });
+
+        foreach (var config in new[] { fixture.CreateManager().Get(), fixture.CreateManager().Get() })
+        {
+            Assert.Equal(AppConfig.CurrentVersion, config.ConfigVersion);
+            Assert.Equal(AccountReuseSource.Translation, config.Accounts.AiVision.ReuseFrom);
+            var effective = config.Accounts.ResolveVision(value => value);
+            Assert.True(effective.IsConfigured);
+            Assert.Equal(platform, effective.Platform);
+            Assert.Equal(endpoint, effective.ApiUrlEncrypted);
+            Assert.Equal("source-key", effective.ApiKeyEncrypted);
+            Assert.Equal("vision-model", effective.Model);
+            Assert.Equal("text-model", config.Accounts.AiText.Model);
+            Assert.Equal("hidden-draft", config.Accounts.AiVision.ApiUrlEncrypted);
+            Assert.Equal("hidden-key", config.Accounts.AiVision.ApiKeyEncrypted);
+        }
+        Assert.True(File.Exists(fixture.ConfigPath + ".v2.bak"));
     }
 
     [Theory]
@@ -293,12 +335,267 @@ public class ConfigManagerTests
 
         var config = fixture.CreateManager().Get();
         var saved = File.ReadAllText(fixture.ConfigPath);
+        using var savedDocument = JsonDocument.Parse(saved);
 
         Assert.True(File.Exists(fixture.ConfigPath + ".v1.bak"));
-        Assert.Equal("v2:a", config.Accounts.Tencent.SecretIdEncrypted);
+        Assert.Equal("v2:a", config.Accounts.TencentOcr.SecretIdEncrypted);
         Assert.DoesNotContain("tencentSecretIdEncrypted\":\"v2:a\",\"tencentSecretKey", saved.Replace(" ", ""));
-        Assert.Contains("\"configVersion\": 2", saved);
+        Assert.Equal(AppConfig.CurrentVersion, savedDocument.RootElement.GetProperty("configVersion").GetInt32());
     }
+
+    [Theory]
+    [InlineData(0)]
+    [InlineData(30)]
+    public void Get_V3Config_DropsRetentionDaysWithoutResettingLimitsOrAccounts(int retentionDays)
+    {
+        using var fixture = new ConfigFixture();
+        var original = $$$"""
+            {"configVersion":3,
+             "clipboard":{"retentionDays":{{{retentionDays}}},"maxEntries":237,"maxTextLength":12000,"excludedApps":["Private.exe"]},
+             "accounts":{
+                "tencentOcr":{"secretIdEncrypted":"v2:ocr-id","secretKeyEncrypted":"v2:ocr-key"},
+                "tencentTranslation":{"secretIdEncrypted":"v2:text-id","secretKeyEncrypted":"v2:text-key"},
+                "aiText":{"apiUrlEncrypted":"v2:text-url","apiKeyEncrypted":"v2:text-api-key","model":"Text-ID"},
+                "aiVision":{"reuseFrom":"Translation","apiUrlEncrypted":"v2:vision-draft","apiKeyEncrypted":"v2:vision-key","model":"Vision-ID"}},
+             "translation":{"screenshotOcrMigrationPending":true}}
+            """;
+        File.WriteAllText(fixture.ConfigPath, original);
+
+        foreach (var config in new[] { fixture.CreateManager().Get(), fixture.CreateManager().Get() })
+        {
+            Assert.Equal(AppConfig.CurrentVersion, config.ConfigVersion);
+            Assert.Equal(237, config.Clipboard.MaxEntries);
+            Assert.Equal(12000, config.Clipboard.MaxTextLength);
+            Assert.Equal(new[] { "Private.exe" }, config.Clipboard.ExcludedApps);
+            Assert.Equal("v2:ocr-id", config.Accounts.TencentOcr.SecretIdEncrypted);
+            Assert.Equal("v2:ocr-key", config.Accounts.TencentOcr.SecretKeyEncrypted);
+            Assert.Equal("v2:text-id", config.Accounts.TencentTranslation.SecretIdEncrypted);
+            Assert.Equal("v2:text-key", config.Accounts.TencentTranslation.SecretKeyEncrypted);
+            Assert.Equal("v2:text-url", config.Accounts.AiText.ApiUrlEncrypted);
+            Assert.Equal("v2:text-api-key", config.Accounts.AiText.ApiKeyEncrypted);
+            Assert.Equal("Text-ID", config.Accounts.AiText.Model);
+            Assert.Equal(AccountReuseSource.Translation, config.Accounts.AiVision.ReuseFrom);
+            Assert.Equal("v2:vision-draft", config.Accounts.AiVision.ApiUrlEncrypted);
+            Assert.Equal("v2:vision-key", config.Accounts.AiVision.ApiKeyEncrypted);
+            Assert.Equal("Vision-ID", config.Accounts.AiVision.Model);
+            Assert.True(config.Translation.ScreenshotOcrMigrationPending);
+        }
+
+        Assert.Equal(original, File.ReadAllText(fixture.ConfigPath + ".v3.bak"));
+        Assert.DoesNotContain("retentionDays", File.ReadAllText(fixture.ConfigPath));
+        fixture.CreateManager().Update(config => config.HideTrayIcon = true);
+        Assert.DoesNotContain("retentionDays", File.ReadAllText(fixture.ConfigPath));
+    }
+
+    [Fact]
+    public void Get_FirstRun_AccountsAreIndependent()
+    {
+        using var fixture = new ConfigFixture();
+        var accounts = fixture.Manager.Get().Accounts;
+
+        Assert.Equal(AccountReuseSource.None, accounts.AiText.ReuseFrom);
+        Assert.Equal(AccountReuseSource.None, accounts.AiVision.ReuseFrom);
+        Assert.Equal(AccountReuseSource.None, accounts.TencentOcr.ReuseFrom);
+        Assert.Equal(AccountReuseSource.None, accounts.TencentTranslation.ReuseFrom);
+    }
+
+    [Fact]
+    public void Get_V2Config_PreservesSharingAndDrafts_AndLocalScreenshotPrivacy()
+    {
+        using var fixture = new ConfigFixture();
+        File.WriteAllText(fixture.ConfigPath, """
+            {"configVersion":2,"accounts":{
+                "tencent":{"secretIdEncrypted":"v2:id","secretKeyEncrypted":"v2:key"},
+                "aiText":{"platform":"DeepSeek","apiUrlEncrypted":"https://api.deepseek.com/chat/completions","apiKeyEncrypted":"text-key","model":"Text-ID"},
+                "aiVision":{"sameAccountAsText":true,"platform":"OpenAI","apiUrlEncrypted":"old-draft","apiKeyEncrypted":"old-key","model":"Vision-ID"}},
+             "ocr":{"provider":"Tencent"},"translation":{"screenshotOcr":"WindowsLocal"},
+             "clipboard":{"maxImageSizeKB":1}}
+            """);
+
+        var config = fixture.CreateManager().Get();
+        var effective = config.Accounts.ResolveVision(value => value);
+        var saved = File.ReadAllText(fixture.ConfigPath);
+
+        Assert.Equal(AppConfig.CurrentVersion, config.ConfigVersion);
+        Assert.True(File.Exists(fixture.ConfigPath + ".v2.bak"));
+        Assert.Equal("v2:id", config.Accounts.TencentOcr.SecretIdEncrypted);
+        Assert.Equal("v2:key", config.Accounts.TencentTranslation.SecretKeyEncrypted);
+        Assert.Equal(AccountReuseSource.None, config.Accounts.TencentOcr.ReuseFrom);
+        Assert.Equal(AccountReuseSource.Translation, config.Accounts.AiVision.ReuseFrom);
+        Assert.Equal(AiPlatform.DeepSeek, effective.Platform);
+        Assert.Equal("Vision-ID", effective.Model);
+        Assert.Equal("old-draft", config.Accounts.AiVision.ApiUrlEncrypted);
+        Assert.Equal("old-key", config.Accounts.AiVision.ApiKeyEncrypted);
+        Assert.True(config.Translation.ScreenshotOcrMigrationPending);
+        Assert.DoesNotContain("sameAccountAsText", saved);
+        Assert.DoesNotContain("\"tencent\":", saved);
+        Assert.DoesNotContain("\"screenshotOcr\":", saved);
+        Assert.DoesNotContain("maxImageSizeKB", saved);
+
+        var manager = fixture.CreateManager();
+        manager.Update(current => current.Translation.ScreenshotOcrMigrationPending = false);
+        Assert.False(fixture.CreateManager().Get().Translation.ScreenshotOcrMigrationPending);
+    }
+
+    [Theory]
+    [InlineData(OcrProvider.Tencent, ScreenshotOcrEngine.Tencent, false)]
+    [InlineData(OcrProvider.Tencent, ScreenshotOcrEngine.WindowsLocal, true)]
+    [InlineData(OcrProvider.WindowsLocal, ScreenshotOcrEngine.Tencent, false)]
+    [InlineData(OcrProvider.AI, ScreenshotOcrEngine.WindowsLocal, false)]
+    public void MigrateToV3_OnlyHoldsBackPreviouslyLocalTencentScreenshots(
+        OcrProvider provider, ScreenshotOcrEngine previous, bool pending)
+    {
+        var config = new AppConfig
+        {
+            ConfigVersion = 2,
+            Ocr = new OcrConfig { Provider = provider },
+            Translation = new TranslationConfig { LegacyScreenshotOcr = previous },
+            Accounts = new AccountsConfig { AiVision = new AiVisionAccountConfig { LegacySameAccountAsText = false } }
+        };
+
+        ConfigManager.MigrateToV3(config);
+
+        Assert.Equal(pending, config.Translation.ScreenshotOcrMigrationPending);
+        Assert.Equal(AccountReuseSource.None, config.Accounts.AiVision.ReuseFrom);
+        Assert.Null(config.Translation.LegacyScreenshotOcr);
+    }
+
+    [Fact]
+    public void Update_ChangingOcrProvider_ClearsMigrationHoldback()
+    {
+        using var fixture = new ConfigFixture();
+        fixture.Manager.Update(config =>
+        {
+            config.Ocr.Provider = OcrProvider.Tencent;
+        });
+        fixture.Manager.Update(config => config.Translation.ScreenshotOcrMigrationPending = true);
+        fixture.Manager.Update(config => config.HideTrayIcon = true);
+        Assert.True(fixture.Manager.Get().Translation.ScreenshotOcrMigrationPending);
+
+        fixture.Manager.Update(config => config.Ocr.Provider = OcrProvider.AI);
+
+        Assert.False(fixture.CreateManager().Get().Translation.ScreenshotOcrMigrationPending);
+    }
+
+    [Fact]
+    public void TencentReuse_IsExplicitBidirectionalAndKeepsDraftsWhenSourceClears()
+    {
+        var accounts = new AccountsConfig
+        {
+            TencentOcr = new TencentAccountConfig { SecretIdEncrypted = "ocr-id", SecretKeyEncrypted = "ocr-key" },
+            TencentTranslation = new TencentAccountConfig { SecretIdEncrypted = "text-id", SecretKeyEncrypted = "text-key" }
+        };
+        Assert.Equal("ocr-id", accounts.ResolveTencentOcr().SecretIdEncrypted);
+        Assert.True(accounts.TrySetTencentReuse(forOcr: true, reuse: true));
+        Assert.Equal("text-id", accounts.ResolveTencentOcr().SecretIdEncrypted);
+        Assert.False(accounts.TrySetTencentReuse(forOcr: false, reuse: true));
+
+        accounts.TencentTranslation.SecretKeyEncrypted = null;
+        Assert.False(accounts.ResolveTencentOcr().IsConfigured);
+        Assert.Equal(AccountReuseSource.Translation, accounts.TencentOcr.ReuseFrom);
+        Assert.Equal("ocr-key", accounts.TencentOcr.SecretKeyEncrypted);
+
+        Assert.True(accounts.TrySetTencentReuse(forOcr: true, reuse: false));
+        Assert.Equal("ocr-key", accounts.ResolveTencentOcr().SecretKeyEncrypted);
+        Assert.True(accounts.TrySetTencentReuse(forOcr: false, reuse: true));
+        Assert.Equal("ocr-id", accounts.ResolveTencentTranslation().SecretIdEncrypted);
+    }
+
+    [Fact]
+    public void AiReuse_FollowsSourceAndKeepsIndependentModelAndHiddenDraft()
+    {
+        var accounts = CompatibleAiAccounts();
+        accounts.AiText.Model = null; // A connection can be reused without borrowing its model.
+        Assert.True(accounts.TrySetAiReuse(forOcr: true, reuse: true, value => value));
+        Assert.Equal("vision-model", accounts.ResolveVision(value => value).Model);
+        Assert.False(accounts.TrySetAiReuse(forOcr: false, reuse: true, value => value));
+
+        accounts.AiText.Platform = AiPlatform.DeepSeek;
+        accounts.AiText.ApiUrlEncrypted = "https://api.deepseek.com/chat/completions";
+        accounts.AiText.ApiKeyEncrypted = "changed-source-key";
+        var effective = accounts.ResolveVision(value => value);
+        Assert.True(effective.IsConfigured);
+        Assert.Equal(AiPlatform.DeepSeek, effective.Platform);
+        Assert.Equal("changed-source-key", effective.ApiKeyEncrypted);
+        Assert.Equal("vision-model", effective.Model);
+        Assert.Equal("vision-key", accounts.AiVision.ApiKeyEncrypted);
+
+        accounts.AiText.ApiUrlEncrypted = "https://api.deepseek.com/responses";
+        Assert.False(accounts.ResolveVision(value => value).IsConfigured);
+        Assert.Equal(AccountReuseSource.Translation, accounts.AiVision.ReuseFrom);
+        accounts.AiText.ApiUrlEncrypted = "http://gateway.example/v1/chat/completions?channel=one";
+        Assert.True(accounts.ResolveVision(value => value).IsConfigured);
+        Assert.Equal("changed-source-key", accounts.ResolveVision(value => value).ApiKeyEncrypted);
+        Assert.True(accounts.TrySetAiReuse(forOcr: true, reuse: false, value => value));
+        Assert.Equal("vision-key", accounts.ResolveVision(value => value).ApiKeyEncrypted);
+    }
+
+    [Theory]
+    [InlineData(AiPlatform.OpenAI, "https://api.openai.com/v1/chat/completions", true)]
+    [InlineData(AiPlatform.OpenAI, "https://api.openai.com/v1", true)]
+    [InlineData(AiPlatform.OpenAI, "https://api.openai.com", true)]
+    [InlineData(AiPlatform.DeepSeek, "https://api.deepseek.com/chat/completions", false)]
+    [InlineData(AiPlatform.OpenAI, "https://unknown.example/v1/chat/completions", false)]
+    [InlineData(AiPlatform.OpenAI, "https://api.openai.com/other", false)]
+    public void AiReuse_RequiresCompatiblePlatformAndProtocol(AiPlatform sourcePlatform, string sourceUrl, bool compatible)
+    {
+        var accounts = CompatibleAiAccounts();
+        accounts.AiText.Platform = sourcePlatform;
+        accounts.AiText.ApiUrlEncrypted = sourceUrl;
+
+        Assert.Equal(compatible, accounts.CanReuseAi(forOcr: true, value => value));
+    }
+
+    [Fact]
+    public void AiReuse_CustomRequiresExactEndpoint_AndSupportsReverseDirection()
+    {
+        var accounts = CompatibleAiAccounts();
+        accounts.AiText.Platform = accounts.AiVision.Platform = AiPlatform.Custom;
+        accounts.AiText.ApiUrlEncrypted = "https://gateway.example/v1/chat/completions";
+        accounts.AiVision.ApiUrlEncrypted = "https://other.example/v1/chat/completions";
+        Assert.False(accounts.CanReuseAi(forOcr: false, value => value));
+
+        accounts.AiVision.ApiUrlEncrypted = "https://gateway.example/v1/chat/completions/";
+        Assert.True(accounts.TrySetAiReuse(forOcr: false, reuse: true, value => value));
+        Assert.Equal("vision-key", accounts.ResolveText(value => value).ApiKeyEncrypted);
+        Assert.Equal("text-model", accounts.ResolveText(value => value).Model);
+
+        accounts.AiVision.ApiKeyEncrypted = null;
+        Assert.False(accounts.ResolveText(value => value).IsConfigured);
+        Assert.Equal(AccountReuseSource.Ocr, accounts.AiText.ReuseFrom);
+    }
+
+    [Fact]
+    public void Resolve_RawCyclesAndWrongDirections_AreUnavailable()
+    {
+        var accounts = CompatibleAiAccounts();
+        accounts.AiVision.ReuseFrom = AccountReuseSource.Translation;
+        accounts.AiText.ReuseFrom = AccountReuseSource.Ocr;
+        accounts.TencentOcr.ReuseFrom = AccountReuseSource.Translation;
+        accounts.TencentTranslation.ReuseFrom = AccountReuseSource.Ocr;
+
+        Assert.False(accounts.ResolveVision(value => value).IsConfigured);
+        Assert.False(accounts.ResolveText(value => value).IsConfigured);
+        Assert.False(accounts.ResolveTencentOcr().IsConfigured);
+        Assert.False(accounts.ResolveTencentTranslation().IsConfigured);
+        accounts.AiText.ReuseFrom = AccountReuseSource.None;
+        accounts.AiVision.ReuseFrom = AccountReuseSource.Ocr;
+        Assert.False(accounts.ResolveVision(value => value).IsConfigured);
+    }
+
+    private static AccountsConfig CompatibleAiAccounts() => new()
+    {
+        AiText = new AiAccountConfig
+        {
+            ApiUrlEncrypted = "https://api.openai.com/v1/chat/completions",
+            ApiKeyEncrypted = "text-key", Model = "text-model"
+        },
+        AiVision = new AiVisionAccountConfig
+        {
+            ApiUrlEncrypted = "https://api.openai.com/v1/chat/completions",
+            ApiKeyEncrypted = "vision-key", Model = "vision-model"
+        }
+    };
 
     private sealed class ConfigFixture : IDisposable
     {

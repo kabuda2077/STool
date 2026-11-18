@@ -43,13 +43,13 @@ public class TencentTranslationService : ITranslationService
     }
 
     /// <summary>用设置页里的明文凭据做一次翻译，验证账号是否可用。</summary>
-    public static async Task<(bool Success, string Message)> TestAsync(string secretId, string secretKey)
+    public static async Task<(bool Success, string Message)> TestAsync(string secretId, string secretKey, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(secretId) || string.IsNullOrWhiteSpace(secretKey))
             return (false, "请先填写 SecretId 和 SecretKey");
 
         using var service = new TencentTranslationService(secretId.Trim(), secretKey.Trim(), plain: true);
-        var result = await service.TranslateAsync("你好", "zh", "en");
+        var result = await service.TranslateAsync("你好", "zh", "en", cancellationToken);
         return result.Success
             ? (true, $"翻译结果：{result.TranslatedText}")
             : (false, result.ErrorMessage ?? "未知错误");

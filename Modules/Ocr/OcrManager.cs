@@ -20,13 +20,19 @@ namespace STool.Modules.Ocr;
 public class OcrManager : IDisposable
 {
     private readonly ConfigManager _configManager;
+    private readonly Func<OcrProvider, AppConfig, IOcrService?>? _serviceFactory;
     private readonly object _serviceGate = new();
     private readonly Dictionary<string, IOcrService?> _services = new();
     private readonly List<IOcrService> _retiredServices = new();
 
-    public OcrManager(ConfigManager configManager)
+    public OcrManager(ConfigManager configManager) : this(configManager, null)
+    {
+    }
+
+    internal OcrManager(ConfigManager configManager, Func<OcrProvider, AppConfig, IOcrService?>? serviceFactory)
     {
         _configManager = configManager;
+        _serviceFactory = serviceFactory;
     }
 
     /// <summary>「OCR 识别」：按 OCR 设置选择引擎，失败按设置降级到本地。</summary>
@@ -41,15 +47,18 @@ public class OcrManager : IDisposable
             cancellationToken);
     }
 
-    /// <summary>截图翻译：使用翻译设置里的「截图翻译识别引擎」，结果一定带文字位置；腾讯云失败时总是降级到本地。</summary>
+    /// <summary>截图翻译跟随识别服务，AI 改用本地；腾讯云失败时总是降级到本地。</summary>
     public Task<OcrResult> RecognizeForLayoutAsync(Bitmap image, CancellationToken cancellationToken = default)
     {
         var config = _configManager.Get();
-        var provider = config.Translation.ScreenshotOcr == ScreenshotOcrEngine.Tencent
-            ? OcrProvider.Tencent
-            : OcrProvider.WindowsLocal;
+        var provider = GetScreenshotProvider(config);
         return RecognizeWithFallbackAsync(image, provider, config, fallbackToLocal: true, cancellationToken);
     }
+
+    internal static OcrProvider GetScreenshotProvider(AppConfig config) =>
+        config.Ocr.Provider == OcrProvider.Tencent && !config.Translation.ScreenshotOcrMigrationPending
+            ? OcrProvider.Tencent
+            : OcrProvider.WindowsLocal;
 
     private async Task<OcrResult> RecognizeWithFallbackAsync(
         Bitmap image,
@@ -82,7 +91,7 @@ public class OcrManager : IDisposable
                 Success = false,
                 ErrorMessage = provider == OcrProvider.Tencent
                     ? "腾讯云账号未配置，请在「设置 → 服务账号」中填写。"
-                    : "AI 视觉模型未配置，请在「设置 → 服务账号」中填写。",
+                    : "AI 文字识别未配置，请在「设置 → 服务账号」中填写。",
                 Provider = provider.ToString()
             };
         }
@@ -126,10 +135,11 @@ public class OcrManager : IDisposable
     private IOcrService? GetOrCreateService(OcrProvider provider, AppConfig config)
     {
         var key = provider.ToString();
+        var tencent = config.Accounts.ResolveTencentOcr();
         var signature = provider switch
         {
-            OcrProvider.Tencent => string.Join("|", config.Accounts.Tencent.SecretIdEncrypted, config.Accounts.Tencent.SecretKeyEncrypted),
-            OcrProvider.AI => VisionSignature(config.Accounts.ResolveVision()),
+            OcrProvider.Tencent => string.Join("|", tencent.SecretIdEncrypted, tencent.SecretKeyEncrypted),
+            OcrProvider.AI => VisionSignature(config.Accounts.ResolveVision(_configManager.DecryptSecret)),
             _ => config.Ocr.LocalLanguage
         };
         var cacheKey = key + "#" + signature;
@@ -149,7 +159,7 @@ public class OcrManager : IDisposable
                 _services.Remove(existingKey);
             }
 
-            var service = CreateService(provider, config);
+            var service = _serviceFactory != null ? _serviceFactory(provider, config) : CreateService(provider, config);
             _services[cacheKey] = service;
             return service;
         }
@@ -158,14 +168,15 @@ public class OcrManager : IDisposable
     private static string VisionSignature(AiAccountConfig account) =>
         string.Join("|", account.ApiUrlEncrypted, account.ApiKeyEncrypted, account.Model);
 
-    private static IOcrService? CreateService(OcrProvider provider, AppConfig config)
+    private IOcrService? CreateService(OcrProvider provider, AppConfig config)
     {
+        var tencent = config.Accounts.ResolveTencentOcr();
         switch (provider)
         {
-            case OcrProvider.Tencent when config.Accounts.Tencent.IsConfigured:
-                return new TencentOcrService(config.Accounts.Tencent.SecretIdEncrypted!, config.Accounts.Tencent.SecretKeyEncrypted!);
+            case OcrProvider.Tencent when tencent.IsConfigured:
+                return new TencentOcrService(tencent.SecretIdEncrypted!, tencent.SecretKeyEncrypted!);
             case OcrProvider.AI:
-                var vision = config.Accounts.ResolveVision();
+                var vision = config.Accounts.ResolveVision(_configManager.DecryptSecret);
                 return vision.IsConfigured
                     ? new AiVisionOcrService(vision.ApiUrlEncrypted!, vision.ApiKeyEncrypted!, vision.Model!)
                     : null;

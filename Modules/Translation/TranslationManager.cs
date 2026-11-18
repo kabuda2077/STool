@@ -188,7 +188,7 @@ public class TranslationManager : IDisposable
     private static string UnavailableMessage(TranslationProvider provider) => provider switch
     {
         TranslationProvider.Tencent => "腾讯云账号未配置，请在「设置 → 服务账号」中填写。",
-        TranslationProvider.OpenAI => "AI 文本模型未配置，请在「设置 → 服务账号」中填写。",
+        TranslationProvider.OpenAI => "AI 翻译未配置，请在「设置 → 服务账号」中填写。",
         _ => $"翻译服务 {provider} 不可用"
     };
 
@@ -256,7 +256,7 @@ public class TranslationManager : IDisposable
     /// </summary>
     public ScreenContentSelector? TryCreateContentSelector()
     {
-        var account = _configManager.Get().Accounts.AiText;
+        var account = _configManager.Get().Accounts.ResolveText(_configManager.DecryptSecret);
         lock (_serviceGate)
         {
             if (!account.IsConfigured)
@@ -300,21 +300,35 @@ public class TranslationManager : IDisposable
         }
     }
 
-    private static string ServiceSignature(TranslationProvider provider, AccountsConfig accounts) => provider switch
-    {
-        TranslationProvider.Tencent => string.Join("|", accounts.Tencent.SecretIdEncrypted, accounts.Tencent.SecretKeyEncrypted),
-        TranslationProvider.OpenAI => string.Join("|", accounts.AiText.ApiUrlEncrypted, accounts.AiText.ApiKeyEncrypted, accounts.AiText.Model),
-        _ => string.Empty
-    };
-
-    private static ITranslationService? CreateService(TranslationProvider provider, AccountsConfig accounts)
+    private string ServiceSignature(TranslationProvider provider, AccountsConfig accounts)
     {
         switch (provider)
         {
-            case TranslationProvider.Tencent when accounts.Tencent.IsConfigured:
-                return new TencentTranslationService(accounts.Tencent.SecretIdEncrypted!, accounts.Tencent.SecretKeyEncrypted!);
-            case TranslationProvider.OpenAI when accounts.AiText.IsConfigured:
-                return new AiTranslationService(accounts.AiText.ApiUrlEncrypted!, accounts.AiText.ApiKeyEncrypted!, accounts.AiText.Model!);
+            case TranslationProvider.Tencent:
+                var tencent = accounts.ResolveTencentTranslation();
+                return string.Join("|", tencent.SecretIdEncrypted, tencent.SecretKeyEncrypted);
+            case TranslationProvider.OpenAI:
+                var text = accounts.ResolveText(_configManager.DecryptSecret);
+                return string.Join("|", text.ApiUrlEncrypted, text.ApiKeyEncrypted, text.Model);
+            default:
+                return string.Empty;
+        }
+    }
+
+    private ITranslationService? CreateService(TranslationProvider provider, AccountsConfig accounts)
+    {
+        switch (provider)
+        {
+            case TranslationProvider.Tencent:
+                var tencent = accounts.ResolveTencentTranslation();
+                return tencent.IsConfigured
+                    ? new TencentTranslationService(tencent.SecretIdEncrypted!, tencent.SecretKeyEncrypted!)
+                    : null;
+            case TranslationProvider.OpenAI:
+                var text = accounts.ResolveText(_configManager.DecryptSecret);
+                return text.IsConfigured
+                    ? new AiTranslationService(text.ApiUrlEncrypted!, text.ApiKeyEncrypted!, text.Model!)
+                    : null;
             case TranslationProvider.Google:
                 return new GoogleTranslationService();
             default:

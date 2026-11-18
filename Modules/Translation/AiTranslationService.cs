@@ -41,7 +41,7 @@ public class AiTranslationService : ITranslationService
                !string.IsNullOrWhiteSpace(_model);
     }
 
-    public static async Task<TranslationResult> TestAsync(string apiUrl, string apiKey, string model)
+    public static async Task<TranslationResult> TestAsync(string apiUrl, string apiKey, string model, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(apiUrl))
             return Failure("请先填写 API URL");
@@ -51,7 +51,7 @@ public class AiTranslationService : ITranslationService
             return Failure("请先填写模型");
 
         using var service = new AiTranslationService(new PlainCredentials(apiUrl.Trim(), apiKey.Trim(), model.Trim()));
-        return await service.TranslateAsync("你好", "zh", "en");
+        return await service.TranslateAsync("你好", "zh", "en", cancellationToken);
     }
 
     public async Task<TranslationResult> TranslateAsync(string text, string sourceLanguage, string targetLanguage, CancellationToken cancellationToken = default)

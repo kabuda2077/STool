@@ -193,7 +193,7 @@ internal sealed class ScreenshotTranslationPipeline
         if (selector == null)
         {
             trace.Add("smart unavailable: AI text model not configured");
-            return (null, "智能模式需要在「设置 → 服务账号」配置 AI 文本模型，本次已改用快速模式。");
+            return (null, "AI 模式需要在「设置 → 服务账号」配置 AI 翻译，本次已改用标准模式。");
         }
 
         // 本地先分段，作为 AI 分块的参考。
@@ -221,7 +221,7 @@ internal sealed class ScreenshotTranslationPipeline
         if (blocks == null)
         {
             trace.Add("smart failed");
-            return (null, "智能翻译调用失败，本次已改用快速模式。详情见日志。");
+            return (null, "AI 翻译调用失败，本次已改用标准模式。详情见日志。");
         }
 
         if (blocks.Count == 0)

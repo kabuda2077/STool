@@ -17,10 +17,13 @@ namespace STool.Modules.Clipboard;
 public class ClipboardManager : IDisposable
 {
     private static readonly TimeSpan MaintenanceDelay = TimeSpan.FromSeconds(8);
-    private static readonly TimeSpan CleanupInterval = TimeSpan.FromHours(1);
+    private static readonly TimeSpan EntryLimitCheckInterval = TimeSpan.FromHours(1);
 
     /// <summary>超过这个原始像素体积的图片直接跳过，避免在后台一次性申请过大的内存。</summary>
     private const long MaxRawImageBytes = 512L * 1024 * 1024;
+
+    /// <summary>重新编码为 PNG 后的单张图片上限。</summary>
+    internal const long MaxEncodedImageBytes = 10L * 1024 * 1024;
 
     /// <summary>待处理队列的条数上限。</summary>
     internal const int MaxPendingCaptures = 16;
@@ -38,9 +41,9 @@ public class ClipboardManager : IDisposable
         capture => capture.EstimatedBytes);
     private readonly CancellationTokenSource _lifetime = new();
     private readonly Task _processing;
-    private Timer? _cleanupTimer;
+    private Timer? _entryLimitTimer;
     private volatile ClipboardConfig _settings;
-    private int _cleanupRunning;
+    private int _trimmingRunning;
     private int _disposed;
 
     /// <summary>新增或重新提到最前的记录。在后台线程触发。</summary>
@@ -69,16 +72,16 @@ public class ClipboardManager : IDisposable
     {
         ApplySettings();
 
-        // 文件扫描、元数据回填和过期清理放到启动之后的后台执行，不拖慢启动。
+        // 文件扫描、元数据回填和数量裁剪放到启动之后的后台执行，不拖慢启动。
         _ = Task.Delay(MaintenanceDelay, _lifetime.Token).ContinueWith(
             _ => RunMaintenance(),
             _lifetime.Token,
             TaskContinuationOptions.OnlyOnRanToCompletion,
             TaskScheduler.Default);
-        _cleanupTimer = new Timer(_ => CleanOldEntries(), null, CleanupInterval, CleanupInterval);
+        _entryLimitTimer = new Timer(_ => TrimToMaxEntries(), null, EntryLimitCheckInterval, EntryLimitCheckInterval);
     }
 
-    /// <summary>重新读取剪贴板设置：开关监听、更新排除列表，并按新的保留策略清理一次。</summary>
+    /// <summary>重新读取剪贴板设置：开关监听、更新排除列表，并按新的条数上限裁剪一次。</summary>
     public void ApplySettings()
     {
         if (Volatile.Read(ref _disposed) != 0)
@@ -95,7 +98,7 @@ public class ClipboardManager : IDisposable
             Log.Information("Clipboard monitoring is disabled");
         }
 
-        _ = Task.Run(CleanOldEntries);
+        _ = Task.Run(TrimToMaxEntries);
     }
 
     public List<ClipboardItem> Query(ClipboardQuery query) => _storage.Query(query);
@@ -198,7 +201,7 @@ public class ClipboardManager : IDisposable
         return capture.Type switch
         {
             ClipboardItemType.Text => ProcessText(capture, settings),
-            ClipboardItemType.Image => ProcessImage(capture, settings),
+            ClipboardItemType.Image => ProcessImage(capture),
             ClipboardItemType.File => ProcessFiles(capture),
             _ => null
         };
@@ -232,7 +235,7 @@ public class ClipboardManager : IDisposable
             });
     }
 
-    private ClipboardItem? ProcessImage(ClipboardCapture capture, ClipboardConfig settings)
+    private ClipboardItem? ProcessImage(ClipboardCapture capture)
     {
         var image = capture.Image;
         if (image == null)
@@ -262,10 +265,9 @@ public class ClipboardManager : IDisposable
 
         // 在编码器写入时限制输出长度，超限即终止，不先分配整张 PNG 的缓冲。
         using var png = new MemoryStream();
-        var maximumBytes = settings.MaxImageSizeKB > 0 ? settings.MaxImageSizeKB * 1024L : long.MaxValue;
-        if (!TryEncodePng(image, png, maximumBytes))
+        if (!TryEncodePng(image, png, MaxEncodedImageBytes))
         {
-            Log.Information("Skipping clipboard image: encoded output exceeds {LimitKB}KB", settings.MaxImageSizeKB);
+            Log.Information("Skipping clipboard image: encoded output exceeds {LimitBytes} bytes", MaxEncodedImageBytes);
             return null;
         }
 
@@ -367,29 +369,29 @@ public class ClipboardManager : IDisposable
             Log.Error(ex, "Clipboard maintenance failed");
         }
 
-        CleanOldEntries();
+        TrimToMaxEntries();
     }
 
-    private void CleanOldEntries()
+    private void TrimToMaxEntries()
     {
-        if (Volatile.Read(ref _disposed) != 0 || Interlocked.Exchange(ref _cleanupRunning, 1) != 0)
+        if (Volatile.Read(ref _disposed) != 0 || Interlocked.Exchange(ref _trimmingRunning, 1) != 0)
             return;
 
         try
         {
             var settings = _settings;
-            _storage.CleanOldEntries(settings.RetentionDays, settings.MaxEntries);
+            _storage.TrimToMaxEntries(settings.MaxEntries);
         }
         catch (ObjectDisposedException)
         {
         }
         catch (Exception ex)
         {
-            Log.Error(ex, "Failed to clean old clipboard entries");
+            Log.Error(ex, "Failed to trim clipboard entries to the configured count limit");
         }
         finally
         {
-            Volatile.Write(ref _cleanupRunning, 0);
+            Volatile.Write(ref _trimmingRunning, 0);
         }
     }
 
@@ -411,7 +413,7 @@ public class ClipboardManager : IDisposable
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
             return;
 
-        _cleanupTimer?.Dispose();
+        _entryLimitTimer?.Dispose();
         _monitor.Dispose();
         _captures.Complete();
         try

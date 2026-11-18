@@ -7,7 +7,7 @@ using STool.Modules.Ocr;
 
 namespace STool.Views.Settings;
 
-/// <summary>截图工具栏的 OCR 引擎、失败策略及本地语言。</summary>
+/// <summary>文字识别服务、失败策略及 Windows 本地语言。</summary>
 public class OcrSettingsPanel : StackPanel
 {
     private readonly ConfigManager _configManager;
@@ -15,8 +15,10 @@ public class OcrSettingsPanel : StackPanel
     private System.Windows.Controls.ComboBox _cmbProvider = null!;
     private System.Windows.Controls.ComboBox _cmbFallbackPolicy = null!;
     private System.Windows.Controls.ComboBox _cmbLocalLanguage = null!;
-    private TextBlock _accountNote = null!;
+    private WrapPanel _accountNote = null!;
     private TextBlock _languageHint = null!;
+    private System.Windows.Controls.Button _modelButton = null!;
+    private FrameworkElement _modelRow = null!;
     private FrameworkElement _fallbackRow = null!;
     private FrameworkElement _localSection = null!;
     private readonly System.Collections.Generic.HashSet<string> _installedLanguages = new() { "auto" };
@@ -32,38 +34,56 @@ public class OcrSettingsPanel : StackPanel
 
     private void InitializeUI()
     {
-        var baseSection = SettingsLayout.CreateSectionContent("截图文字识别");
+        var baseSection = SettingsLayout.CreateSectionContent("提取图片文字");
         _cmbProvider = SettingsLayout.CreateComboBox();
-        _cmbProvider.Items.Add(new ComboBoxItem { Content = "Windows 本地 OCR", Tag = OcrProvider.WindowsLocal });
-        _cmbProvider.Items.Add(new ComboBoxItem { Content = "腾讯云 OCR", Tag = OcrProvider.Tencent });
-        _cmbProvider.Items.Add(new ComboBoxItem { Content = "AI 视觉模型", Tag = OcrProvider.AI });
-        _cmbProvider.ToolTip = "用于截图工具栏的「OCR 识别」。截图翻译使用独立的识别设置。";
-        baseSection.Children.Add(SettingsLayout.CreateInlineField("识别引擎", _cmbProvider, isLast: true));
+        _cmbProvider.Items.Add(new ComboBoxItem { Content = "Windows 本地", Tag = OcrProvider.WindowsLocal });
+        _cmbProvider.Items.Add(new ComboBoxItem { Content = "腾讯云", Tag = OcrProvider.Tencent });
+        _cmbProvider.Items.Add(new ComboBoxItem { Content = "AI 文字识别", Tag = OcrProvider.AI });
+        _cmbProvider.HorizontalAlignment = HorizontalAlignment.Right;
+        baseSection.Children.Add(SettingsLayout.CreateInlineField("识别服务", _cmbProvider));
+        _modelButton = SettingsLayout.CreateFieldButton("选择模型", () => _openAccounts(ServiceAccountTarget.AiVision));
+        System.Windows.Automation.AutomationProperties.SetName(_modelButton, "配置识别模型");
+        _modelRow = new Border
+        {
+            BorderBrush = (System.Windows.Media.Brush)FindResource("SettingsRowLineBrush"),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            SnapsToDevicePixels = true,
+            Child = SettingsLayout.CreateInlineField("识别模型", _modelButton)
+        };
+        baseSection.Children.Add(_modelRow);
 
-        _accountNote = SettingsLayout.CreateSectionNote(string.Empty, "配置账号", () =>
-            _openAccounts(SelectedProvider == OcrProvider.Tencent ? ServiceAccountTarget.Tencent : ServiceAccountTarget.AiVision));
-        _accountNote.Margin = new Thickness(24, 0, 24, 12);
+        _accountNote = SettingsLayout.CreateSectionNote("AI 文字识别尚未填写完整。", "去配置", () =>
+            _openAccounts(SelectedProvider == OcrProvider.Tencent ? ServiceAccountTarget.TencentOcr : ServiceAccountTarget.AiVision));
         baseSection.Children.Add(_accountNote);
-
-        _cmbFallbackPolicy = SettingsLayout.CreateComboBox();
-        _cmbFallbackPolicy.Items.Add(new ComboBoxItem { Content = "改用 Windows 本地 OCR", Tag = true });
-        _cmbFallbackPolicy.Items.Add(new ComboBoxItem { Content = "停止并提示错误", Tag = false });
-        _fallbackRow = SettingsLayout.CreateInlineField("识别失败时", _cmbFallbackPolicy, isLast: true);
-        baseSection.Children.Add(_fallbackRow);
         Children.Add(SettingsLayout.CreateSection(baseSection));
 
-        var localContent = SettingsLayout.CreateSectionContent("Windows 本地 OCR");
+        var moreSettings = SettingsLayout.CreateCompactCollapsibleSection("更多识别设置");
+        _cmbFallbackPolicy = SettingsLayout.CreateComboBox();
+        _cmbFallbackPolicy.HorizontalAlignment = HorizontalAlignment.Right;
+        _cmbFallbackPolicy.Items.Add(new ComboBoxItem { Content = "改用 Windows 本地", Tag = true });
+        _cmbFallbackPolicy.Items.Add(new ComboBoxItem { Content = "停止并提示错误", Tag = false });
+        _fallbackRow = new Border
+        {
+            BorderBrush = (System.Windows.Media.Brush)FindResource("SettingsRowLineBrush"),
+            BorderThickness = new Thickness(0, 1, 0, 0),
+            SnapsToDevicePixels = true,
+            Child = SettingsLayout.CreateInlineField("识别失败时", _cmbFallbackPolicy)
+        };
+        moreSettings.content.Children.Add(_fallbackRow);
+
         _cmbLocalLanguage = SettingsLayout.CreateComboBox();
+        _cmbLocalLanguage.HorizontalAlignment = HorizontalAlignment.Right;
         _cmbLocalLanguage.Items.Add(new ComboBoxItem { Content = "自动", Tag = "auto" });
         foreach (var (tag, displayName) in WindowsOcrService.GetAvailableLanguages())
         {
             _installedLanguages.Add(tag);
             _cmbLocalLanguage.Items.Add(new ComboBoxItem { Content = displayName, Tag = tag });
         }
-        _languageHint = SettingsLayout.CreateHint("其他语言可在 Windows 设置 → 语言中安装。");
-        localContent.Children.Add(SettingsLayout.CreateInlineFieldWithHint("识别语言", _cmbLocalLanguage, _languageHint, isLast: true));
-        _localSection = SettingsLayout.CreateSection(localContent);
-        Children.Add(_localSection);
+        _languageHint = SettingsLayout.CreateHint(string.Empty);
+        _languageHint.Visibility = Visibility.Collapsed;
+        _localSection = SettingsLayout.CreateInlineFieldWithHint("Windows 识别语言", _cmbLocalLanguage, _languageHint);
+        moreSettings.content.Children.Add(_localSection);
+        Children.Add(moreSettings.section);
 
         _cmbProvider.SelectionChanged += (_, _) => UpdateState();
         _cmbFallbackPolicy.SelectionChanged += (_, _) => UpdateState();
@@ -79,16 +99,25 @@ public class OcrSettingsPanel : StackPanel
         var provider = SelectedProvider;
         var configured = provider switch
         {
-            OcrProvider.Tencent => accounts.Tencent.IsConfigured,
+            OcrProvider.Tencent => accounts.ResolveTencentOcr().IsConfigured,
             OcrProvider.AI => accounts.ResolveVision().IsConfigured,
             _ => true
         };
         _accountNote.Visibility = configured ? Visibility.Collapsed : Visibility.Visible;
-        if (_accountNote.Inlines.FirstInline is System.Windows.Documents.Run text)
-            text.Text = provider == OcrProvider.Tencent ? "腾讯云账号尚未配置。" : "AI 视觉模型尚未配置。";
+        SettingsLayout.SetSectionNoteText(_accountNote,
+            provider == OcrProvider.Tencent ? "腾讯云 OCR尚未填写完整。" : "AI 文字识别尚未填写完整。");
         _fallbackRow.Visibility = provider == OcrProvider.WindowsLocal ? Visibility.Collapsed : Visibility.Visible;
-        _localSection.Visibility = provider == OcrProvider.WindowsLocal || (_cmbFallbackPolicy.SelectedItem as ComboBoxItem)?.Tag is true
-            ? Visibility.Visible : Visibility.Collapsed;
+        _localSection.Visibility = Visibility.Visible;
+        _modelRow.Visibility = provider == OcrProvider.AI ? Visibility.Visible : Visibility.Collapsed;
+        var model = accounts.AiVision.Model ?? string.Empty;
+        SettingsLayout.SetFieldButtonLabel(_modelButton, model.Length == 0 ? "选择模型" : AiServiceSettingsSection.DisplayModelName(model));
+        SettingsLayout.SetTextHelp((TextBlock)_modelButton.Tag, model, _modelButton);
+        SettingsLayout.SetFieldHelp(_cmbProvider, provider switch
+        {
+            OcrProvider.Tencent => "截图翻译也会发送选区图片；失败后改用 Windows 本地。",
+            OcrProvider.AI => "截图翻译仍使用 Windows 本地识别。",
+            _ => string.Empty
+        });
     }
 
     private void UpdateLanguageHint()
@@ -97,8 +126,9 @@ public class OcrSettingsPanel : StackPanel
             && !_installedLanguages.Contains(language);
         _languageHint.Text = unavailable
             ? "此语言未安装，请在 Windows 设置 → 语言中安装，或选择其他语言。"
-            : "其他语言可在 Windows 设置 → 语言中安装。";
-        _languageHint.Foreground = (System.Windows.Media.Brush)FindResource(unavailable ? "ErrorBrush" : "TextSecondaryBrush");
+            : string.Empty;
+        _languageHint.Visibility = unavailable ? Visibility.Visible : Visibility.Collapsed;
+        _languageHint.Foreground = (System.Windows.Media.Brush)FindResource("SettingsErrorBrush");
     }
 
     // Preserve a saved language missing on this computer; changing another setting must not replace it.
@@ -150,6 +180,8 @@ public class OcrSettingsPanel : StackPanel
             return false;
         _configManager.Update(current =>
         {
+            if (current.Ocr.Provider != provider)
+                current.Translation.ScreenshotOcrMigrationPending = false;
             current.Ocr.Provider = provider;
             current.Ocr.FallbackToLocal = fallback;
             current.Ocr.LocalLanguage = language;

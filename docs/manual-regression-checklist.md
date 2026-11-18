@@ -18,16 +18,18 @@ Run this checklist on Windows 10/11 after a release build. Record the OS version
 
 ## Settings
 
-- [ ] Open all five pages at 710×560 and 640×480, including 125%, 150%, and 200% display scaling; verify labels, status, and actions remain reachable without horizontal scrolling.
+- [ ] Open all five pages at 660×560 and 600×480, including 125%, 150%, and 200% display scaling; verify the top tabs, labels, status, and actions remain reachable without horizontal scrolling. Verify every directional chevron uses the same 12 DIP frame.
 - [ ] Record a duplicate or externally occupied hotkey; verify the original value is restored and the affected fields retain the error until edited.
-- [ ] Select “不限时间” in Clipboard; verify the quantity limit remains visible and favorites are excluded from both cleanup rules.
+- [ ] Verify Clipboard shows recording and the history count limit in one list, with no age-based cleanup setting. Reopen a custom saved count and verify it is preserved. Records older than 30 days remain within the count limit; excess oldest records are cleared and favorites are exempt. Hover the count control to see “保留越多，越占硬盘空间，搜索也可能变慢。”.
 - [ ] Type an excluded app name slowly, pause, then finish it; verify it remains a draft until Add, Enter, focus loss, or leaving the page. Paste multiple names, remove one, and reopen the page to verify persistence and deduplication.
-- [ ] Follow missing-account links from OCR and Translation; verify the correct account expands and Return restores the originating page and its choices.
-- [ ] Expand/collapse each account with mouse and keyboard; verify collapsed controls cannot receive focus. Check shared vision credentials and independent credentials.
-- [ ] Select preset and custom AI platforms; verify preset URLs are supplied, custom URLs remain editable, and the effective URL appears only when normalized or invalid.
+- [ ] Follow missing-account and model links from OCR and Translation; verify the correct account expands. Return through the originating tab and verify saved choices remain.
+- [ ] Expand/collapse each account with mouse and keyboard; verify only one account detail is open and collapsed controls cannot receive focus. Verify Tencent and AI accounts are independent by default; compatible explicit reuse follows source changes, keeps models independent, prevents cycles, and restores the target draft when removed.
+- [ ] Clear or invalidate the source of a reused account; verify the relationship remains with a visible error and no silent switch to the hidden independent draft.
+- [ ] Select preset and custom AI platforms; verify preset URLs are supplied, custom URLs remain editable, and the effective URL tooltip appears only when the entered URL is changed by normalization. Invalid URLs retain visible errors without a duplicate tooltip.
 - [ ] Test Tencent translation and OCR separately; verify each reports its own result. Change credentials during either request and verify stale results are ignored.
 - [ ] Switch between local/cloud OCR and enable/disable local fallback; verify only relevant fields appear. A saved language missing on this PC must remain selected and marked unavailable after editing another setting.
-- [ ] Switch Fast/Smart screenshot translation; verify the selected mode explains its active service and missing accounts link to the matching group.
+- [ ] Hover setting labels and blank row space; verify no tooltip opens. Hover or keyboard-focus retained controls; verify short explanations remain available. Resize long app names/account summaries and verify full text appears only when truncated; model buttons reveal raw IDs only when names differ or are truncated.
+- [ ] Switch 标准/AI 模式 screenshot translation; verify the mode control explains both modes, the language control explains their shared language, and the OCR provider control retains Tencent image-upload and AI/local rules. Missing accounts still link to the matching group.
 - [ ] Simulate a config write failure; verify Retry and Discard work after both blocked navigation and blocked closing. Resume editing and save successfully, then fail again; verify an earlier close/navigation request is not replayed.
 
 ## Screenshot and OCR
@@ -42,8 +44,8 @@ Run this checklist on Windows 10/11 after a release build. Record the OS version
 - [ ] Capture across multiple monitors with mixed DPI; verify the frozen image, selection coordinates, toolbar placement, and saved crop align.
 - [ ] Confirm a screenshot while another process temporarily occupies the clipboard; verify retry or an explicit error and no silent close.
 - [ ] Run local OCR and each configured cloud/AI OCR provider; verify result window, provider label, cancellation, and fallback behavior.
-- [ ] Run screenshot translation in Fast and Smart modes with both recognition engines (Tencent / Windows local); verify the button tooltip names the mode and clicking during a request cancels it.
-- [ ] Select Smart mode without an AI text model; verify a one-time notice and that Fast mode is used.
+- [ ] Run screenshot translation in 标准 and AI 模式 with OCR configured as Tencent / Windows local / AI; verify Tencent is followed with local fallback, AI goes directly to Windows local, and the button tooltip names the mode. Clicking during a request cancels it.
+- [ ] Select AI 模式 without AI 翻译 configured; verify a one-time notice and that 标准 mode is used.
 - [ ] Translate text on solid, gradient, and image backgrounds; verify the original text is erased without visible blocks on solid/gradient backgrounds, text color/bold/alignment/size follow the original, and holding Ctrl shows the original image.
 - [ ] Translate a long English paragraph into Chinese and vice versa; verify the translation expands right/down into free space before shrinking, and never covers other text.
 - [ ] Use a small selection, long paragraph, image background, and multi-line text; verify translation blocks remain inside the selection, text in the exported image is sharp, and annotations stay above the translation.
@@ -57,7 +59,7 @@ Run this checklist on Windows 10/11 after a release build. Record the OS version
 - [ ] Test empty input, invalid credentials, invalid endpoint, timeout, cancellation, rate limiting, and an empty provider response.
 - [ ] Change input while a request is running; verify the old result cannot overwrite the new input.
 - [ ] Verify copy, copy-and-hide, and copy-and-input, including when the original target window has closed.
-- [ ] In Service Accounts, verify AI model discovery, custom endpoint normalization, and test feedback for the Tencent account, the AI text model, and the AI vision model (with and without "same account as text model").
+- [ ] In Service Accounts, verify model discovery, custom endpoint normalization and independent test feedback for 腾讯云 OCR, 腾讯云翻译, AI 文字识别 and AI 翻译, with and without compatible explicit credential reuse. Friendly model labels must preserve raw model IDs in editors and requests.
 - [ ] With DeepSeek / OpenAI / Gemini presets, verify translation and smart screenshot translation succeed (reasoning is disabled or lowered automatically).
 
 ## Clipboard
@@ -76,7 +78,7 @@ Run this checklist on Windows 10/11 after a release build. Record the OS version
 - [ ] Close the original target window before double-click paste; verify the content remains copied and a manual-paste message appears.
 - [ ] Take a large screenshot (4K or multi-monitor) and copy it; verify no UI stutter and that images above the size limit are not written to disk.
 - [ ] Switch tabs and search rapidly through a large image history; verify no stale thumbnails appear and memory returns after closing.
-- [ ] Change retention, entry limit, and image size limit in Clipboard settings; verify old records are cleaned without restarting.
+- [ ] Change retention and entry limit in Clipboard settings; verify old records are cleaned without restarting. Verify no image-size setting appears; the encoded PNG limit remains fixed at 10×1024×1024 bytes.
 - [ ] Clear all and a category; verify favorite retention and source image/thumbnail cleanup.
 - [ ] Type a new search and immediately press Enter; verify the pasted item belongs to the new query, not the previous list.
 - [ ] Copy new content while a page is loading; verify it is not lost when the page finishes loading.
@@ -85,8 +87,10 @@ Run this checklist on Windows 10/11 after a release build. Record the OS version
 
 ## Settings and LAN transfer
 
-- [ ] Change OCR and translation providers, service accounts, fallback policy, local OCR language, screenshot recognition engine, and screenshot mode; verify debounced auto-save and that missing-account notes link to Service Accounts.
-- [ ] Start with a v1 config (OCR and translation each with their own keys); verify keys are merged into Service Accounts, `config.json.v1.bak` is created, and the migration does not run again on the next start.
+- [ ] Change OCR and translation providers, service accounts, fallback policy, local OCR language and screenshot mode; verify debounced auto-save and that missing-account notes link to the correct account.
+- [ ] Start with a v1 config (OCR and translation each with their own keys); verify both independent Tencent credentials are preserved, `config.json.v1.bak` is created, and migration does not run again. Repeat with v2: both Tencent drafts inherit the former common account, explicit AI reuse is preserved, and `config.json.v2.bak` is created.
+- [ ] Upgrade a v2 shared AI connection using a custom short base URL or a proxy under a preset platform label; verify recognition still follows the source, both raw drafts and models remain intact, and source edits take effect. New custom reuse still requires compatible complete endpoints.
+- [ ] Upgrade a v2 config that used local screenshot recognition with standalone Tencent OCR; verify screenshot translation stays local and shows the image-sending explanation. Only “跟随文字识别” or an actual OCR-provider change should activate following Tencent. Unrelated saves must keep the migration state.
 - [ ] Replace `Data\secure.key` in a test copy and open settings; verify a warning appears and saved keys are kept until re-entered.
 - [ ] Restart STool and verify all settings persist; corrupt the primary config in a test copy and verify backup recovery/default fallback.
 - [ ] Enable diagnostic logging; verify memory checkpoints and capture timing appear in the log only while enabled.
@@ -107,6 +111,11 @@ Run this checklist on Windows 10/11 after a release build. Record the OS version
 
 ## Design and accessibility regression
 
+- [ ] Compare all five settings pages with the latest `stool-magpie.html` at 660×560 and 600×480. Include OCR More settings, Tencent/AI translation, all four account editors, reuse offers, active reuse, missing sources and bottom scrolling. Ordinary lines span the list; account-detail lines stay inset by 14 DIP.
+- [ ] Switch settings tabs repeatedly and during a transition; verify the white thumb has a shadow, moves and resizes smoothly in 220ms, and only the selected label retains the selected color. Toggle switches through on/off and verify the 15 DIP knob moves inside the 32×19 track. Repeat with reduced motion enabled.
+- [ ] Tab to a hotkey without starting recording, then use Enter/Space or click to record. Verify invalid/conflicting choices show one error beneath the attempted row; Esc, Tab and a blank outside click cancel. A valid capture saves once and restores global shortcuts.
+- [ ] Open settings pickers with mouse and keyboard. Up/Down/Home/End should browse without saving; Enter/click confirms; Esc closes and returns focus; Tab continues from the anchor. Scroll or change pages while open and verify menus/tooltips close. Model editors remain editable text, with their menu opened through “选择模型”.
+- [ ] Verify settings help after 450ms hover and immediately on keyboard focus, with the complete white tooltip and shadow. Select text in an account input/model and verify it remains readable; reveal/hide a key without losing the reveal button's focus.
 - [ ] At each tool window's minimum size, verify the primary action, search, language selector and result actions remain visible. Repeat on displays at 100%, 150% and 200% scale, including moving between monitors.
 - [ ] Translate successfully, then edit the source: verify the old result is marked stale and all copy/paste actions are disabled. Translate again to restore them.
 - [ ] Simulate a failed translation: verify the error is outside the result text, retry is available, and neither copy nor paste can export the error. With an unconfigured provider, verify the service-account link opens the account settings page.
@@ -114,7 +123,8 @@ Run this checklist on Windows 10/11 after a release build. Record the OS version
 - [ ] Change settings repeatedly: verify inline pending/saved feedback, with no repeated success Toasts. Test failure messages stay visible and do not claim a successful save.
 - [ ] Make a disposable config unwritable, edit a field, then switch pages or close Settings; verify the draft remains, retry is available, and navigation/close succeeds after write access is restored.
 - [ ] Use UI Automation or a screen reader to toggle settings; verify each change persists once and dependent fields update. Verify hidden and revealed key inputs announce their field label.
-- [ ] Change credentials or the shared vision account while fetching models; verify old responses and errors cannot update the current account.
+- [ ] Change credentials or a reused account source while fetching models; verify old responses and errors cannot update the current account.
+- [ ] Collapse or leave an account while fetching models or testing AI/Tencent; verify immediate cancellation and button restoration. Start another request before the old response arrives and verify it cannot alter the new request or open a hidden menu. Completed test results should survive collapse and expand.
 - [ ] Use a screen reader to select translation providers, clipboard categories and transfer views; verify selected state and displayed content stay synchronized.
 - [ ] Trigger a long error Toast; verify the full message wraps within the notification, and success-test text is readable on its background.
 - [ ] On the phone, fail the first connection, restore Wi-Fi, and retry; verify an existing remembered device or QR token still connects. Invalid tokens must return to verification without a retry loop.

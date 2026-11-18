@@ -4,8 +4,6 @@ using System.Windows.Controls;
 using Application = System.Windows.Application;
 using Button = System.Windows.Controls.Button;
 using TextBox = System.Windows.Controls.TextBox;
-using ComboBox = System.Windows.Controls.ComboBox;
-using CheckBox = System.Windows.Controls.CheckBox;
 using HorizontalAlignment = System.Windows.HorizontalAlignment;
 using Path = System.Windows.Shapes.Path;
 
@@ -18,6 +16,7 @@ public class SecurePasswordField : Grid
     private readonly TextBox _txt;
     private readonly Button _btn;
     private readonly Path _iconPath;
+    private readonly TextBlock _placeholder;
     private readonly Func<string, object> _findResource;
 
     private string _realPassword = "";
@@ -30,13 +29,22 @@ public class SecurePasswordField : Grid
 
     public event EventHandler? PasswordChanged;
 
+    public string Placeholder
+    {
+        get => _placeholder.Text;
+        set => _placeholder.Text = value ?? string.Empty;
+    }
+
     public string Password
     {
         get => _realPassword;
         set
         {
-            _realPassword = value ?? "";
+            var password = value ?? "";
+            if (_realPassword == password) return;
+            _realPassword = password;
             UpdateUI();
+            PasswordChanged?.Invoke(this, EventArgs.Empty);
         }
     }
 
@@ -50,52 +58,65 @@ public class SecurePasswordField : Grid
 
         _pwd = new PasswordBox
         {
-            Style = (Style)_findResource("SunkenPasswordBox"),
+            Style = (Style)_findResource("SettingsPasswordBox"),
             Height = SettingsLayout.InputHeight,
-            FontSize = (double)_findResource("FontSizeBody"),
+            FontSize = (double)_findResource("SettingsFieldFontSize"),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(5, 3, 38, 3)
+            Padding = new Thickness(9, 0, 30, 0)
         };
 
         _txt = new TextBox
         {
-            Style = (Style)_findResource("SunkenTextBox"),
+            Style = (Style)_findResource("SettingsTextBox"),
             Height = SettingsLayout.InputHeight,
-            FontSize = (double)_findResource("FontSizeBody"),
+            FontSize = (double)_findResource("SettingsFieldFontSize"),
             HorizontalAlignment = HorizontalAlignment.Stretch,
             HorizontalContentAlignment = HorizontalAlignment.Left,
             TextAlignment = TextAlignment.Left,
-            Padding = new Thickness(5, 3, 38, 3),
+            Padding = new Thickness(9, 0, 30, 0),
             Visibility = Visibility.Collapsed
+        };
+
+        _placeholder = new TextBlock
+        {
+            FontSize = (double)_findResource("SettingsFieldFontSize"),
+            Foreground = (System.Windows.Media.Brush)_findResource("SettingsMutedBrush"),
+            Margin = new Thickness(10, 0, 31, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            IsHitTestVisible = false
         };
 
         _iconPath = new Path
         {
-            Data = (System.Windows.Media.Geometry)_findResource("IconEye"),
-            Stroke = (System.Windows.Media.Brush)_findResource("TextSecondaryBrush"),
-            StrokeThickness = 2,
+            Data = (System.Windows.Media.Geometry)_findResource("SettingsEyeGeometry"),
+            Stroke = (System.Windows.Media.Brush)_findResource("SettingsMutedBrush"),
+            StrokeThickness = 1.5,
             StrokeStartLineCap = System.Windows.Media.PenLineCap.Round,
             StrokeEndLineCap = System.Windows.Media.PenLineCap.Round,
             StrokeLineJoin = System.Windows.Media.PenLineJoin.Round,
-            Fill = (System.Windows.Media.Brush)_findResource("TransparentBrush"),
-            Stretch = System.Windows.Media.Stretch.Uniform
+            Fill = (System.Windows.Media.Brush)_findResource("TransparentBrush")
         };
+
+        var iconCanvas = new Canvas { Width = 24, Height = 24 };
+        iconCanvas.Children.Add(_iconPath);
 
         _btn = new Button
         {
-            Style = (Style)_findResource("IconButton"),
-            Width = SettingsLayout.InputHeight,
-            Height = SettingsLayout.InputHeight,
+            Style = (Style)_findResource("SettingsPasswordRevealButton"),
+            Width = 24,
+            Height = 23,
             Padding = new Thickness(0),
+            Margin = new Thickness(0, 2, 2, 0),
             HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Top,
             ToolTip = "显示密钥",
             Content = new Viewbox
             {
-                Width = 15,
-                Height = 15,
-                Child = _iconPath
+                Width = 12,
+                Height = 12,
+                Child = iconCanvas
             }
         };
 
@@ -119,6 +140,7 @@ public class SecurePasswordField : Grid
             _isSyncing = true;
             _txt.Text = _realPassword;
             _isSyncing = false;
+            UpdatePlaceholder();
             PasswordChanged?.Invoke(this, EventArgs.Empty);
         };
 
@@ -136,6 +158,7 @@ public class SecurePasswordField : Grid
                 _pwd.Password = string.IsNullOrEmpty(_realPassword) ? "" : MaskPlaceholder;
             }
             _isSyncing = false;
+            UpdatePlaceholder();
             PasswordChanged?.Invoke(this, EventArgs.Empty);
         };
 
@@ -164,6 +187,7 @@ public class SecurePasswordField : Grid
 
         Children.Add(_pwd);
         Children.Add(_txt);
+        Children.Add(_placeholder);
         Children.Add(_btn);
     }
 
@@ -178,9 +202,16 @@ public class SecurePasswordField : Grid
         UpdateRevealAccessibleName();
     }
 
-    private void UpdateRevealAccessibleName() =>
-        System.Windows.Automation.AutomationProperties.SetName(_btn,
-            $"{(_isRevealed ? "隐藏" : "显示")} {_accessibleName}");
+    private void UpdateRevealAccessibleName()
+    {
+        var action = $"{(_isRevealed ? "隐藏" : "显示")} {_accessibleName}";
+        System.Windows.Automation.AutomationProperties.SetName(_btn, action);
+        System.Windows.Automation.AutomationProperties.SetHelpText(_btn, _isRevealed ? "密钥已显示" : "密钥已隐藏");
+        _btn.ToolTip = action;
+    }
+
+    private void UpdatePlaceholder() =>
+        _placeholder.Visibility = _realPassword.Length == 0 ? Visibility.Visible : Visibility.Collapsed;
 
     internal readonly record struct MaskedEditResult(string Password, bool RestoreMask, bool ReplaceDisplay);
 
@@ -222,9 +253,7 @@ public class SecurePasswordField : Grid
             _txt.Text = _realPassword;
             _pwd.Visibility = Visibility.Collapsed;
             _txt.Visibility = Visibility.Visible;
-            _btn.ToolTip = "隐藏密钥";
-            _iconPath.Data = (System.Windows.Media.Geometry)_findResource("IconEyeOff");
-            _txt.Focus();
+            _iconPath.Data = (System.Windows.Media.Geometry)_findResource("SettingsEyeOffGeometry");
             _txt.CaretIndex = _txt.Text.Length;
         }
         else
@@ -232,9 +261,7 @@ public class SecurePasswordField : Grid
             _pwd.Password = string.IsNullOrEmpty(_realPassword) ? "" : MaskPlaceholder;
             _txt.Visibility = Visibility.Collapsed;
             _pwd.Visibility = Visibility.Visible;
-            _btn.ToolTip = "显示密钥";
-            _iconPath.Data = (System.Windows.Media.Geometry)_findResource("IconEye");
-            _pwd.Focus();
+            _iconPath.Data = (System.Windows.Media.Geometry)_findResource("SettingsEyeGeometry");
         }
         _isSyncing = false;
     }
@@ -253,5 +280,6 @@ public class SecurePasswordField : Grid
             _pwd.Password = string.IsNullOrEmpty(_realPassword) ? "" : MaskPlaceholder;
         }
         _isSyncing = false;
+        UpdatePlaceholder();
     }
 }

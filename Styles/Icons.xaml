@@ -33,4 +33,5 @@
     <PathGeometry x:Key="IconUndo2" Figures="M9 14 L4 9 L9 4 M4 9 H14.5 A5.5 5.5 0 0 1 14.5 20 H11"/>
     <PathGeometry x:Key="IconX" Figures="M18 6 L6 18 M6 6 L18 18"/>
 
+    <Geometry x:Key="IconServiceAccount">M12,2 L21,7 V17 L12,22 L3,17 V7 L12,2 Z M3,7 L12,12 L21,7 M12,12 V22</Geometry>
 </ResourceDictionary>

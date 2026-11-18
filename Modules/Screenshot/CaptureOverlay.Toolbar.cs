@@ -381,8 +381,8 @@ public partial class CaptureOverlay
     private void UpdateTranslationToolTip()
     {
         var mode = _services?.Translation.GetConfiguredScreenshotMode() == STool.Models.ScreenshotTranslationMode.Smart
-            ? "智能"
-            : "快速";
+            ? "AI 模式"
+            : "标准模式";
         btnTranslate.ToolTip = $"截图翻译（{mode}模式）";
     }
 

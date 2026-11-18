@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Input;
@@ -8,13 +9,34 @@ using Cursors = System.Windows.Input.Cursors;
 namespace STool.Core;
 
 /// <summary>
-/// 快捷键捕获输入框:点击聚焦后直接按下组合键即可自动记录(如 Ctrl+Alt+A)。
-/// 只读显示,组合键必须包含至少一个修饰键;Esc 结束捕获,Tab 正常切换焦点。
-/// 聚焦时挂起全局热键(否则常用组合会被系统级热键拦截),失焦时恢复。
-/// 输出格式与 HotkeyManager 解析一致(修饰键 + 主键,用 "+" 连接)。
+/// 快捷键录制输入框：点击后等待组合键或 F1–F24，调用方校验后结束录制。
+/// 录制期间挂起全局热键；Esc、Tab 和失焦取消，恢复原值与全局热键。
+/// Text 保留实际热键，录制占位由模板通过 IsRecording 和 RecordingText 显示。
 /// </summary>
 public class HotkeyBox : TextBox
 {
+    private static readonly DependencyPropertyKey IsRecordingPropertyKey = DependencyProperty.RegisterReadOnly(
+        nameof(IsRecording), typeof(bool), typeof(HotkeyBox), new PropertyMetadata(false));
+
+    public static readonly DependencyProperty IsRecordingProperty = IsRecordingPropertyKey.DependencyProperty;
+    public static readonly DependencyProperty RecordingTextProperty = DependencyProperty.Register(
+        nameof(RecordingText), typeof(string), typeof(HotkeyBox), new PropertyMetadata("按下快捷键…"));
+
+    public bool IsRecording => (bool)GetValue(IsRecordingProperty);
+    public string RecordingText
+    {
+        get => (string)GetValue(RecordingTextProperty);
+        set => SetValue(RecordingTextProperty, value);
+    }
+
+    public event EventHandler? HotkeyCaptured;
+    public event EventHandler? RecordingRejected;
+    public event EventHandler? RecordingStarted;
+    public event EventHandler? RecordingEnded;
+
+    private string _beforeRecording = string.Empty;
+    private Window? _recordingWindow;
+
     static HotkeyBox()
     {
         // 子类化 TextBox 需把 DefaultStyleKey 指回 TextBox,确保沿用 TextBox 的样式/模板基础设施。
@@ -25,24 +47,54 @@ public class HotkeyBox : TextBox
     {
         IsReadOnly = true;
         Cursor = Cursors.Hand;
+        Unloaded += (_, _) => StopRecording(cancel: true);
     }
 
     /// <summary>用于在录入期间挂起、结束后恢复全局热键；未设置时只做录入。</summary>
     public IAppShell? Shell { get; set; }
 
-    protected override void OnGotKeyboardFocus(KeyboardFocusChangedEventArgs e)
+    public void StartRecording()
     {
-        base.OnGotKeyboardFocus(e);
-        SelectAll();
-        // 进入捕获:挂起全局快捷键,否则按 Ctrl+Alt+A 等会被系统级热键拦截而录不进来
+        if (IsRecording) return;
+        _beforeRecording = Text;
+        SetValue(IsRecordingPropertyKey, true);
+        Select(0, 0);
+        _recordingWindow = Window.GetWindow(this);
+        _recordingWindow?.AddHandler(Mouse.PreviewMouseDownEvent,
+            new MouseButtonEventHandler(RecordingWindow_MouseDown), handledEventsToo: true);
         Shell?.SuspendHotkeys();
+        RecordingStarted?.Invoke(this, EventArgs.Empty);
+    }
+
+    public void StopRecording(bool cancel = false, bool reloadHotkeys = true)
+    {
+        if (!IsRecording) return;
+        SetValue(IsRecordingPropertyKey, false);
+        _recordingWindow?.RemoveHandler(Mouse.PreviewMouseDownEvent,
+            new MouseButtonEventHandler(RecordingWindow_MouseDown));
+        _recordingWindow = null;
+        if (cancel) Text = _beforeRecording;
+        if (reloadHotkeys) Shell?.ReloadHotkeys();
+        RecordingEnded?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void RecordingWindow_MouseDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.OriginalSource is DependencyObject source && (ReferenceEquals(source, this) || IsAncestorOf(source))) return;
+        StopRecording(cancel: true);
     }
 
     protected override void OnLostKeyboardFocus(KeyboardFocusChangedEventArgs e)
     {
         base.OnLostKeyboardFocus(e);
-        // 退出捕获:按最新配置恢复全局快捷键
-        Shell?.ReloadHotkeys();
+        StopRecording(cancel: true);
+    }
+
+    protected override void OnPreviewMouseLeftButtonDown(MouseButtonEventArgs e)
+    {
+        base.OnPreviewMouseLeftButtonDown(e);
+        Focus();
+        StartRecording();
     }
 
     protected override void OnPreviewKeyDown(KeyEventArgs e)
@@ -50,9 +102,21 @@ public class HotkeyBox : TextBox
         // Alt 组合时主键会走 SystemKey
         var key = e.Key == Key.System ? e.SystemKey : e.Key;
 
-        // 放行 Tab,保证键盘焦点可正常切换
+        if (!IsRecording)
+        {
+            if (key is Key.Enter or Key.Space)
+            {
+                StartRecording();
+                e.Handled = true;
+            }
+            else base.OnPreviewKeyDown(e);
+            return;
+        }
+
+        // Tab 取消本次录制，同时保留原生焦点导航。
         if (key == Key.Tab)
         {
+            StopRecording(cancel: true);
             base.OnPreviewKeyDown(e);
             return;
         }
@@ -62,7 +126,7 @@ public class HotkeyBox : TextBox
         // Esc 结束本次捕获(不改值)
         if (key == Key.Escape)
         {
-            Keyboard.ClearFocus();
+            StopRecording(cancel: true);
             return;
         }
 
@@ -71,13 +135,12 @@ public class HotkeyBox : TextBox
             return;
 
         var token = KeyToToken(key);
-        if (token == null)
-            return;
-
-        // 全局快捷键要求至少一个修饰键
         var mods = Keyboard.Modifiers;
-        if (mods == ModifierKeys.None)
+        if (token == null || (mods == ModifierKeys.None && (key < Key.F1 || key > Key.F24)))
+        {
+            RecordingRejected?.Invoke(this, EventArgs.Empty);
             return;
+        }
 
         var parts = new List<string>(4);
         if (mods.HasFlag(ModifierKeys.Control)) parts.Add("Ctrl");
@@ -88,6 +151,7 @@ public class HotkeyBox : TextBox
 
         Text = string.Join("+", parts);
         CaretIndex = Text.Length;
+        HotkeyCaptured?.Invoke(this, EventArgs.Empty);
     }
 
     private static bool IsModifierKey(Key key) =>

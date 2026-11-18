@@ -212,3 +212,7 @@ STool 采用单实例运行。如果已经在后台运行，再次启动会尝�
 最新稳定版：[STool v1.5.0](https://github.com/kabuda2077/STool/releases/latest)
 
 项目主页：[github.com/kabuda2077/STool](https://github.com/kabuda2077/STool)
+
+## 致谢
+
+设置界面的视觉风格参考了 [Magpie](https://github.com/yetone/magpie)，使用 STool 的 C# / WPF 控件实现。感谢该项目提供的设计参考。

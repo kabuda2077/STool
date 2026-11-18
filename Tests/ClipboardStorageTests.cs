@@ -111,16 +111,31 @@ public class ClipboardStorageTests
     }
 
     [Fact]
-    public void CleanOldEntries_ZeroRetentionKeepsOldRecords()
+    public void TrimToMaxEntries_KeepsOldRecordsWhenWithinLimit()
     {
         using var fixture = new StorageFixture();
         fixture.Storage.Add(new ClipboardItem { Id = "old", Type = ClipboardItemType.Text, TextContent = "x", CreatedAt = DateTime.Now.AddYears(-2) });
 
-        fixture.Storage.CleanOldEntries(retentionDays: 0, maxEntries: 10);
-        Assert.Single(fixture.Storage.GetRecent());
+        fixture.Storage.TrimToMaxEntries(maxEntries: 10);
 
-        fixture.Storage.CleanOldEntries(retentionDays: 30, maxEntries: 10);
-        Assert.Empty(fixture.Storage.GetRecent());
+        Assert.Equal("old", Assert.Single(fixture.Storage.GetRecent()).Id);
+    }
+
+    [Fact]
+    public void TrimToMaxEntries_DeletesOldestNonFavoritesAndExemptsFavorites()
+    {
+        using var fixture = new StorageFixture();
+        var oldest = new DateTime(2000, 1, 1, 0, 0, 0, DateTimeKind.Utc);
+        fixture.Storage.Add(new ClipboardItem { Id = "oldest", Type = ClipboardItemType.Text, TextContent = "remove", CreatedAt = oldest });
+        fixture.Storage.Add(new ClipboardItem { Id = "middle", Type = ClipboardItemType.Text, TextContent = "keep", CreatedAt = oldest.AddDays(1) });
+        fixture.Storage.Add(new ClipboardItem { Id = "newest", Type = ClipboardItemType.Text, TextContent = "keep", CreatedAt = oldest.AddDays(2) });
+        fixture.Storage.Add(new ClipboardItem { Id = "favorite-older", Type = ClipboardItemType.Text, TextContent = "keep", CreatedAt = oldest.AddDays(-2), IsFavorite = true });
+        fixture.Storage.Add(new ClipboardItem { Id = "favorite-newer", Type = ClipboardItemType.Text, TextContent = "keep", CreatedAt = oldest.AddDays(-1), IsFavorite = true });
+
+        fixture.Storage.TrimToMaxEntries(maxEntries: 2);
+
+        Assert.Equal(new[] { "newest", "middle", "favorite-newer", "favorite-older" }, fixture.Storage.GetRecent().Select(item => item.Id));
+        Assert.Null(fixture.Storage.GetById("oldest"));
     }
 
     [Fact]

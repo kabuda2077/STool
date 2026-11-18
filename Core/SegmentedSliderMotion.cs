@@ -13,7 +13,10 @@ internal static class SegmentedSliderMotion
         ScaleTransform scale,
         double targetX,
         double targetWidth,
-        bool animate)
+        bool animate,
+        Duration? duration = null,
+        KeySpline? keySpline = null,
+        bool animateLayoutWidth = false)
     {
         if (!IsUsable(targetX) || !IsUsable(targetWidth) || targetWidth <= 0)
         {
@@ -36,10 +39,11 @@ internal static class SegmentedSliderMotion
 
         translate.BeginAnimation(TranslateTransform.XProperty, null);
         scale.BeginAnimation(ScaleTransform.ScaleXProperty, null);
+        slider.BeginAnimation(FrameworkElement.WidthProperty, null);
 
         slider.Width = targetWidth;
         translate.X = currentX;
-        scale.ScaleX = currentVisualWidth / targetWidth;
+        scale.ScaleX = animateLayoutWidth ? 1 : currentVisualWidth / targetWidth;
 
         if (!animate || MotionSettings.ShouldReduceMotion)
         {
@@ -48,26 +52,41 @@ internal static class SegmentedSliderMotion
             return;
         }
 
-        var xAnimation = new DoubleAnimation(currentX, targetX, MotionSettings.StateDuration)
-        {
-            EasingFunction = MotionSettings.SoftEaseOut,
-            FillBehavior = FillBehavior.HoldEnd
-        };
-
-        var scaleAnimation = new DoubleAnimation(scale.ScaleX, 1, MotionSettings.StateDuration)
-        {
-            EasingFunction = MotionSettings.SoftEaseOut,
-            FillBehavior = FillBehavior.HoldEnd
-        };
-
         translate.BeginAnimation(
             TranslateTransform.XProperty,
-            xAnimation,
+            CreateAnimation(currentX, targetX, duration, keySpline),
             HandoffBehavior.SnapshotAndReplace);
-        scale.BeginAnimation(
-            ScaleTransform.ScaleXProperty,
-            scaleAnimation,
-            HandoffBehavior.SnapshotAndReplace);
+        if (animateLayoutWidth)
+        {
+            slider.BeginAnimation(FrameworkElement.WidthProperty,
+                CreateAnimation(currentVisualWidth, targetWidth, duration, keySpline),
+                HandoffBehavior.SnapshotAndReplace);
+        }
+        else
+        {
+            scale.BeginAnimation(ScaleTransform.ScaleXProperty,
+                CreateAnimation(scale.ScaleX, 1, duration, keySpline),
+                HandoffBehavior.SnapshotAndReplace);
+        }
+    }
+
+    private static DoubleAnimationBase CreateAnimation(double from, double to, Duration? duration, KeySpline? keySpline)
+    {
+        if (keySpline == null)
+            return new DoubleAnimation(from, to, duration ?? MotionSettings.StateDuration)
+            {
+                EasingFunction = MotionSettings.SoftEaseOut,
+                FillBehavior = FillBehavior.HoldEnd
+            };
+
+        var animation = new DoubleAnimationUsingKeyFrames
+        {
+            Duration = duration ?? MotionSettings.StateDuration,
+            FillBehavior = FillBehavior.HoldEnd
+        };
+        animation.KeyFrames.Add(new DiscreteDoubleKeyFrame(from, KeyTime.FromTimeSpan(TimeSpan.Zero)));
+        animation.KeyFrames.Add(new SplineDoubleKeyFrame(to, KeyTime.FromPercent(1), keySpline));
+        return animation;
     }
 
     private static bool IsUsable(double value)

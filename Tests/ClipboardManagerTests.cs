@@ -226,31 +226,35 @@ public class ClipboardManagerTests
     public void ProcessCapture_StopsOversizedPngWithoutWritingAFileOrRecord()
     {
         using var fixture = new ManagerFixture();
-        fixture.Settings.MaxImageSizeKB = 1;
 
-        var item = fixture.Manager.ProcessCapture(NoiseImage(), fixture.Settings);
+        var item = fixture.Manager.ProcessCapture(NoiseImage(1920), fixture.Settings);
 
         Assert.Null(item);
         Assert.Empty(fixture.Manager.Query(new ClipboardQuery()));
         Assert.Empty(Directory.GetFiles(fixture.ImagesDirectory));
     }
 
-    [Theory]
-    [InlineData(1024)]
-    [InlineData(0)]
-    [InlineData(-1)]
-    public void ProcessCapture_SavesPngWithinLimitOrWithLimitDisabled(int limitKB)
+    [Fact]
+    public void ProcessCapture_SavesPngAboveFormerDefaultAndWithinTenMegabytes()
     {
         using var fixture = new ManagerFixture();
-        fixture.Settings.MaxImageSizeKB = limitKB;
 
-        var item = fixture.Manager.ProcessCapture(NoiseImage(), fixture.Settings);
+        var item = fixture.Manager.ProcessCapture(NoiseImage(1600), fixture.Settings);
 
         Assert.NotNull(item);
         var path = Assert.Single(Directory.GetFiles(fixture.ImagesDirectory));
         Assert.Equal(new FileInfo(path).Length, item.ImageBytes);
-        Assert.True(item.ImageBytes > 1024);
+        Assert.InRange(item.ImageBytes, 5L * 1024 * 1024 + 1, 10L * 1024 * 1024);
         Assert.Single(fixture.Manager.Query(new ClipboardQuery(ClipboardItemType.Image)));
+    }
+
+    [Fact]
+    public void PngEncoding_StopsAtTenMegabytesWithoutGrowingOutputPastLimit()
+    {
+        using var destination = new MemoryStream();
+
+        Assert.False(ClipboardManager.TryEncodePng(NoiseImage(1920).Image!, destination, ClipboardManager.MaxEncodedImageBytes));
+        Assert.InRange(destination.Length, 1, 10L * 1024 * 1024);
     }
 
     [Fact]
@@ -260,10 +264,10 @@ public class ClipboardManagerTests
         Assert.ThrowsAny<Exception>(() => ClipboardManager.TryEncodePng(NoiseImage().Image!, destination, long.MaxValue));
     }
 
-    private static ClipboardCapture NoiseImage()
+    private static ClipboardCapture NoiseImage(int size = 192)
     {
-        const int width = 192;
-        const int height = 192;
+        var width = size;
+        var height = size;
         var pixels = new byte[width * height * 4];
         new Random(421).NextBytes(pixels);
         for (var index = 3; index < pixels.Length; index += 4)
